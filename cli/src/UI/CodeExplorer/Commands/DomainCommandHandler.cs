@@ -82,7 +82,7 @@ public static class DomainCommandHandler
 
                     try
                     {
-                        DomainManagementService.AssignServiceDomain(wsRoot, opts.Target.Trim(), opts.Domain.Trim(), opts.Context, dbClient);
+                        await DomainManagementService.AssignServiceDomainAsync(wsRoot, opts.Target.Trim(), opts.Domain.Trim(), opts.Context, dbClient);
                         Console.ForegroundColor = ConsoleColor.Green;
                         Console.WriteLine($"✓ Assigned service '{opts.Target}' to domain '{opts.Domain}'" +
                             (string.IsNullOrWhiteSpace(opts.Context) ? "" : $" (bounded context: '{opts.Context}')") + ".");

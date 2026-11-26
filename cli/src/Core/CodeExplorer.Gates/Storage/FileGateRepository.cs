@@ -42,14 +42,16 @@ public class FileGateRepository : IGateRepository
                     {
                         if (gatesById.TryGetValue(gate.Id, out var existing))
                         {
-                            Console.Error.WriteLine($"[Gate Warning] Duplicate gate ID '{gate.Id}' found in '{relFile}' (overriding earlier gate from '{existing.Source}').");
+                            var dupMsg = $"[Gate Warning] Duplicate gate ID '{gate.Id}' found in '{relFile}' (overriding earlier gate from '{existing.Source}').";
+                            System.Diagnostics.Trace.TraceWarning(dupMsg);
                         }
                         gatesById[gate.Id] = gate;
                     }
                 }
                 catch (Exception ex)
                 {
-                    Console.Error.WriteLine($"[Gate Warning] Failed to load gate from '{relFile}': {ex.Message}");
+                    var loadMsg = $"[Gate Warning] Failed to load gate from '{relFile}': {ex.Message}";
+                    System.Diagnostics.Trace.TraceWarning(loadMsg);
                 }
             }
         }
@@ -82,7 +84,8 @@ public class FileGateRepository : IGateRepository
         catch (Exception ex)
         {
             var relPath = Path.GetRelativePath(_workspacePath, baselinePath).Replace('\\', '/');
-            Console.Error.WriteLine($"[Gate Warning] Failed to load baseline from '{relPath}': {ex.Message}");
+            var warnMsg = $"[Gate Warning] Failed to load baseline from '{relPath}': {ex.Message}";
+            System.Diagnostics.Trace.TraceWarning(warnMsg);
             return null;
         }
     }

@@ -12,9 +12,19 @@ public static class CypherSecurityValidator
     private static readonly HashSet<CypherToken> MutatingTokens =
         [.. CypherTokenizer.MutatingKeywords];
 
+    private static readonly TimeSpan RegexTimeout = TimeSpan.FromMilliseconds(250);
+
     private static readonly Regex FallbackMutatingRegex =
         new(@"\b(CREATE|DELETE|SET|MERGE|REMOVE|DROP|DETACH|ALTER|TRUNCATE)\b",
-            RegexOptions.IgnoreCase | RegexOptions.Compiled);
+            RegexOptions.IgnoreCase | RegexOptions.Compiled, RegexTimeout);
+
+    private static readonly Regex SingleLineCommentRegex = new(@"//.*", RegexOptions.Compiled, RegexTimeout);
+    private static readonly Regex BlockCommentRegex = new(@"/\*[\s\S]*?\*/", RegexOptions.Compiled, RegexTimeout);
+    private static readonly Regex SingleQuotedStringRegex = new(@"(?s)'(?:[^'\\]|\\.|'')*'", RegexOptions.Compiled, RegexTimeout);
+    private static readonly Regex DoubleQuotedStringRegex = new(@"(?s)""(?:[^""\\]|\\.|"""")*""", RegexOptions.Compiled, RegexTimeout);
+    private static readonly Regex BacktickIdentifierRegex = new(@"`[^`]+`", RegexOptions.Compiled, RegexTimeout);
+    private static readonly Regex PropertyAccessRegex = new(@"\.\s*[a-zA-Z0-9_]+", RegexOptions.Compiled, RegexTimeout);
+    private static readonly Regex LabelPrefixRegex = new(@":\s*[a-zA-Z0-9_]+", RegexOptions.Compiled, RegexTimeout);
 
     /// <summary>
     /// Validates that the query is strictly a read-only query.
@@ -61,16 +71,16 @@ public static class CypherSecurityValidator
     private static string StripStringsAndComments(string text)
     {
         // Remove single-line comments // ...
-        var noComments = Regex.Replace(text, @"//.*", "");
+        var noComments = SingleLineCommentRegex.Replace(text, "");
         // Remove block comments /* ... */
-        noComments = Regex.Replace(noComments, @"/\*[\s\S]*?\*/", "");
+        noComments = BlockCommentRegex.Replace(noComments, "");
         // Remove string literals '...' and "..." (supporting multiline and escaped quotes \' and '')
-        var noStrings = Regex.Replace(noComments, @"(?s)'(?:[^'\\]|\\.|'')*'", "");
-        noStrings = Regex.Replace(noStrings, @"(?s)""(?:[^""\\]|\\.|"""")*""", "");
+        var noStrings = SingleQuotedStringRegex.Replace(noComments, "");
+        noStrings = DoubleQuotedStringRegex.Replace(noStrings, "");
         // Remove backtick identifiers `...`
-        var noBackticks = Regex.Replace(noStrings, @"`[^`]+`", "");
+        var noBackticks = BacktickIdentifierRegex.Replace(noStrings, "");
         // Strip property access (e.g. .set, .merge) and labels (e.g. :Set) so non-mutating tokens are not flagged
-        var noProps = Regex.Replace(noBackticks, @"\.\s*[a-zA-Z0-9_]+", "");
-        return Regex.Replace(noProps, @":\s*[a-zA-Z0-9_]+", "");
+        var noProps = PropertyAccessRegex.Replace(noBackticks, "");
+        return LabelPrefixRegex.Replace(noProps, "");
     }
 }

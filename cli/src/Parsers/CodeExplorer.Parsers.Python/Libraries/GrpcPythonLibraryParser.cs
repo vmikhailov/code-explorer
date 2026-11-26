@@ -9,7 +9,8 @@ namespace CodeExplorer.Parsers.Python.Libraries;
 
 public class GrpcPythonLibraryParser : DeclarativeSemanticExtension
 {
-    private static readonly ConcurrentDictionary<string, (Dictionary<string, string> ClassToService, Dictionary<string, string> VarToService)> FileMapCache = new();
+    private sealed record GrpcPythonFileMaps(Dictionary<string, string> ClassToService, Dictionary<string, string> VarToService);
+    private static readonly System.Runtime.CompilerServices.ConditionalWeakTable<Node, GrpcPythonFileMaps> FileMapCache = new();
     private static readonly Regex ServicerInheritanceRegex = new(@"(?:[A-Za-z0-9_]+\.)?([A-Za-z0-9_]+?)Servicer\b", RegexOptions.Compiled);
     private static readonly Regex AddServicerRegex = new(@"(?:[A-Za-z0-9_]+\.)?add_([A-Za-z0-9_]+?)Servicer_to_server\b", RegexOptions.Compiled);
     private static readonly Regex StubConstructorRegex = new(@"(?:[A-Za-z0-9_]+\.)?([A-Za-z0-9_]+?)Stub\b", RegexOptions.Compiled);
@@ -112,10 +113,11 @@ public class GrpcPythonLibraryParser : DeclarativeSemanticExtension
         }
 
         var root = GetFileRoot(node);
-        var rootKey = !string.IsNullOrEmpty(node.Document?.FilePath)
-            ? node.Document.FilePath
-            : ((root as SyntaxDocument)?.FilePath ?? System.Runtime.CompilerServices.RuntimeHelpers.GetHashCode(root).ToString());
-        var (classToService, _) = FileMapCache.GetOrAdd(rootKey, _ => BuildFileMaps(root));
+        var (classToService, _) = FileMapCache.GetValue(root, static r =>
+        {
+            var (c, v) = BuildFileMaps(r);
+            return new GrpcPythonFileMaps(c, v);
+        });
 
         if (classToService.TryGetValue(className, out var mappedService))
         {
@@ -165,10 +167,11 @@ public class GrpcPythonLibraryParser : DeclarativeSemanticExtension
 
         // 2. Look up variable in file map cache
         var root = GetFileRoot(node);
-        var rootKey = !string.IsNullOrEmpty(node.Document?.FilePath)
-            ? node.Document.FilePath
-            : ((root as SyntaxDocument)?.FilePath ?? System.Runtime.CompilerServices.RuntimeHelpers.GetHashCode(root).ToString());
-        var (_, varToService) = FileMapCache.GetOrAdd(rootKey, _ => BuildFileMaps(root));
+        var (_, varToService) = FileMapCache.GetValue(root, static r =>
+        {
+            var (c, v) = BuildFileMaps(r);
+            return new GrpcPythonFileMaps(c, v);
+        });
 
         if (varToService.TryGetValue(objText, out var mappedService))
         {

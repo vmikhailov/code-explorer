@@ -65,19 +65,9 @@ public class DubboXmlParser : IFileParser
             return false;
         }
 
-        string? text = null;
-        if (!PhysicalFileStore.TryGetFileText(filePath, out text) && File.Exists(filePath))
+        if (!PhysicalFileStore.TryGetFileText(filePath, out var text) || string.IsNullOrEmpty(text))
         {
-            try
-            {
-                using var fs = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
-                using var sr = new StreamReader(fs);
-                text = sr.ReadToEnd();
-            }
-            catch
-            {
-                // Ignore file access errors
-            }
+            return false;
         }
 
         if (!string.IsNullOrEmpty(text))

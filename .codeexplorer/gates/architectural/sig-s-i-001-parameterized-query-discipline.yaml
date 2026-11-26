@@ -1,0 +1,30 @@
+id: SIG-S-I-001
+category: Architectural
+platform: agnostic
+scope: Service
+dimension: Rules
+name: "Parameterized Query Discipline (No Manual Quote Escaping)"
+severity: Error
+description: "Storage and analysis query builders must bind runtime values via parameterized query bindings ($param / @param) rather than manually escaping quotes with .Replace(\"'\", \"''\") or ad-hoc EscapeSql helpers, which bypasses query parameterization and busts Cypher AST parse caches."
+remediation: "Pass runtime filter strings via query parameters (Dictionary<string, object?> for Cypher or SqliteParameter for SQL) instead of interpolating quote-escaped strings."
+message: "Function '{fn.name}' manually escapes SQL/Cypher quotes at {location}; use parameterized query bindings instead."
+thresholds:
+  warning: 1
+  error: 1
+query: |
+  MATCH (fn:Function)-[:PASSES_LITERAL]->(lit:CallLiteral)
+  WHERE NOT coalesce(fn.is_test, false)
+    AND (
+      fn.file_path STARTS WITH 'cli/src/Core/CodeExplorer.Storage/'
+      OR fn.file_path STARTS WITH 'cli/src/Core/CodeExplorer.Analysis/'
+    )
+    AND lit.callee ENDS WITH '.Replace'
+    AND lit.value = "''"
+  RETURN DISTINCT
+    fn.file_path AS file,
+    lit.line AS line,
+    fn.name AS symbol,
+    lit.callee AS target,
+    'Manual quote escaping via ' + lit.callee + ' in ' + fn.name + '; use parameterized query bindings instead' AS message
+ratchet:
+  enabled: false

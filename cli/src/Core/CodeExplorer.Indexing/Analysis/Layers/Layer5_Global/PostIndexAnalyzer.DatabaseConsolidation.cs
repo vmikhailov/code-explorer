@@ -67,7 +67,7 @@ public partial class PostIndexAnalyzer
                 return false;
             }
             if (NestedSqlParser.IsSqlKeyword(trimmedPart)) return false;
-            if (!Regex.IsMatch(trimmedPart, @"^[a-zA-Z_][a-zA-Z0-9_\*]*$")) return false;
+            if (!ValidTablePartRegex.IsMatch(trimmedPart)) return false;
         }
 
         var tableName = parts[^1].Trim('`', '"', '\'', '[', ']').Trim().ToLowerInvariant();
@@ -171,8 +171,13 @@ public partial class PostIndexAnalyzer
         {
             return false;
         }
-        return Regex.IsMatch(clean, @"^[a-zA-Z_][a-zA-Z0-9_-]*$");
+        return ValidSchemaIdRegex.IsMatch(clean);
     }
+
+    private static readonly TimeSpan DbRegexTimeout = TimeSpan.FromMilliseconds(250);
+    private static readonly Regex ValidTablePartRegex = new(@"^[a-zA-Z_][a-zA-Z0-9_\*]*$", RegexOptions.Compiled, DbRegexTimeout);
+    private static readonly Regex ValidSchemaIdRegex = new(@"^[a-zA-Z_][a-zA-Z0-9_-]*$", RegexOptions.Compiled, DbRegexTimeout);
+    private static readonly Regex SchemaKeySanitizerRegex = new(@"[^a-z0-9_-]", RegexOptions.Compiled, DbRegexTimeout);
 
     public static (string CanonicalName, string CanonicalType, string CanonicalKey) CanonicalizeDatabase(
         string rawName,
@@ -217,7 +222,7 @@ public partial class PostIndexAnalyzer
                 schemaPart = "main";
             }
 
-            var schemaClean = Regex.Replace(schemaPart.ToLowerInvariant(), @"[^a-z0-9_-]", "_").Trim('_');
+            var schemaClean = SchemaKeySanitizerRegex.Replace(schemaPart.ToLowerInvariant(), "_").Trim('_');
             if (string.IsNullOrEmpty(schemaClean))
             {
                 schemaClean = GetDefaultSchemaForEngine(techName, techType);
@@ -255,7 +260,7 @@ public partial class PostIndexAnalyzer
                 schemaPart = "main";
             }
 
-            var schemaClean = Regex.Replace(schemaPart.ToLowerInvariant(), @"[^a-z0-9_-]", "_").Trim('_');
+            var schemaClean = SchemaKeySanitizerRegex.Replace(schemaPart.ToLowerInvariant(), "_").Trim('_');
             if (string.IsNullOrEmpty(schemaClean)) schemaClean = GetDefaultSchemaForEngine(techName, techType);
             return ($"{techName}.{schemaPart}", techType, $"{techKey}:{schemaClean}");
         }
@@ -266,7 +271,7 @@ public partial class PostIndexAnalyzer
         {
             var (techName, techType, techKey) = CanonicalizeTechnologyOnly(effectiveRawEngine, type);
             var defaultSchema = GetDefaultSchemaForEngine(techName, techType);
-            var schemaClean = Regex.Replace(defaultSchema.ToLowerInvariant(), @"[^a-z0-9_-]", "_").Trim('_');
+            var schemaClean = SchemaKeySanitizerRegex.Replace(defaultSchema.ToLowerInvariant(), "_").Trim('_');
             return ($"{techName}.{defaultSchema}", techType, $"{techKey}:{schemaClean}");
         }
 
@@ -300,7 +305,7 @@ public partial class PostIndexAnalyzer
                     schemaPart = "main";
                 }
 
-                var schemaClean = Regex.Replace(schemaPart.ToLowerInvariant(), @"[^a-z0-9_-]", "_").Trim('_');
+                var schemaClean = SchemaKeySanitizerRegex.Replace(schemaPart.ToLowerInvariant(), "_").Trim('_');
                 if (string.IsNullOrEmpty(schemaClean)) schemaClean = GetDefaultSchemaForEngine(techName, techType);
                 return ($"{techName}.{schemaPart}", techType, $"{techKey}:{schemaClean}");
             }
@@ -405,7 +410,7 @@ public partial class PostIndexAnalyzer
                     return ("Redis", "cache", "redis");
                 }
                 var normName = ResourceReconciliationService.NormalizeResourceName(trimmed, type);
-                var canonicalKey = Regex.Replace(normName.ToLowerInvariant(), @"[^a-z0-9_-]", "_").Trim('_');
+                var canonicalKey = SchemaKeySanitizerRegex.Replace(normName.ToLowerInvariant(), "_").Trim('_');
                 if (string.IsNullOrEmpty(canonicalKey)) canonicalKey = "db";
                 return (normName, type, canonicalKey);
         }

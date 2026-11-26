@@ -322,11 +322,12 @@ public class IdentifierSearchEngine
             : minScore;
 
         var matches = new List<IdentifierMatch>(exactMatches);
-        var selectSql = candidateNodeIds.Count > 0 && candidateNodeIds.Count < 200
+        var useCandidateFilter = candidateNodeIds.Count > 0 && candidateNodeIds.Count < 200;
+        var selectSql = useCandidateFilter
             ? $"""
                SELECT node_id, name, full_name, kind, path, start_line, embedding
                FROM identifier_index
-               WHERE node_id IN ({string.Join(",", candidateNodeIds.Select(id => $"'{EscapeSql(id)}'"))})
+               WHERE node_id IN ({string.Join(",", Enumerable.Range(0, candidateNodeIds.Count).Select(i => $"@cid{i}"))})
                  AND (@kind IS NULL OR kind = @kind);
                """
             : """
@@ -338,6 +339,14 @@ public class IdentifierSearchEngine
         await using var scoreCmd = conn.CreateCommand();
         scoreCmd.CommandText = selectSql;
         scoreCmd.Parameters.AddWithValue(ParamFilterKind, (object?)kindFilter ?? DBNull.Value);
+        if (useCandidateFilter)
+        {
+            var idx = 0;
+            foreach (var cid in candidateNodeIds)
+            {
+                scoreCmd.Parameters.AddWithValue($"@cid{idx++}", cid);
+            }
+        }
 
         await using var scoreReader = await scoreCmd.ExecuteReaderAsync(ct);
         while (await scoreReader.ReadAsync(ct))
@@ -426,6 +435,4 @@ public class IdentifierSearchEngine
 
         return wasRootedUnix ? normalized : normalized.TrimStart('/');
     }
-
-    private static string EscapeSql(string value) => value.Replace("'", "''");
 }

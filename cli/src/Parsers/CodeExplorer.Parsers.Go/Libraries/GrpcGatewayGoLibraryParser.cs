@@ -21,7 +21,7 @@ public class GrpcGatewayGoLibraryParser : DeclarativeSemanticExtension
         "GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS", "HEAD"
     };
 
-    private static readonly ConcurrentDictionary<string, Dictionary<string, (string Route, string Service, string Method)>> PatternCache = new();
+    private static readonly System.Runtime.CompilerServices.ConditionalWeakTable<Node, Dictionary<string, (string Route, string Service, string Method)>> PatternCache = new();
 
     public GrpcGatewayGoLibraryParser()
     {
@@ -102,11 +102,7 @@ public class GrpcGatewayGoLibraryParser : DeclarativeSemanticExtension
         }
 
         var root = GetFileRoot(node);
-        var rootKey = !string.IsNullOrEmpty(node.Document?.FilePath)
-            ? node.Document.FilePath
-            : ((root as SyntaxDocument)?.FilePath ?? System.Runtime.CompilerServices.RuntimeHelpers.GetHashCode(root).ToString());
-
-        var cache = PatternCache.GetOrAdd(rootKey, _ => ScanPatternsInFile(root));
+        var cache = PatternCache.GetValue(root, static r => ScanPatternsInFile(r));
 
         if (cache.TryGetValue(patternArg, out var info))
         {

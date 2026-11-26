@@ -899,7 +899,6 @@ export const App: React.FC = () => {
               `Handshake successful: server v${resp.serverVersion}, nodes=${resp.totalNodes}, edges=${resp.totalEdges}, schemaOutdated=${resp.isSchemaOutdated}, isScanning=${resp.isScanning}`
             );
             setGraphStats({ totalNodes: resp.totalNodes, totalEdges: resp.totalEdges, serverVersion: resp.serverVersion });
-            console.log(`Connected to CodeExplorer ${resp.serverVersion}`);
 
             if (resp.isScanning) {
               setIsScanning(true);

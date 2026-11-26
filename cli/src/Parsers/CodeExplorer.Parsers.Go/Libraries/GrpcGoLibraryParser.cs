@@ -55,7 +55,7 @@ public class GrpcGoLibraryParser : DeclarativeSemanticExtension
 
     private const string ResultFieldName = "result";
     private const string ReceiverFieldName = "receiver";
-    private static readonly ConcurrentDictionary<string, Dictionary<string, string>> ReceiverToServiceMapCache = new();
+    private static readonly System.Runtime.CompilerServices.ConditionalWeakTable<Node, Dictionary<string, string>> ReceiverToServiceMapCache = new();
     private static readonly Regex StreamServerRegex = new(@"(?:[A-Za-z0-9_]+\.)?([A-Za-z0-9_]+)_[A-Za-z0-9_]+Server\b", RegexOptions.Compiled);
     private static readonly Regex RequestTypeRegex = new(@"([A-Za-z0-9_]+)\.([A-Za-z0-9_]+)(?:Request|Query)\b", RegexOptions.Compiled);
     private static readonly Regex UnimplementedServerRegex = new(@"(?:[A-Za-z0-9_]+\.)?(?:Unimplemented)?([A-Za-z0-9_]+)Server", RegexOptions.Compiled);
@@ -195,10 +195,7 @@ public class GrpcGoLibraryParser : DeclarativeSemanticExtension
 
         // Look up receiver struct mapping from file AST cache
         var root = GetFileRoot(node);
-        var rootKey = !string.IsNullOrEmpty(node.Document?.FilePath)
-            ? node.Document.FilePath
-            : ((root as SyntaxDocument)?.FilePath ?? System.Runtime.CompilerServices.RuntimeHelpers.GetHashCode(root).ToString());
-        var map = ReceiverToServiceMapCache.GetOrAdd(rootKey, _ => BuildReceiverMap(root));
+        var map = ReceiverToServiceMapCache.GetValue(root, static r => BuildReceiverMap(r));
 
         // Check HealthCheck special-case
         if (paramTypes.Any(p => p.Contains("HealthCheckRequest") || p.Contains("Health_WatchServer")))

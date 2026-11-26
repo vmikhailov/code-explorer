@@ -1,0 +1,24 @@
+id: SIG-C-R-002
+category: Architectural
+platform: agnostic
+scope: Class
+dimension: Resources
+name: "Bounded Scoped Parser and View Caches"
+severity: Error
+description: "Semantic library extensions (Parsers/*/Libraries/*) and read-model view engines (Analysis/Services/*ViewEngine*) must not hold unbounded ConcurrentDictionary caches as class fields, which leak memory and return stale results across incremental rescans in long-lived server/MCP hosts."
+remediation: "Use ConditionalWeakTable<SyntaxDocument, T> / ConditionalWeakTable<ParsingContext, T> for scan-scoped parser caches, or a bounded LRU cache abstraction for read-model view engines."
+message: "Class '{t.name}' holds unbounded ConcurrentDictionary field '{m.name}' ({m.data_type}); replace with a scan-scoped ConditionalWeakTable or bounded cache."
+thresholds:
+  warning: 1
+  error: 1
+query: |
+  MATCH (t:Type)-[:HAS_MEMBER]->(m:Member)
+  WHERE NOT coalesce(t.is_test, false)
+    AND coalesce(m.data_type, '') CONTAINS 'ConcurrentDictionary'
+    AND (
+      (t.file_path STARTS WITH 'cli/src/Parsers/' AND t.file_path CONTAINS '/Libraries/' AND t.name ENDS WITH 'Parser')
+      OR (t.file_path STARTS WITH 'cli/src/Core/CodeExplorer.Analysis/Analysis/Services/' AND t.name ENDS WITH 'ViewEngine')
+    )
+  RETURN t, m
+ratchet:
+  enabled: false

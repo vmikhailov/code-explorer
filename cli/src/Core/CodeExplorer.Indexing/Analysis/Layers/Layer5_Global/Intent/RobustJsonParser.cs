@@ -52,6 +52,12 @@ public static class RobustJsonParser
         }
     }
 
+    private static readonly TimeSpan JsonHealRegexTimeout = TimeSpan.FromMilliseconds(250);
+    private static readonly Regex ThinkTagRegex = new(@"<think>[\s\S]*?(?:</think>|$)", RegexOptions.IgnoreCase | RegexOptions.Compiled, JsonHealRegexTimeout);
+    private static readonly Regex CodeFenceRegex = new(@"```(?:json)?\s*([\s\S]*?)\s*```", RegexOptions.IgnoreCase | RegexOptions.Compiled, JsonHealRegexTimeout);
+    private static readonly Regex TrailingCommaBeforeCloseRegex = new(@",\s*([}\]])", RegexOptions.Compiled, JsonHealRegexTimeout);
+    private static readonly Regex TrailingCommaAtEndRegex = new(@",\s*$", RegexOptions.Compiled, JsonHealRegexTimeout);
+
     public static string CleanAndHealJson(string input)
     {
         if (string.IsNullOrWhiteSpace(input))
@@ -60,10 +66,10 @@ public static class RobustJsonParser
         var text = input.Trim();
 
         // 1. Strip reasoning/thinking tags (e.g. <think>...</think> or unclosed <think>...)
-        text = Regex.Replace(text, @"<think>[\s\S]*?(?:</think>|$)", "", RegexOptions.IgnoreCase).Trim();
+        text = ThinkTagRegex.Replace(text, "").Trim();
 
         // 2. Strip Markdown code fences: ```json ... ``` or ``` ... ```
-        var fenceMatch = Regex.Match(text, @"```(?:json)?\s*([\s\S]*?)\s*```", RegexOptions.IgnoreCase);
+        var fenceMatch = CodeFenceRegex.Match(text);
         if (fenceMatch.Success)
         {
             text = fenceMatch.Groups[1].Value.Trim();
@@ -111,7 +117,7 @@ public static class RobustJsonParser
         text = StripJsonComments(text);
 
         // 5. Remove trailing commas before closing braces/brackets: , \s* } -> }
-        text = Regex.Replace(text, @",\s*([}\]])", "$1");
+        text = TrailingCommaBeforeCloseRegex.Replace(text, "$1");
 
         // 6. Heal truncated JSON: ensure balanced quotes, braces, and brackets
         text = HealTruncation(text, openChar, closeChar);
@@ -241,7 +247,7 @@ public static class RobustJsonParser
         }
 
         var current = sb.ToString();
-        current = Regex.Replace(current, @",\s*$", "");
+        current = TrailingCommaAtEndRegex.Replace(current, "");
         sb = new StringBuilder(current);
 
         while (stack.Count > 0)

@@ -552,6 +552,29 @@ public partial class Layer2ProjectParser
             }
         }
 
+        // 4b. go.mod module declarations (so Layer 5 resolves Go internal imports without filesystem IO)
+        foreach (var (relManifestPath, (manifestPath, _, _, _)) in ctx.DiscoveredManifestFiles)
+        {
+            if (!Path.GetFileName(manifestPath).Equals("go.mod", StringComparison.OrdinalIgnoreCase)) continue;
+            var lines = PhysicalFileStore.ReadLines(manifestPath);
+            foreach (var line in lines)
+            {
+                var trimmed = line.Trim();
+                if (trimmed.StartsWith("module ", StringComparison.Ordinal))
+                {
+                    var modName = trimmed["module ".Length..].Trim();
+                    if (!string.IsNullOrEmpty(modName))
+                    {
+                        var normPath = relManifestPath.Replace('\\', '/');
+                        var slashIdx = normPath.LastIndexOf('/');
+                        var relDir = slashIdx > 0 ? normPath[..slashIdx] : ".";
+                        ctx.WorkspaceGoModules.TryAdd(modName, relDir);
+                    }
+                    break;
+                }
+            }
+        }
+
         // 5. Pre-compute project database drivers from Layer 1/2 manifests & packages
         PopulateProjectDatabaseDrivers(projects, dependencies, ctx);
     }

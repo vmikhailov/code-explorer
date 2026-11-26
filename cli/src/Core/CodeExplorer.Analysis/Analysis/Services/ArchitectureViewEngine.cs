@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Text.RegularExpressions;
 using CodeExplorer.Core.Protocol;
 using CodeExplorer.Cypher.Common;
 using Microsoft.Extensions.Logging;
@@ -34,7 +35,89 @@ public class ArchitectureViewRequest
 /// </summary>
 public partial class ArchitectureViewEngine(IGraphClient db, Microsoft.Extensions.Logging.ILogger? logger = null)
 {
-    private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, GraphDataDto> SystemContextCache = new();
+    private sealed class BoundedViewCache<TValue>(int maxEntries)
+    {
+        private readonly object _gate = new();
+        private readonly Dictionary<string, LinkedListNode<(string Key, TValue Value)>> _map = new(StringComparer.Ordinal);
+        private readonly LinkedList<(string Key, TValue Value)> _lru = new();
+
+        public bool TryGetValue(string key, out TValue value)
+        {
+            lock (_gate)
+            {
+                if (_map.TryGetValue(key, out var node))
+                {
+                    _lru.Remove(node);
+                    _lru.AddFirst(node);
+                    value = node.Value.Value;
+                    return true;
+                }
+            }
+            value = default!;
+            return false;
+        }
+
+        public void Set(string key, TValue value)
+        {
+            lock (_gate)
+            {
+                if (_map.TryGetValue(key, out var existing))
+                {
+                    _lru.Remove(existing);
+                }
+                else if (_map.Count >= maxEntries && _lru.Last != null)
+                {
+                    var oldest = _lru.Last;
+                    _lru.RemoveLast();
+                    _map.Remove(oldest.Value.Key);
+                }
+
+                var added = _lru.AddFirst((key, value));
+                _map[key] = added;
+            }
+        }
+
+        public void Clear()
+        {
+            lock (_gate)
+            {
+                _map.Clear();
+                _lru.Clear();
+            }
+        }
+
+        public void RemoveByPrefix(string prefix)
+        {
+            lock (_gate)
+            {
+                var node = _lru.First;
+                while (node != null)
+                {
+                    var next = node.Next;
+                    if (node.Value.Key.StartWithIC(prefix))
+                    {
+                        _lru.Remove(node);
+                        _map.Remove(node.Value.Key);
+                    }
+                    node = next;
+                }
+            }
+        }
+    }
+
+    private static readonly TimeSpan ViewRegexTimeout = TimeSpan.FromMilliseconds(250);
+    private static readonly Regex CamelCaseSplitRegex = new("([a-z])([A-Z])", RegexOptions.Compiled, ViewRegexTimeout);
+    private static readonly Regex WindowsDrivePrefixRegex = new(@"^[a-zA-Z]:[/]", RegexOptions.Compiled, ViewRegexTimeout);
+    private static readonly Regex WindowsDriveSegmentRegex = new(@"^[a-zA-Z]:$", RegexOptions.Compiled, ViewRegexTimeout);
+    private static readonly Regex SafeKindRegex = new("^[A-Za-z0-9_]+$", RegexOptions.Compiled, ViewRegexTimeout);
+    private static readonly Regex EnvPrefixRegex = new(@"^(environment\.|env\.)", RegexOptions.IgnoreCase | RegexOptions.Compiled, ViewRegexTimeout);
+    private static readonly Regex ConfigEnvPrefixRegex = new(@"^(environment\.|env\.|config\.|base_url_)", RegexOptions.IgnoreCase | RegexOptions.Compiled, ViewRegexTimeout);
+    private static readonly Regex MermaidBaseNameSanitizerRegex = new(@"[^\w\.\-]", RegexOptions.Compiled, ViewRegexTimeout);
+    private static readonly Regex MermaidSlugSanitizerRegex = new(@"[^a-z0-9_]", RegexOptions.Compiled, ViewRegexTimeout);
+    private static readonly Regex MermaidIdSanitizerRegex = new(@"[^a-zA-Z0-9_]", RegexOptions.Compiled, ViewRegexTimeout);
+
+    private const int MaxCachedSystemContextViews = 64;
+    private static readonly BoundedViewCache<GraphDataDto> SystemContextCache = new(MaxCachedSystemContextViews);
 
     static ArchitectureViewEngine()
     {
@@ -59,14 +142,7 @@ public partial class ArchitectureViewEngine(IGraphClient db, Microsoft.Extension
             return;
         }
 
-        var prefix = dbPath + ":";
-        foreach (var key in SystemContextCache.Keys)
-        {
-            if (key.StartWithIC(prefix))
-            {
-                SystemContextCache.TryRemove(key, out _);
-            }
-        }
+        SystemContextCache.RemoveByPrefix(dbPath + ":");
     }
 
     private string ResolveDbCachePrefix()

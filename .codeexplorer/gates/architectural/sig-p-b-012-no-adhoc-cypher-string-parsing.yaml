@@ -1,0 +1,28 @@
+id: SIG-P-B-012
+category: Architectural
+platform: agnostic
+scope: Module
+dimension: Boundaries
+name: "No Ad-Hoc Cypher Clause String Parsing Outside Cypher Parser"
+severity: Error
+description: "Transport, server, and analysis layers must parse Cypher queries through CodeExplorer.Cypher.Parser.CypherQueryParser rather than hand-rolled LastIndexOf('RETURN') / Split(',') string hacks, which break on string literals, nested function calls, and multiline clauses."
+remediation: "Call CypherQueryParser.Parse(cypher) and inspect the parsed AST (e.g. ReturnClause.Items) instead of splitting raw Cypher strings."
+message: "Ad-hoc Cypher clause string parsing in '{fn.name}' via '{lit.callee}' at {location}; use CypherQueryParser.Parse instead."
+thresholds:
+  warning: 1
+  error: 1
+query: |
+  MATCH (fn:Function)-[:PASSES_LITERAL]->(lit:CallLiteral)
+  WHERE NOT coalesce(fn.is_test, false)
+    AND fn.file_path STARTS WITH 'cli/src/'
+    AND NOT fn.file_path STARTS WITH 'cli/src/Cypher/'
+    AND lit.callee ENDS WITH 'LastIndexOf'
+    AND lit.value IN ['RETURN', ' AS ']
+  RETURN DISTINCT
+    fn.file_path AS file,
+    lit.line AS line,
+    fn.name AS symbol,
+    lit.callee + '(' + lit.value + ')' AS target,
+    'Ad-hoc Cypher string parsing via ' + lit.callee + ' in ' + fn.name + '; use CypherQueryParser.Parse instead' AS message
+ratchet:
+  enabled: false

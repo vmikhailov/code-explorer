@@ -1,0 +1,26 @@
+id: SIG-M-R-002
+category: Platform
+platform: dotnet
+scope: Method
+dimension: Resources
+name: "No Sync-Over-Async Blocking in Storage and Analysis"
+severity: Error
+description: "Synchronous methods in CodeExplorer.Storage and CodeExplorer.Analysis must not invoke *Async methods via .GetAwaiter().GetResult(), .Wait(), or .Result, which risks thread-pool starvation and deadlocks under ASP.NET Core and MCP server hosts."
+remediation: "Convert the caller to async/await end-to-end, or use synchronous native SQLite commands directly when implementing synchronous IDisposable.Dispose()."
+message: "Synchronous method '{caller.name}' invokes async method '{callee.name}' at {location} (sync-over-async hazard)."
+thresholds:
+  warning: 1
+  error: 1
+query: |
+  MATCH (caller:Function)-[r:CALLS]->(callee:Function)
+  WHERE NOT coalesce(caller.is_test, false)
+    AND (
+      caller.file_path STARTS WITH 'cli/src/Core/CodeExplorer.Storage/'
+      OR caller.file_path STARTS WITH 'cli/src/Core/CodeExplorer.Analysis/'
+    )
+    AND NOT coalesce(caller.is_async, false)
+    AND NOT caller.name ENDS WITH 'Async'
+    AND callee.name ENDS WITH 'Async'
+  RETURN caller, r, callee
+ratchet:
+  enabled: false

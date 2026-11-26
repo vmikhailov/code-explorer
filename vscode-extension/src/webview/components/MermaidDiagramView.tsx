@@ -38,7 +38,7 @@ export const MermaidDiagramView: React.FC<MermaidDiagramViewProps> = ({
     mermaid.initialize({
       startOnLoad: false,
       theme: 'dark',
-      securityLevel: 'loose',
+      securityLevel: 'strict',
       fontFamily: 'var(--vscode-font-family, sans-serif)',
       flowchart: {
         useMaxWidth: false,

@@ -181,27 +181,6 @@ public sealed partial class NativeIntentPredictor : IIntentPredictor
                 _ = ex.Message;
             }
         }
-        else if (RuntimeInformation.IsOSPlatform(OSPlatform.FreeBSD))
-        {
-            try
-            {
-                foreach (var line in Array.Empty<string>())
-                {
-                    if (line.StartWithIC("MemTotal:"))
-                    {
-                        var parts = line.Split([' ', '\t'], StringSplitOptions.RemoveEmptyEntries);
-                        if (parts.Length >= 2 && ulong.TryParse(parts[1], out var kb) && kb > 0)
-                        {
-                            return kb * 1024UL;
-                        }
-                    }
-                }
-            }
-            catch (Exception ex)
-            {
-                _ = ex.Message;
-            }
-        }
 
         return (ulong)Math.Max(1, Environment.ProcessorCount) * 2UL * 1024 * 1024 * 1024;
     }

@@ -262,7 +262,7 @@ export const C1SystemContextView: React.FC<C1SystemContextViewProps> = ({
     mermaid.initialize({
       startOnLoad: false,
       theme: 'dark',
-      securityLevel: 'loose',
+      securityLevel: 'strict',
       fontFamily: 'var(--vscode-font-family, sans-serif)',
       flowchart: {
         useMaxWidth: false,

@@ -390,7 +390,7 @@ public partial class McpGraphHandler
         try
         {
             var client = await repository.ResolveClientAsync(wsRoot);
-            DomainManagementService.AssignServiceDomain(wsRoot, serviceName, domainName, boundedContext, client, cancellationToken);
+            await DomainManagementService.AssignServiceDomainAsync(wsRoot, serviceName, domainName, boundedContext, client, cancellationToken);
             return WrapResult($"Assigned service '{serviceName}' to domain '{domainName}'" +
                 (string.IsNullOrWhiteSpace(boundedContext) ? "" : $" (context: '{boundedContext}')") + ".");
         }

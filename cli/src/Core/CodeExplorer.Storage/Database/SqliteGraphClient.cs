@@ -759,9 +759,11 @@ public partial class SqliteGraphClient : IGraphClient, IDisposable
         }
     }
 
+    private static readonly Regex WhitespaceCollapseRegex = new(@"\s+", RegexOptions.Compiled, TimeSpan.FromMilliseconds(250));
+
     private static string GetQueryPreview(string query)
     {
-        var singleLine = Regex.Replace(query.Trim(), @"\s+", " ");
+        var singleLine = WhitespaceCollapseRegex.Replace(query.Trim(), " ");
         return singleLine.Length > 80 ? singleLine[..77] + "..." : singleLine;
     }
 
@@ -912,14 +914,7 @@ public partial class SqliteGraphClient : IGraphClient, IDisposable
         _isDisposed = true;
         if (_isBulkLoading)
         {
-            try
-            {
-                CommitBulkLoadUnlockedAsync().GetAwaiter().GetResult();
-            }
-            catch
-            {
-                // Best effort flush on dispose
-            }
+            ResetBulkLoadStateUnlocked();
         }
         _conn.Close();
         _conn.Dispose();

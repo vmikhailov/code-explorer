@@ -383,7 +383,7 @@ public partial class ArchitectureViewEngine
             Limit = limit
         };
 
-        var safeKind = !string.IsNullOrWhiteSpace(kind) && Regex.IsMatch(kind, "^[A-Za-z0-9_]+$")
+        var safeKind = !string.IsNullOrWhiteSpace(kind) && SafeKindRegex.IsMatch(kind)
             ? kind
             : null;
 
@@ -423,6 +423,18 @@ public partial class ArchitectureViewEngine
             (safeKind.Length > 1 && safeKind.All(c => char.IsUpper(c) || c == '_' || char.IsDigit(c)))
         );
 
+        var queryParams = new Dictionary<string, object?>(StringComparer.Ordinal);
+        if (serviceId != null)
+        {
+            queryParams["serviceId"] = serviceId;
+            queryParams["serviceName"] = serviceNameResolved ?? serviceId;
+        }
+        if (!string.IsNullOrWhiteSpace(search))
+        {
+            queryParams["search"] = search;
+        }
+        var effectiveParams = queryParams.Count > 0 ? queryParams : null;
+
         if (isRel)
         {
             var relType = safeKind != null && !safeKind.StartWithIC("Layer5")
@@ -434,19 +446,19 @@ public partial class ArchitectureViewEngine
                 : "MATCH (src)-[r]->(tgt)";
 
             var sFilter = serviceId != null
-                ? $"((src.name = '{serviceNameResolved!.Replace("'", "''")}' OR src.id = '{serviceId.Replace("'", "''")}') OR (tgt.name = '{serviceNameResolved!.Replace("'", "''")}' OR tgt.id = '{serviceId.Replace("'", "''")}'))"
+                ? "((src.name = $serviceName OR src.id = $serviceId) OR (tgt.name = $serviceName OR tgt.id = $serviceId))"
                 : null;
 
             var searchRel = string.IsNullOrWhiteSpace(search)
                 ? (sFilter != null ? $"WHERE {sFilter} " : "")
                 : (sFilter != null
-                    ? $"WHERE {sFilter} AND (toLower(src.name) CONTAINS toLower('{search.Replace("'", "''")}') OR toLower(tgt.name) CONTAINS toLower('{search.Replace("'", "''")}')) "
-                    : $"WHERE toLower(src.name) CONTAINS toLower('{search.Replace("'", "''")}') OR toLower(tgt.name) CONTAINS toLower('{search.Replace("'", "''")}') ");
+                    ? $"WHERE {sFilter} AND (toLower(src.name) CONTAINS toLower($search) OR toLower(tgt.name) CONTAINS toLower($search)) "
+                    : "WHERE toLower(src.name) CONTAINS toLower($search) OR toLower(tgt.name) CONTAINS toLower($search) ");
 
             var countQuery = $"{matchRel} {searchRel}RETURN count(r) AS total";
             try
             {
-                result.Total = await db.QueryScalarAsync<long>(countQuery, null, ct);
+                result.Total = await db.QueryScalarAsync<long>(countQuery, effectiveParams, ct);
             }
             catch { }
 
@@ -454,7 +466,7 @@ public partial class ArchitectureViewEngine
 
             try
             {
-                var dataRes = await db.ExecuteCypherAsync(relDataQuery, null, ct);
+                var dataRes = await db.ExecuteCypherAsync(relDataQuery, effectiveParams, ct);
 
                 foreach (var row in dataRes.Rows)
                 {
@@ -561,36 +573,34 @@ public partial class ArchitectureViewEngine
 
         if (serviceId != null)
         {
-            var sIdEsc = serviceId.Replace("'", "''");
-            var sNameEsc = (serviceNameResolved ?? serviceId).Replace("'", "''");
             if (string.Equals(safeKind, "Endpoint", StringComparison.OrdinalIgnoreCase))
             {
-                matchClause = $"MATCH (s)-[:CONTAINS|EXPOSED_BY]-(n:Endpoint) WHERE (s.id = '{sIdEsc}' OR s.name = '{sNameEsc}')";
+                matchClause = "MATCH (s)-[:CONTAINS|EXPOSED_BY]-(n:Endpoint) WHERE (s.id = $serviceId OR s.name = $serviceName)";
             }
             else if (string.Equals(safeKind, "Database", StringComparison.OrdinalIgnoreCase))
             {
-                matchClause = $"MATCH (s)-[:USES_DB|CONTAINS]-(n:Database) WHERE (s.id = '{sIdEsc}' OR s.name = '{sNameEsc}')";
+                matchClause = "MATCH (s)-[:USES_DB|CONTAINS]-(n:Database) WHERE (s.id = $serviceId OR s.name = $serviceName)";
             }
             else if (string.Equals(safeKind, "Topic", StringComparison.OrdinalIgnoreCase))
             {
-                matchClause = $"MATCH (s)-[:PUBLISHES_TO|SUBSCRIBED_BY|SUBSCRIBES_TO|TRIGGERS]-(n:Topic) WHERE (s.id = '{sIdEsc}' OR s.name = '{sNameEsc}') AND (coalesce(n.is_internal, 'false') <> 'true' AND coalesce(n.broker_type, '') <> 'mediatr' AND coalesce(n.broker_type, '') <> 'in-memory')";
+                matchClause = "MATCH (s)-[:PUBLISHES_TO|SUBSCRIBED_BY|SUBSCRIBES_TO|TRIGGERS]-(n:Topic) WHERE (s.id = $serviceId OR s.name = $serviceName) AND (coalesce(n.is_internal, 'false') <> 'true' AND coalesce(n.broker_type, '') <> 'mediatr' AND coalesce(n.broker_type, '') <> 'in-memory')";
             }
             else if (string.Equals(safeKind, "ExternalService", StringComparison.OrdinalIgnoreCase))
             {
-                matchClause = $"MATCH (s)-[:CALLS_ENDPOINT|SERVICE_CALL|INTEGRATES_WITH]->(n) WHERE (s.id = '{sIdEsc}' OR s.name = '{sNameEsc}') AND (n:ExternalService OR n:CloudService)";
+                matchClause = "MATCH (s)-[:CALLS_ENDPOINT|SERVICE_CALL|INTEGRATES_WITH]->(n) WHERE (s.id = $serviceId OR s.name = $serviceName) AND (n:ExternalService OR n:CloudService)";
             }
             else if (string.Equals(safeKind, "Service", StringComparison.OrdinalIgnoreCase) || string.Equals(safeKind, "App", StringComparison.OrdinalIgnoreCase))
             {
-                matchClause = $"MATCH (n) WHERE (n.id = '{sIdEsc}' OR n.name = '{sNameEsc}')";
+                matchClause = "MATCH (n) WHERE (n.id = $serviceId OR n.name = $serviceName)";
             }
             else
             {
-                matchClause = $"MATCH (s)-[r]-(n) WHERE (s.id = '{sIdEsc}' OR s.name = '{sNameEsc}') AND (n:Endpoint OR n:Database OR n:Topic OR n:ExternalService OR n:CloudService OR n:File OR n:Type)";
+                matchClause = "MATCH (s)-[r]-(n) WHERE (s.id = $serviceId OR s.name = $serviceName) AND (n:Endpoint OR n:Database OR n:Topic OR n:ExternalService OR n:CloudService OR n:File OR n:Type)";
             }
 
             if (!string.IsNullOrWhiteSpace(search))
             {
-                whereClause = $"AND toLower(n.name) CONTAINS toLower('{search.Replace("'", "''")}') ";
+                whereClause = "AND toLower(n.name) CONTAINS toLower($search) ";
             }
             else
             {
@@ -607,7 +617,7 @@ public partial class ArchitectureViewEngine
             }
             else
             {
-                whereClause = $"{layerFilter} AND toLower(n.name) CONTAINS toLower('{search.Replace("'", "''")}') ";
+                whereClause = $"{layerFilter} AND toLower(n.name) CONTAINS toLower($search) ";
                 countQueryFinal = $"{matchClause} {whereClause}RETURN count(n) AS total";
             }
         }
@@ -620,14 +630,14 @@ public partial class ArchitectureViewEngine
             }
             else
             {
-                whereClause = $"WHERE toLower(n.name) CONTAINS toLower('{search.Replace("'", "''")}') ";
+                whereClause = "WHERE toLower(n.name) CONTAINS toLower($search) ";
                 countQueryFinal = $"{matchClause} {whereClause}RETURN count(n) AS total";
             }
         }
 
         try
         {
-            result.Total = await db.QueryScalarAsync<long>(countQueryFinal, null, ct);
+            result.Total = await db.QueryScalarAsync<long>(countQueryFinal, effectiveParams, ct);
         }
         catch { }
 
@@ -636,7 +646,7 @@ public partial class ArchitectureViewEngine
 
         try
         {
-            var dataRes = await db.ExecuteCypherAsync(dataQuery, null, ct);
+            var dataRes = await db.ExecuteCypherAsync(dataQuery, effectiveParams, ct);
 
             foreach (var row in dataRes.Rows)
             {

@@ -67,6 +67,8 @@ public static class SqliteCypherFunctions
         conn.CreateFunction("sqrt", (double x) => Math.Sqrt(x));
     }
 
+    private static readonly TimeSpan UserRegexTimeout = TimeSpan.FromMilliseconds(250);
+
     private static void RegisterRegexFunctions(SqliteConnection conn)
     {
         conn.CreateFunction("regexp", (string pattern, string input) =>
@@ -74,10 +76,11 @@ public static class SqliteCypherFunctions
             if (string.IsNullOrEmpty(pattern) || string.IsNullOrEmpty(input)) return 0;
             try
             {
-                return Regex.IsMatch(input, pattern) ? 1 : 0;
+                return new Regex(pattern, RegexOptions.None, UserRegexTimeout).IsMatch(input) ? 1 : 0;
             }
             catch
             {
+                // Invalid regex syntax or ReDoS timeout safely evaluates to non-match
                 return 0;
             }
         });

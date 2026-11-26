@@ -1,0 +1,37 @@
+id: SIG-M-I-006
+category: Platform
+platform: dotnet
+scope: Method
+dimension: Rules
+name: "No Inline Uncompiled Regex in Core, Cypher, Analysis and Layer 5"
+severity: Error
+description: "Storage, Cypher security/parsing, Analysis services, and Layer 5 global analyzers must not call static Regex.IsMatch/Match/Matches/Replace with inline patterns, which thrash .NET's 15-entry static regex cache and omit ReDoS match timeouts."
+remediation: "Promote constant patterns to [GeneratedRegex(..., TimeSpan)] or static readonly Regex fields with RegexOptions.Compiled and an explicit matchTimeout."
+message: "Inline static regex call '{lit.callee}' in '{fn.name}' at {location}; use a precompiled Regex with explicit timeout."
+thresholds:
+  warning: 1
+  error: 1
+query: |
+  MATCH (fn:Function)-[:PASSES_LITERAL]->(lit:CallLiteral)
+  WHERE NOT coalesce(fn.is_test, false)
+    AND (
+      fn.file_path STARTS WITH 'cli/src/Core/CodeExplorer.Storage/'
+      OR fn.file_path STARTS WITH 'cli/src/Cypher/CodeExplorer.Cypher/'
+      OR fn.file_path STARTS WITH 'cli/src/Core/CodeExplorer.Analysis/'
+      OR fn.file_path STARTS WITH 'cli/src/Core/CodeExplorer.Indexing/Analysis/Layers/Layer5_Global/'
+    )
+    AND lit.callee IN [
+      'Regex.IsMatch', 'Regex.Match', 'Regex.Matches', 'Regex.Replace',
+      'System.Text.RegularExpressions.Regex.IsMatch',
+      'System.Text.RegularExpressions.Regex.Match',
+      'System.Text.RegularExpressions.Regex.Matches',
+      'System.Text.RegularExpressions.Regex.Replace'
+    ]
+  RETURN DISTINCT
+    fn.file_path AS file,
+    lit.line AS line,
+    fn.name AS symbol,
+    lit.callee AS target,
+    'Inline static ' + lit.callee + ' in ' + fn.name + '; replace with precompiled [GeneratedRegex] or static readonly Regex with timeout' AS message
+ratchet:
+  enabled: false

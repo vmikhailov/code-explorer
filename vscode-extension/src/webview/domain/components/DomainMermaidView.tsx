@@ -47,7 +47,7 @@ export const DomainMermaidView: React.FC<DomainMermaidViewProps> = ({
     mermaid.initialize({
       startOnLoad: false,
       theme: 'dark',
-      securityLevel: 'loose',
+      securityLevel: 'strict',
       fontFamily: 'var(--vscode-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif)',
       flowchart: {
         useMaxWidth: false,

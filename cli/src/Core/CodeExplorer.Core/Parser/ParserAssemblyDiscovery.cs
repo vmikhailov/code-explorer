@@ -117,7 +117,8 @@ public static class ParserAssemblyDiscovery
         }
         catch (Exception ex)
         {
-            Console.Error.WriteLine($"[ParserAssemblyDiscovery] Warning: Failed to enumerate directory '{directory}': {ex.Message}");
+            var warningMsg = $"[ParserAssemblyDiscovery] Failed to enumerate directory '{directory}': {ex.Message}";
+            System.Diagnostics.Trace.TraceWarning(warningMsg);
             return [];
         }
     }
@@ -130,7 +131,8 @@ public static class ParserAssemblyDiscovery
         }
         catch (Exception ex)
         {
-            Console.Error.WriteLine($"[ParserAssemblyDiscovery] Warning: Could not load parser assembly '{dllPath}': {ex.Message}");
+            var warningMsg = $"[ParserAssemblyDiscovery] Could not load parser assembly '{dllPath}': {ex.Message}";
+            System.Diagnostics.Trace.TraceWarning(warningMsg);
             return null;
         }
     }
@@ -145,13 +147,15 @@ public static class ParserAssemblyDiscovery
         {
             foreach (var loaderEx in ex.LoaderExceptions.OfType<Exception>())
             {
-                Console.Error.WriteLine($"[ParserAssemblyDiscovery] Warning: Loader error in '{assembly.GetName().Name}': {loaderEx.Message}");
+                var loaderWarning = $"[ParserAssemblyDiscovery] Loader error in '{assembly.GetName().Name}': {loaderEx.Message}";
+                System.Diagnostics.Trace.TraceWarning(loaderWarning);
             }
             return ex.Types.OfType<Type>();
         }
         catch (Exception ex)
         {
-            Console.Error.WriteLine($"[ParserAssemblyDiscovery] Warning: Failed to load exported types from '{assembly.GetName().Name}': {ex.Message}");
+            var warningMsg = $"[ParserAssemblyDiscovery] Failed to load exported types from '{assembly.GetName().Name}': {ex.Message}";
+            System.Diagnostics.Trace.TraceWarning(warningMsg);
             return [];
         }
     }

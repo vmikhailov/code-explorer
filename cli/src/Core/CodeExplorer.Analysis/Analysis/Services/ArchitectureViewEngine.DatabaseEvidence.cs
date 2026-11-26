@@ -46,11 +46,14 @@ public partial class ArchitectureViewEngine
         return fromRow is > 0 ? fromRow : null;
     }
 
+    private static readonly TimeSpan SchemaMatchTimeout = TimeSpan.FromMilliseconds(250);
+
     private static bool QueryTextReferencesSchema(string? queryText, string schema)
     {
         if (string.IsNullOrWhiteSpace(queryText) || string.IsNullOrWhiteSpace(schema)) return false;
-        var pattern = $@"(?<![a-zA-Z0-9_])(?:""{Regex.Escape(schema)}""|\[{Regex.Escape(schema)}\]|`{Regex.Escape(schema)}`|\b{Regex.Escape(schema)})\s*\.\s*(?:""?[a-zA-Z0-9_]|\[|`|[a-zA-Z0-9_])";
-        return Regex.IsMatch(queryText, pattern, RegexOptions.IgnoreCase);
+        var escaped = Regex.Escape(schema);
+        var pattern = $@"(?<![a-zA-Z0-9_])(?:""{escaped}""|\[{escaped}\]|`{escaped}`|\b{escaped})\s*\.\s*(?:""?[a-zA-Z0-9_]|\[|`|[a-zA-Z0-9_])";
+        return new Regex(pattern, RegexOptions.IgnoreCase, SchemaMatchTimeout).IsMatch(queryText);
     }
     public async Task<NodeUsagesResponseDto> GetNodeUsagesAsync(string nodeId, CancellationToken ct = default)
     {

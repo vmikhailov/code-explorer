@@ -50,6 +50,8 @@ public sealed class WorkspaceConventionProfile : IWorkspaceConventions
         return _databaseAliases.TryGetValue(name, out alias!);
     }
 
+    private static readonly TimeSpan ConventionRegexTimeout = TimeSpan.FromMilliseconds(250);
+
     public bool TryMatchRouteFunction(string text, out string routeKey)
     {
         routeKey = string.Empty;
@@ -64,7 +66,7 @@ public sealed class WorkspaceConventionProfile : IWorkspaceConventions
 
         foreach (var fn in _customRouteFunctions)
         {
-            var m = Regex.Match(text, Regex.Escape(fn) + @"\s*\(\s*['""]([^'""]+)['""]");
+            var m = new Regex(Regex.Escape(fn) + @"\s*\(\s*['""]([^'""]+)['""]", RegexOptions.None, ConventionRegexTimeout).Match(text);
             if (m.Success)
             {
                 routeKey = m.Groups[1].Value;

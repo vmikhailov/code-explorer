@@ -355,7 +355,7 @@ public partial class ArchitectureViewEngine
         graph.Metadata["level"] = "C1";
         graph.Metadata["graphType"] = "architecture";
 
-        SystemContextCache[cacheKey] = graph;
+        SystemContextCache.Set(cacheKey, graph);
         return graph;
     }
 

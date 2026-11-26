@@ -814,7 +814,7 @@ public partial class Layer5AnalysisParser
                 }
                 else if (rawInit.Contains("??"))
                 {
-                    var fallbackMatch = System.Text.RegularExpressions.Regex.Match(rawInit, @"\?\?\s*['""]([^'""]+)['""]");
+                    var fallbackMatch = NullCoalescingLiteralRegex.Match(rawInit);
                     if (fallbackMatch.Success)
                     {
                         cleanVal = fallbackMatch.Groups[1].Value;

@@ -19,7 +19,7 @@ public class GrpcTypeScriptLibraryParser : DeclarativeSemanticExtension
     ];
     public override LibraryRole LibraryRole => LibraryRole.WebService;
 
-    private static readonly ConcurrentDictionary<string, Dictionary<string, string>> FileClientMapCache = new();
+    private static readonly System.Runtime.CompilerServices.ConditionalWeakTable<Node, Dictionary<string, string>> FileClientMapCache = new();
     private static readonly Regex ClientNameRegex = new(@"([A-Za-z0-9_]+?)(?:Svc|Service)?Client$", RegexOptions.Compiled);
     private static readonly Regex ServiceDefRegex = new(@"([A-Za-z0-9_]+?)(?:Service)?(?:\.service)?$", RegexOptions.Compiled);
 
@@ -121,10 +121,7 @@ public class GrpcTypeScriptLibraryParser : DeclarativeSemanticExtension
         }
 
         var root = GetFileRoot(node);
-        var rootKey = !string.IsNullOrEmpty(node.Document?.FilePath)
-            ? node.Document.FilePath
-            : ((root as SyntaxDocument)?.FilePath ?? System.Runtime.CompilerServices.RuntimeHelpers.GetHashCode(root).ToString());
-        var clientMap = FileClientMapCache.GetOrAdd(rootKey, _ => BuildFileClientMap(root));
+        var clientMap = FileClientMapCache.GetValue(root, static r => BuildFileClientMap(r));
 
         if (clientMap.TryGetValue(objText, out var mappedService))
         {

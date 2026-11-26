@@ -97,7 +97,7 @@ public partial class ArchitectureViewEngine
             };
 
             var baseName = !string.IsNullOrWhiteSpace(node.DisplayName) ? node.DisplayName : node.Name;
-            baseName = Regex.Replace(baseName ?? "", @"[^\w\.\-]", "_");
+            baseName = MermaidBaseNameSanitizerRegex.Replace(baseName ?? "", "_");
 
             var slug = baseName.ToLowerInvariant()
                 .Replace("postgresql.", "pg_")
@@ -124,7 +124,7 @@ public partial class ArchitectureViewEngine
                 .Replace("ws:lib:", "")
                 .Replace("domain:", "");
 
-            slug = Regex.Replace(slug, @"[^a-z0-9_]", "_").Trim('_');
+            slug = MermaidSlugSanitizerRegex.Replace(slug, "_").Trim('_');
             if (string.IsNullOrWhiteSpace(slug)) slug = "item";
 
             var candidate = $"{prefix}_{slug}";
@@ -139,7 +139,7 @@ public partial class ArchitectureViewEngine
 
             usedIds.Add(finalId);
             idMap[raw] = finalId;
-            idMap[Regex.Replace(raw, @"[^a-zA-Z0-9_]", "_")] = finalId;
+            idMap[MermaidIdSanitizerRegex.Replace(raw, "_")] = finalId;
         }
 
         return idMap;
@@ -151,8 +151,8 @@ public partial class ArchitectureViewEngine
         sb.AppendLine("flowchart TD");
         var idMap = BuildShortMermaidIdMap(dto.Nodes);
         var getId = (string s) => idMap.GetValueOrDefault(s) ??
-                                  idMap.GetValueOrDefault(Regex.Replace(s, @"[^a-zA-Z0-9_]", "_")) ??
-                                  Regex.Replace(s, @"[^a-zA-Z0-9_]", "_");
+                                  idMap.GetValueOrDefault(MermaidIdSanitizerRegex.Replace(s, "_")) ??
+                                  MermaidIdSanitizerRegex.Replace(s, "_");
         var esc = (string s) => s?.Replace("\"", "'") ?? "";
 
         var ingress = dto.Nodes.Where(n => n.Kind == NodeKind.Ingress).ToList();

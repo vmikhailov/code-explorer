@@ -475,8 +475,7 @@ public partial class ArchitectureViewEngine
                             else if (tgtName.StartWithIC("environment.") ||
                                      tgtName.StartWithIC("env."))
                             {
-                                var cleanSvc = Regex.Replace(tgtName, @"^(environment\.|env\.)", "",
-                                    RegexOptions.IgnoreCase);
+                                var cleanSvc = EnvPrefixRegex.Replace(tgtName, "");
 
                                 if (seenServiceSvcs.Add($"{srcSummary.ServiceName}->{cleanSvc}"))
                                 {
@@ -700,7 +699,7 @@ public partial class ArchitectureViewEngine
                         else if (tgtName.StartWithIC("environment.") ||
                                  tgtName.StartWithIC("env."))
                         {
-                            var cleanSvc = Regex.Replace(tgtName, @"^(environment\.|env\.)", "", RegexOptions.IgnoreCase);
+                            var cleanSvc = EnvPrefixRegex.Replace(tgtName, "");
                             if (seenServices.Add(cleanSvc))
                             {
                                 svcGroup.Items.Add(new ServiceCapabilityItemDto
@@ -817,7 +816,7 @@ public partial class ArchitectureViewEngine
     {
         if (string.IsNullOrWhiteSpace(nameOrDomain)) return null;
         var n = nameOrDomain.Trim();
-        var clean = Regex.Replace(n, @"^(environment\.|env\.|config\.|base_url_)", "", RegexOptions.IgnoreCase)
+        var clean = ConfigEnvPrefixRegex.Replace(n, "")
                          .Replace("-", "").Replace("_", "");
         if (clean.Length > 0 && internalProjectsByName.TryGetValue(clean, out var matched))
         {

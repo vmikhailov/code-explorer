@@ -112,9 +112,6 @@ public partial class SqliteGraphClient
         }
     }
 
-    public bool TryRunSchemaMigrator(int fromVersion, int toVersion) =>
-        TryRunSchemaMigratorAsync(fromVersion, toVersion).GetAwaiter().GetResult();
-
     public async Task<bool> TryRunSchemaMigratorAsync(int fromVersion, int toVersion, CancellationToken cancellationToken = default)
     {
         if (toVersion > CurrentSchemaVersion)

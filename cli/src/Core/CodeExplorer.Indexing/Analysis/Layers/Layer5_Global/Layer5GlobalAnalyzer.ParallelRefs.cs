@@ -163,6 +163,13 @@ public partial class Layer5AnalysisParser
         }
     }
 
+    private static readonly TimeSpan Layer5RegexTimeout = TimeSpan.FromMilliseconds(250);
+    private static readonly System.Text.RegularExpressions.Regex NullCoalescingLiteralRegex = new(@"\?\?\s*['""]([^'""]+)['""]", System.Text.RegularExpressions.RegexOptions.Compiled, Layer5RegexTimeout);
+    private static readonly System.Text.RegularExpressions.Regex AwaitKeywordRegex = new(@"\bawait\s+", System.Text.RegularExpressions.RegexOptions.IgnoreCase | System.Text.RegularExpressions.RegexOptions.Compiled, Layer5RegexTimeout);
+    private static readonly System.Text.RegularExpressions.Regex ParenInnerArgRegex = new(@"\(\s*([^,\)]+)\s*\)", System.Text.RegularExpressions.RegexOptions.Compiled, Layer5RegexTimeout);
+    private static readonly System.Text.RegularExpressions.Regex ConstantStyleTopicRegex = new(@"^[A-Z][A-Z0-9_]*$|^[A-Z][A-Za-z0-9_]*\.[A-Za-z0-9_]+$", System.Text.RegularExpressions.RegexOptions.Compiled, Layer5RegexTimeout);
+    private static readonly System.Text.RegularExpressions.Regex UpperConstTopicRegex = new(@"^[A-Z0-9_]{3,}$", System.Text.RegularExpressions.RegexOptions.Compiled, Layer5RegexTimeout);
+
     private static ImportLookups BuildImportLookups(ParsingContext ctx, Layer4Result? l4Result)
     {
         const string wildcardImportSymbol = "*";
@@ -240,7 +247,7 @@ public partial class Layer5AnalysisParser
             }
         }
 
-        Layer5GoSymbolHelper.RegisterWorkspaceGoModules(ctx.AbsoluteWorkspacePath, workspacePackages);
+        Layer5GoSymbolHelper.RegisterWorkspaceGoModules(ctx, workspacePackages);
 
         var tsConfigPaths = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         foreach (var (k, v) in ctx.TsConfigPaths) tsConfigPaths[k] = v;

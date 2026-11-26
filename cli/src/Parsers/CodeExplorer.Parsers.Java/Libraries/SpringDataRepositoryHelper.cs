@@ -68,21 +68,21 @@ internal static partial class SpringDataRepositoryHelper
     [GeneratedRegex(@"\b([A-Za-z_][A-Za-z0-9_]*)\s+([a-zA-Z_][a-zA-Z0-9_]*)\s*(?:;|,|\))", RegexOptions.Compiled)]
     private static partial Regex FieldOrParamBindingRegex();
 
-    private const int MaxCachedWorkspaces = 16;
-    private const string DefaultWorkspaceKey = "_default_";
-
-    internal static (ConcurrentDictionary<string, string> EntityToTable, ConcurrentDictionary<string, string> RepoToEntity) GetOrCreateWorkspaceMaps(
-        string? workspaceKey,
-        ConcurrentDictionary<string, (ConcurrentDictionary<string, string> EntityToTable, ConcurrentDictionary<string, string> RepoToEntity)> store)
+    internal sealed class WorkspaceEntityMaps
     {
-        var key = string.IsNullOrEmpty(workspaceKey) ? DefaultWorkspaceKey : workspaceKey;
-        if (store.Count > MaxCachedWorkspaces && !store.ContainsKey(key))
+        public ConcurrentDictionary<string, string> EntityToTable { get; } = new(StringComparer.OrdinalIgnoreCase);
+        public ConcurrentDictionary<string, string> RepoToEntity { get; } = new(StringComparer.OrdinalIgnoreCase);
+    }
+
+    internal static WorkspaceEntityMaps GetOrCreateContextMaps(
+        ParsingContext? ctx,
+        System.Runtime.CompilerServices.ConditionalWeakTable<ParsingContext, WorkspaceEntityMaps> store)
+    {
+        if (ctx == null)
         {
-            store.Clear();
+            return new WorkspaceEntityMaps();
         }
-        return store.GetOrAdd(key, static _ => (
-            new ConcurrentDictionary<string, string>(StringComparer.OrdinalIgnoreCase),
-            new ConcurrentDictionary<string, string>(StringComparer.OrdinalIgnoreCase)));
+        return store.GetValue(ctx, static _ => new WorkspaceEntityMaps());
     }
 
     internal static void DiscoverEntityTables(

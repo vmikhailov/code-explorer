@@ -730,100 +730,85 @@ public partial class WebSocketServerHandler
 
     private static List<string> ExtractReturnColumnAliases(string query)
     {
-        var rawItems = SplitReturnClauseExpressions(query);
-        var result = new List<string>(rawItems.Count);
-        foreach (var raw in rawItems)
+        try
         {
-            var asIdx = raw.LastIndexOf(" AS ", StringComparison.OrdinalIgnoreCase);
-            if (asIdx >= 0)
+            var ast = CodeExplorer.Cypher.Parser.CypherQueryParser.Parse(query);
+            var result = new List<string>(ast.Return.Items.Count);
+            foreach (var item in ast.Return.Items)
             {
-                result.Add(raw[(asIdx + 4)..].Trim());
+                if (!string.IsNullOrWhiteSpace(item.Alias))
+                {
+                    result.Add(item.Alias.Trim());
+                }
+                else if (item.Expression is CodeExplorer.Cypher.Ast.PropertyAccessExpression prop)
+                {
+                    result.Add(prop.PropertyName);
+                }
+                else if (item.Expression is CodeExplorer.Cypher.Ast.IdentifierExpression id)
+                {
+                    result.Add(id.Name);
+                }
+                else if (item.Expression is CodeExplorer.Cypher.Ast.WildcardExpression)
+                {
+                    const string wildcardColumn = "*";
+                    result.Add(wildcardColumn);
+                }
+                else if (item.Expression is CodeExplorer.Cypher.Ast.FunctionCallExpression fn)
+                {
+                    result.Add(fn.FunctionName);
+                }
             }
-            else
-            {
-                var dotIdx = raw.LastIndexOf('.');
-                result.Add(dotIdx >= 0 ? raw[(dotIdx + 1)..].Trim() : raw);
-            }
+            return result;
         }
-        return result;
+        catch
+        {
+            // Invalid Cypher syntax falls back cleanly to empty column list
+            return [];
+        }
     }
 
     private static bool ReturnsBoundNodeVariable(string query)
     {
-        foreach (var raw in SplitReturnClauseExpressions(query))
+        try
         {
-            var asIdx = raw.LastIndexOf(" AS ", StringComparison.OrdinalIgnoreCase);
-            var expr = (asIdx >= 0 ? raw[..asIdx] : raw).Trim();
-            if (expr == "*") return true;
-            if (IsBareCypherIdentifier(expr) && IsBoundInNodePattern(query, expr))
+            var ast = CodeExplorer.Cypher.Parser.CypherQueryParser.Parse(query);
+            var boundNodeVars = new HashSet<string>(StringComparer.Ordinal);
+            foreach (var match in ast.Matches)
             {
-                return true;
+                foreach (var path in match.Paths)
+                {
+                    if (!string.IsNullOrEmpty(path.Head.Variable))
+                    {
+                        boundNodeVars.Add(path.Head.Variable);
+                    }
+                    foreach (var elem in path.Chain)
+                    {
+                        if (!string.IsNullOrEmpty(elem.Target.Variable))
+                        {
+                            boundNodeVars.Add(elem.Target.Variable);
+                        }
+                    }
+                }
             }
-        }
-        return false;
-    }
 
-    private static List<string> SplitReturnClauseExpressions(string query)
-    {
-        const string kwReturn = "RETURN";
-        const string kwDistinct = "DISTINCT ";
-        var returnIdx = query.LastIndexOf(kwReturn, StringComparison.OrdinalIgnoreCase);
-        if (returnIdx < 0) return [];
-        var afterReturn = query[(returnIdx + kwReturn.Length)..].Trim();
-        if (afterReturn.StartsWith(kwDistinct, StringComparison.OrdinalIgnoreCase))
-        {
-            afterReturn = afterReturn[kwDistinct.Length..].Trim();
-        }
-        foreach (var stop in new[] { "ORDER BY", "LIMIT", "SKIP" })
-        {
-            var idx = afterReturn.IndexOf(stop, StringComparison.OrdinalIgnoreCase);
-            if (idx >= 0) afterReturn = afterReturn[..idx].Trim();
-        }
-
-        var result = new List<string>();
-        foreach (var col in afterReturn.Split(','))
-        {
-            var trimmed = col.Trim();
-            if (!string.IsNullOrEmpty(trimmed)) result.Add(trimmed);
-        }
-        return result;
-    }
-
-    private static bool IsBareCypherIdentifier(string expr)
-    {
-        if (string.IsNullOrEmpty(expr)) return false;
-        if (expr.Equals("true", StringComparison.OrdinalIgnoreCase) ||
-            expr.Equals("false", StringComparison.OrdinalIgnoreCase) ||
-            expr.Equals("null", StringComparison.OrdinalIgnoreCase))
-        {
-            return false;
-        }
-        if (!(char.IsLetter(expr[0]) || expr[0] == '_')) return false;
-        for (var i = 1; i < expr.Length; i++)
-        {
-            if (!(char.IsLetterOrDigit(expr[i]) || expr[i] == '_')) return false;
-        }
-        return true;
-    }
-
-    private static bool IsBoundInNodePattern(string query, string identifier)
-    {
-        var pos = 0;
-        while ((pos = query.IndexOf('(', pos)) >= 0)
-        {
-            var i = pos + 1;
-            while (i < query.Length && char.IsWhiteSpace(query[i])) i++;
-            if (i + identifier.Length <= query.Length &&
-                query.AsSpan(i, identifier.Length).Equals(identifier.AsSpan(), StringComparison.Ordinal))
+            foreach (var item in ast.Return.Items)
             {
-                var after = i + identifier.Length;
-                if (after == query.Length || query[after] is ':' or ')' or '{' || char.IsWhiteSpace(query[after]))
+                if (item.Expression is CodeExplorer.Cypher.Ast.WildcardExpression)
+                {
+                    return true;
+                }
+                if (item.Expression is CodeExplorer.Cypher.Ast.IdentifierExpression id &&
+                    boundNodeVars.Contains(id.Name))
                 {
                     return true;
                 }
             }
-            pos++;
+            return false;
         }
-        return false;
+        catch
+        {
+            // Invalid Cypher syntax does not return bound graph nodes
+            return false;
+        }
     }
 }

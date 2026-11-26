@@ -164,7 +164,7 @@ public class GraphContextIntegrationTests
     {
         _client.SchemaVersion.Should().Be(SqliteGraphClient.CurrentSchemaVersion);
         _client.IsSchemaOutdated.Should().BeFalse();
-        _client.TryRunSchemaMigrator(SqliteGraphClient.CurrentSchemaVersion, 999).Should().BeFalse();
+        (await _client.TryRunSchemaMigratorAsync(SqliteGraphClient.CurrentSchemaVersion, 999)).Should().BeFalse();
 
         var tempDb = Path.Combine(Path.GetTempPath(), $"ce_migration_test_{Guid.NewGuid():N}.db");
         try

@@ -828,9 +828,9 @@ public partial class Layer5AnalysisParser
             }
         }
 
-        if (topicName.Contains('(') || System.Text.RegularExpressions.Regex.IsMatch(topicName, @"\bawait\s+", System.Text.RegularExpressions.RegexOptions.IgnoreCase))
+        if (topicName.Contains('(') || AwaitKeywordRegex.IsMatch(topicName))
         {
-            var innerMatch = System.Text.RegularExpressions.Regex.Match(topicName, @"\(\s*([^,\)]+)\s*\)");
+            var innerMatch = ParenInnerArgRegex.Match(topicName);
             if (innerMatch.Success)
             {
                 var inner = innerMatch.Groups[1].Value.Trim().Trim('\'', '"', '`');
@@ -908,7 +908,7 @@ public partial class Layer5AnalysisParser
         // Only constant-style names (ORDERS_TOPIC) or PascalCase enum members (MessageQueue.emailQueue)
         // may resolve workspace-wide. A bare parameter or field such as `name` must stay within its project,
         // or it picks up an unrelated constant.
-        var isConstantStyle = System.Text.RegularExpressions.Regex.IsMatch(topicName, @"^[A-Z][A-Z0-9_]*$|^[A-Z][A-Za-z0-9_]*\.[A-Za-z0-9_]+$");
+        var isConstantStyle = ConstantStyleTopicRegex.IsMatch(topicName);
 
         if (isConstantStyle &&
             bindings.ConstantLookup.TryGetValue(topicName, out var resolvedConst) &&
@@ -923,7 +923,7 @@ public partial class Layer5AnalysisParser
         {
             topicName = regConst;
         }
-        else if (System.Text.RegularExpressions.Regex.IsMatch(topicName, @"^[A-Z0-9_]{3,}$") &&
+        else if (UpperConstTopicRegex.IsMatch(topicName) &&
                  ConstantRegistry.TryResolve(null, topicName, out globalConst) &&
                  WorkspaceConventions.IsValidTopicOrQueueName(globalConst))
         {

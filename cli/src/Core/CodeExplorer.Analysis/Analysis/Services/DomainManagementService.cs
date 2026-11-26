@@ -213,7 +213,7 @@ public static class DomainManagementService
         return true;
     }
 
-    public static void AssignServiceDomain(
+    public static async Task AssignServiceDomainAsync(
         string workspaceRoot,
         string serviceName,
         string domainName,
@@ -247,14 +247,14 @@ public static class DomainManagementService
 
             try
             {
-                db.ExecuteWriteAsync(query, new
+                await db.ExecuteWriteAsync(query, new
                 {
                     domain = cleanDom,
                     domainId,
                     domainDisplayName = displayName,
                     boundedContext = contextName ?? cleanDom,
                     serviceName = serviceName.Trim()
-                }, ct).GetAwaiter().GetResult();
+                }, ct);
             }
             catch
             {

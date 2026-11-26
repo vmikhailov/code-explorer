@@ -3,14 +3,14 @@
   "allowedViolations": 14,
   "entries": [
     {
-      "fingerprint": "a5d81e9467416901e0131d28a725dff8e4ce2c55ca78f70a27ecc0269eec5afb",
+      "fingerprint": "6a074c43bd73d1afb3885b2c03eb1c7aad9522e413459a198affc48bc96d57c5",
       "file": "vscode-extension/src/webview/App.tsx",
-      "line": 144,
+      "line": 147,
       "column": 30,
       "symbol": "App",
-      "target": "1806 lines",
-      "acknowledgedAt": "2026-10-30T00:37:45.891401+00:00",
-      "reason": "Baseline snapshot captured at 2026-10-30 00:37:45"
+      "target": "1805 lines",
+      "acknowledgedAt": "2026-11-26T01:43:21.7696111+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-26 01:43:21"
     },
     {
       "fingerprint": "15102b1a405cdd08a31e41205a2beabae835006a0a5eee9fd8be82de74409192",

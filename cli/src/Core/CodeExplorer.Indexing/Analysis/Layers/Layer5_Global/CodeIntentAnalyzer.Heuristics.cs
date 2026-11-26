@@ -6,6 +6,8 @@ namespace CodeExplorer.Core.Analysis;
 
 public static partial class CodeIntentAnalyzer
 {
+    private static readonly Regex CamelCaseTokenRegex = new("([a-z])([A-Z])", RegexOptions.Compiled, TimeSpan.FromMilliseconds(250));
+
     public static WorkspaceDomainsConfig? LoadWorkspaceDomainsConfig(string? workspacePath)
     {
         var json = WorkspaceConventions.LoadDomainsConfigJson(workspacePath);
@@ -141,7 +143,7 @@ public static partial class CodeIntentAnalyzer
 
                 var rawName = sig.Name;
                 var normalizedName = WorkspaceConventions.NormalizeServiceName(rawName);
-                var splitWords = Regex.Replace(rawName, "([a-z])([A-Z])", "$1 $2")
+                var splitWords = CamelCaseTokenRegex.Replace(rawName, "$1 $2")
                     .Split(['-', '_', '.', ' '], StringSplitOptions.RemoveEmptyEntries)
                     .Select(w => w.ToLowerInvariant())
                     .ToHashSet(StringComparer.OrdinalIgnoreCase);

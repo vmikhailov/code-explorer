@@ -146,6 +146,9 @@ public class ParsingContext
     /// <summary>TypeScript path aliases (compilerOptions.paths) extracted in Layer 2.</summary>
     public Dictionary<string, string> TsConfigPaths { get; } = new(StringComparer.OrdinalIgnoreCase);
 
+    /// <summary>Go module paths (module -> workspace-relative directory) extracted from go.mod files in Layer 2.</summary>
+    public Dictionary<string, string> WorkspaceGoModules { get; } = new(StringComparer.OrdinalIgnoreCase);
+
     private readonly IProgress<IndexingProgress>? _progress;
     private readonly object _progressLock = new();
     private readonly ILogger _logger;

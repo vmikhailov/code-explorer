@@ -216,9 +216,9 @@ public partial class ArchitectureViewEngine
         // 2. Directory structure (safe against Windows drive letters C:/ and container roots)
         if (WorkspaceConventions.DomainDetectionEnabled && !string.IsNullOrEmpty(path))
         {
-            var cleanPath = Regex.Replace(path, @"^[a-zA-Z]:[/]", "").TrimStart('/');
+            var cleanPath = WindowsDrivePrefixRegex.Replace(path, "").TrimStart('/');
             var parts = cleanPath.Split('/', StringSplitOptions.RemoveEmptyEntries)
-                            .Where(p => p != ".." && p != "." && !Regex.IsMatch(p, @"^[a-zA-Z]:$"))
+                            .Where(p => p != ".." && p != "." && !WindowsDriveSegmentRegex.IsMatch(p))
                             .ToArray();
 
             var hasFileExt = parts.Length > 0 && Path.HasExtension(parts[^1]);
@@ -963,7 +963,7 @@ public partial class ArchitectureViewEngine
         arch.Metadata["level"] = "Tiers";
         arch.Metadata["graphType"] = "tiers";
 
-        SystemContextCache[cacheKey] = arch;
+        SystemContextCache.Set(cacheKey, arch);
         return arch;
     }
 }

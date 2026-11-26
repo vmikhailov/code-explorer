@@ -956,12 +956,6 @@ public static class EndpointSemanticAnalyzer
         var cleanPath = relativePath.Replace('\\', '/').Trim('/');
         var parts = cleanPath.Split('/');
         if (parts.Length == 0) return "default";
-
-        if (parts.Length >= 2 && (parts[0] is "Core" or "Parsers" or "Tests"))
-        {
-            return parts[1];
-        }
-
         return parts[0];
     }
 

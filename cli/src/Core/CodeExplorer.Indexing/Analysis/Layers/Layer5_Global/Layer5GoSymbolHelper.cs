@@ -11,53 +11,20 @@ internal static class Layer5GoSymbolHelper
     private const char ColonChar = ':';
     private const string GoExt = ".go";
     private const string GoTestExt = "_test.go";
-    private const string GoModFileName = "go.mod";
-    private const string GoModulePrefix = "module ";
-    private const string RootDirDot = ".";
     private const string SelfKeyword = "self";
     private const string ThisKeyword = "this";
     private const string EndpointLongMarker = ":endpoint:";
 
     internal static void RegisterWorkspaceGoModules(
-        string? absoluteWorkspacePath,
+        ParsingContext ctx,
         Dictionary<string, Layer5AnalysisParser.PackageTargetInfo> workspacePackages)
     {
-        if (string.IsNullOrEmpty(absoluteWorkspacePath) || !Directory.Exists(absoluteWorkspacePath))
+        foreach (var (modName, relDir) in ctx.WorkspaceGoModules)
         {
-            return;
-        }
-
-        try
-        {
-            foreach (var goModFile in Directory.EnumerateFiles(absoluteWorkspacePath, GoModFileName, SearchOption.AllDirectories))
+            if (!string.IsNullOrEmpty(modName))
             {
-                var modDir = Path.GetDirectoryName(goModFile);
-                if (string.IsNullOrEmpty(modDir)) continue;
-                var relDir = Path.GetRelativePath(absoluteWorkspacePath, modDir).Replace(BackslashChar, SlashChar);
-                if (string.IsNullOrEmpty(relDir)) relDir = RootDirDot;
-
-                foreach (var line in File.ReadLines(goModFile))
-                {
-                    var trimmed = line.Trim();
-                    if (trimmed.StartsWith(GoModulePrefix, StringComparison.Ordinal))
-                    {
-                        var modName = trimmed[GoModulePrefix.Length..].Trim();
-                        if (!string.IsNullOrEmpty(modName))
-                        {
-                            workspacePackages.TryAdd(modName, new Layer5AnalysisParser.PackageTargetInfo(relDir, null));
-                        }
-                        break;
-                    }
-                }
+                workspacePackages.TryAdd(modName, new Layer5AnalysisParser.PackageTargetInfo(relDir, null));
             }
-        }
-        catch (IOException)
-        {
-            // Ignore inaccessible directories during workspace module discovery
-        }
-        catch (UnauthorizedAccessException)
-        {
-            // Ignore inaccessible directories during workspace module discovery
         }
     }
 

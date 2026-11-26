@@ -294,7 +294,7 @@ public partial class WebSocketServerHandler
                             await SendErrorAsync(session, reqId, "INVALID_REQUEST", "'domain' is required when setting override.", cancellationToken);
                             break;
                         }
-                        DomainManagementService.AssignServiceDomain(_workspaceRoot, overrideReq.ServiceName, overrideReq.Domain, overrideReq.Context, _graphClient, cancellationToken);
+                        await DomainManagementService.AssignServiceDomainAsync(_workspaceRoot, overrideReq.ServiceName, overrideReq.Domain, overrideReq.Context, _graphClient, cancellationToken);
                         _repository.InvalidateCache();
                         await SendResponseAsync(session, WsMessageTypes.DomainMutationResponse, reqId, new DomainMutationResponseDto
                         {
