@@ -124,14 +124,26 @@ internal sealed class ScopedDirectoryTreeNode(
     string normalizedPath,
     string relativeDir,
     bool isRoot,
+    FileInfo[] dirFiles,
     string[] filesInDir,
+    IOntologyNode fileParentNode,
+    FolderNode? folderNode,
+    GitIgnoreScopeChain gitScope,
+    bool keptForNegation,
+    bool hasManifestInDir,
     bool hasCandidateManifest)
 {
     public string DirectoryPath { get; } = directoryPath;
     public string NormalizedPath { get; } = normalizedPath;
     public string RelativeDir { get; } = relativeDir;
     public bool IsRoot { get; } = isRoot;
+    public FileInfo[] DirFiles { get; } = dirFiles;
     public string[] FilesInDir { get; } = filesInDir;
+    public IOntologyNode FileParentNode { get; } = fileParentNode;
+    public FolderNode? FolderNode { get; } = folderNode;
+    public GitIgnoreScopeChain GitScope { get; } = gitScope;
+    public bool KeptForNegation { get; } = keptForNegation;
+    public bool HasManifestInDir { get; } = hasManifestInDir;
     public bool HasCandidateManifest { get; set; } = hasCandidateManifest;
     public bool SubtreeHasCandidateManifest { get; set; } = hasCandidateManifest;
     public bool IsGitRepoRoot { get; set; }

@@ -392,6 +392,12 @@ public class PythonProjectParser : IProjectParser
 
     private static bool HasAncestorPythonProject(string directoryPath)
     {
+        if ((PhysicalFileStore.IsGitRepositoryRoot(directoryPath) && !PhysicalFileStore.HasChildGitRepositories(directoryPath)) ||
+            (PhysicalFileStore.HasAnyConfiguredProjects && PhysicalFileStore.TryGetConfiguredProject(directoryPath, out _)))
+        {
+            return false;
+        }
+
         var useCacheBound = PhysicalFileStore.HasCachedDirectory(directoryPath);
         var current = Directory.GetParent(directoryPath);
         var depth = 0;
@@ -399,6 +405,12 @@ public class PythonProjectParser : IProjectParser
         {
             depth++;
             if (useCacheBound && !PhysicalFileStore.HasCachedDirectory(current.FullName))
+            {
+                break;
+            }
+
+            if (PhysicalFileStore.HasChildGitRepositories(current.FullName) ||
+                PhysicalFileStore.HasChildConfiguredProjects(current.FullName))
             {
                 break;
             }
@@ -414,6 +426,11 @@ public class PythonProjectParser : IProjectParser
                 IsPythonContainerRoot(current.FullName, parentFiles))
             {
                 return true;
+            }
+
+            if (PhysicalFileStore.IsGitRepositoryRoot(current.FullName))
+            {
+                break;
             }
 
             current = current.Parent;

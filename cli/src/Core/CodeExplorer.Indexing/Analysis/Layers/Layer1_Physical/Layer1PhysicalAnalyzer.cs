@@ -84,8 +84,12 @@ public class Layer1PhysicalParser
                 ctx.AbsoluteWorkspacePath,
                 filesStructureNode,
                 gitTrie.RootScope,
-                inheritedProjectParsers: null,
+                tentativeInheritedParsers: null,
                 walkState);
+            if (rootTreeNode != null)
+            {
+                FinalizeScopesAndCollectFiles(rootTreeNode, inheritedParsers: null, walkState);
+            }
         }
         else
         {
@@ -97,6 +101,10 @@ public class Layer1PhysicalParser
                 gitTrie.RootScope,
                 initialParsers,
                 walkState);
+            if (rootTreeNode != null)
+            {
+                FinalizeScopesAndCollectFiles(rootTreeNode, initialParsers, walkState);
+            }
         }
 
         foreach (var taskDir in walkState.VscodeTaskDirs)
@@ -184,7 +192,7 @@ public class Layer1PhysicalParser
         string currentDir,
         IOntologyNode parentNode,
         GitIgnoreScopeChain parentGitScope,
-        IReadOnlyList<IProjectParser>? inheritedProjectParsers,
+        IReadOnlyList<IProjectParser>? tentativeInheritedParsers,
         WalkCollectorState state)
     {
         var ctx = state.Ctx;
@@ -193,18 +201,16 @@ public class Layer1PhysicalParser
         var isRoot = string.Equals(currentDir, ctx.AbsoluteWorkspacePath, StringComparison.OrdinalIgnoreCase);
         var dirName = Path.GetFileName(currentDir);
         if (string.IsNullOrEmpty(dirName)) dirName = currentDir;
-
         var relativeDir = isRoot ? string.Empty : currentDir.GetNormalizedRelativePath(ctx.AbsoluteWorkspacePath);
         if (relativeDir == ".") relativeDir = string.Empty;
 
-        if (ctx.IncrementalRelevantDirectories != null &&
-            !string.IsNullOrEmpty(relativeDir) &&
+        if (ctx.IncrementalRelevantDirectories != null && !string.IsNullOrEmpty(relativeDir) &&
             !ctx.IncrementalRelevantDirectories.Contains(relativeDir))
         {
             return null;
         }
 
-        if (!isRoot && ctx.FileFilter.IsExcludedDirectory(dirName, currentDir, inheritedProjectParsers))
+        if (!isRoot && ctx.FileFilter.IsExcludedDirectory(dirName, currentDir, tentativeInheritedParsers))
         {
             ctx.Layer1Log.SkippingExcludedDirectory(relativeDir);
             return null;
@@ -225,7 +231,6 @@ public class Layer1PhysicalParser
         Array.Sort(subDirs, static (a, b) => StringComparer.Ordinal.Compare(a.Name, b.Name));
 
         InspectSpecialEntries(dirFiles, subDirs, out var hasGitPointer, out var hasGitSubDir, out var hasVscodeSubDir, out var gitIgnorePath, out var ceIgnorePath);
-
         if (!isRoot && hasGitPointer && GitSettingsParser.IsGitWorktreeDirectory(currentDir))
         {
             ctx.Layer1Log.SkippingExcludedDirectory(relativeDir);
@@ -233,161 +238,197 @@ public class Layer1PhysicalParser
         }
 
         var isGitRepoRoot = hasGitPointer || hasGitSubDir;
-        if (isGitRepoRoot)
-        {
-            PhysicalFileStore.RegisterGitRepositoryRoot(currentDir);
-        }
+        if (isGitRepoRoot) PhysicalFileStore.RegisterGitRepositoryRoot(currentDir);
 
         var dirFilePaths = new string[dirFiles.Length];
         for (var i = 0; i < dirFiles.Length; i++) dirFilePaths[i] = dirFiles[i].FullName;
         PhysicalFileStore.SetDirectoryFiles(currentDir, dirFilePaths);
 
-        // Ask project parsers if this directory opens a new project scope (respecting parent scope!)
-        var (directNonFallbackParsers, localFallbackParsers, hasManifestInDir) = ResolveScopedParsersForDirectory(
-            currentDir, dirFiles, dirFilePaths, inheritedProjectParsers, isGitRepoRoot, ctx);
+        var effectiveInherited = !isRoot && isGitRepoRoot ? null : tentativeInheritedParsers;
+        var hasManifestInDir = HasAnyManifestFile(dirFiles, ctx.FileFilter);
+        var tentativeDirect = ctx.FileFilter.MatchDirectProjectParsers(currentDir, dirFiles, dirFilePaths, allowFallback: effectiveInherited is not { Count: > 0 });
+        var tentativeActive = tentativeDirect
+                              ?? effectiveInherited
+                              ?? ctx.FileFilter.MatchFileSupportedProjectParsers(dirFiles, includeFallback: false)
+                              ?? ctx.FileFilter.MatchFileSupportedProjectParsers(dirFiles, includeFallback: true);
 
-        var activeFileParsers = directNonFallbackParsers
-                                ?? inheritedProjectParsers
-                                ?? localFallbackParsers
-                                ?? ctx.FileFilter.MatchFileSupportedProjectParsers(dirFiles, includeFallback: false)
-                                ?? ctx.FileFilter.MatchFileSupportedProjectParsers(dirFiles, includeFallback: true);
-
-        // Compile child .gitignore / .codeexplorerignore + dialect-specific exclusions (e.g. libman.json) into GitScope
-        var dialectPatterns = NotifyParsersAndCollectIgnorePatterns(currentDir, relativeDir, dirFiles, activeFileParsers, state);
-        var activeGitScope = state.GitTrie.CompileChildScope(parentGitScope, relativeDir, gitIgnorePath, ceIgnorePath, dialectPatterns);
-
-        FolderNode? folderNode = null;
-        var currentParentNode = parentNode;
-        if (!isRoot)
-        {
-            var absoluteFolderPath = currentDir.NormalizeFullPath();
-            var folderId = $"{ctx.WorkspaceId}:{OntologyConstants.IdPrefixes.Folder}:{absoluteFolderPath}";
-            folderNode = new FolderNode(folderId, dirName, absoluteFolderPath);
-            currentParentNode = folderNode;
-            state.AllVisitedFolders.Add((folderNode, parentNode));
-
-            if (isGitRepoRoot)
-            {
-                AttachNestedGitSettingsIfPresent(currentDir, folderNode, ctx);
-            }
-        }
+        NotifyParsersAndCollectIgnorePatterns(currentDir, relativeDir, dirFiles, tentativeActive, state);
+        var activeGitScope = state.GitTrie.CompileChildScope(parentGitScope, relativeDir, gitIgnorePath, ceIgnorePath);
+        var (folderNode, currentParentNode) = CreateFolderNodeIfNonRoot(currentDir, dirName, isRoot, isGitRepoRoot, parentNode, state);
 
         if (hasVscodeSubDir && File.Exists(Path.Combine(currentDir, DotVscodeName, OntologyConstants.ManifestFields.TasksJsonFileName)))
         {
             state.VscodeTaskDirs.Add(currentDir);
         }
+        if (hasManifestInDir) state.ManifestDirectories.Add(currentDir);
 
-        var normDir = currentDir.NormalizeFullPath(trimTrailingSlash: true);
-        var hasCandidateTrigger = isGitRepoRoot || hasManifestInDir || directNonFallbackParsers != null ||
+        var hasCandidateTrigger = isGitRepoRoot || hasManifestInDir || tentativeDirect is { Count: > 0 } ||
                                   (PhysicalFileStore.HasAnyConfiguredProjects && PhysicalFileStore.TryGetConfiguredProject(currentDir, out _)) ||
                                   ProjectTriggerDetector.HasCandidateProjectTrigger(currentDir, dirFilePaths);
-
-        var treeNode = new ScopedDirectoryTreeNode(currentDir, normDir, relativeDir, isRoot, dirFilePaths, hasCandidateTrigger)
+        var treeNode = new ScopedDirectoryTreeNode(
+            currentDir, currentDir.NormalizeFullPath(trimTrailingSlash: true), relativeDir, isRoot,
+            dirFiles, dirFilePaths, currentParentNode, folderNode, activeGitScope, keptForNegation, hasManifestInDir, hasCandidateTrigger)
         {
             IsGitRepoRoot = isGitRepoRoot
         };
 
-        if (hasManifestInDir)
-        {
-            state.ManifestDirectories.Add(currentDir);
-        }
-
-        // Only non-fallback project parsers cascade down as enclosing project scope to child directories
-        var nextInheritedParsers = directNonFallbackParsers ?? inheritedProjectParsers;
-
-        // Collect files inside current directory according to active project/infra scope (remembering slice range in case container is demoted on post-order)
-        var ownedStartIdx = state.OwnedCandidates.Count;
-        var isTentativelyOwnedWithoutManifest = !hasManifestInDir && directNonFallbackParsers == null && inheritedProjectParsers == null && activeFileParsers is { Count: > 0 };
-        var localLangCounts = SubtreeLanguageCounts.FromDirectoryFiles(dirFiles, out var localHasSource);
-        CollectScopedDirectoryFiles(
-            isRoot,
-            keptForNegation,
-            dirFiles,
-            currentParentNode,
-            folderNode,
-            activeGitScope,
-            activeFileParsers,
-            state);
-
+        var totalLangCounts = SubtreeLanguageCounts.FromDirectoryFiles(dirFiles, out var hasAnySource);
         ReportDiscoveryProgressIfNeeded(dirFiles.Length, state);
 
-        // Recurse into child directories with updated GitIgnoreScopeChain & EnclosingProjectParsers
-        var totalLangCounts = localLangCounts;
-        var hasAnySource = localHasSource;
         var descendantGitRepos = 0;
-
         for (var i = 0; i < subDirs.Length; i++)
         {
-            var childNode = WalkScopedDirectory(subDirs[i].FullName, currentParentNode, activeGitScope, nextInheritedParsers, state);
-            if (childNode != null)
+            var childNode = WalkScopedDirectory(subDirs[i].FullName, currentParentNode, activeGitScope, tentativeActive, state);
+            if (childNode == null) continue;
+            treeNode.Children.Add(childNode);
+            totalLangCounts = totalLangCounts.Add(childNode.LanguageCounts);
+            hasAnySource |= childNode.HasSourceFiles;
+            descendantGitRepos += childNode.DescendantGitRepoCount + (childNode.IsGitRepoRoot ? 1 : 0);
+            if (childNode.SubtreeHasCandidateManifest)
             {
-                treeNode.Children.Add(childNode);
-                totalLangCounts = totalLangCounts.Add(childNode.LanguageCounts);
-                hasAnySource |= childNode.HasSourceFiles;
-                descendantGitRepos += childNode.DescendantGitRepoCount + (childNode.IsGitRepoRoot ? 1 : 0);
-                if (childNode.SubtreeHasCandidateManifest)
-                {
-                    treeNode.HasCandidateManifest = true;
-                    treeNode.SubtreeHasCandidateManifest = true;
-                }
+                treeNode.HasCandidateManifest = true;
+                treeNode.SubtreeHasCandidateManifest = true;
             }
         }
 
         treeNode.LanguageCounts = totalLangCounts;
         treeNode.HasSourceFiles = hasAnySource;
         treeNode.DescendantGitRepoCount = descendantGitRepos;
-
-        // Post-order container guard: if this directory had no manifest/enclosing project and wraps child git repositories,
-        // demote any loose root/container files that aren't manifests or standalone contracts
-        if (isTentativelyOwnedWithoutManifest && descendantGitRepos > 0)
-        {
-            DemoteContainerLooseFiles(ownedStartIdx, isRoot, state);
-        }
-        else if (activeFileParsers is { Count: > 0 })
-        {
-            state.HasAnyOwnedDirectory = true;
-            if (inheritedProjectParsers == null && directNonFallbackParsers == null && localFallbackParsers is { Count: > 0 })
-            {
-                state.FallbackCandidateDirectories.Add(currentDir);
-            }
-        }
-
-        if (folderNode != null && (directNonFallbackParsers is { Count: > 0 } || folderNode.Children.Count > 0))
-        {
-            state.KeptFolders.Add(folderNode);
-        }
-
         return treeNode;
     }
 
-    private static (IReadOnlyList<IProjectParser>? DirectNonFallback, IReadOnlyList<IProjectParser>? LocalFallback, bool HasManifest)
-        ResolveScopedParsersForDirectory(
-            string currentDir,
-            FileInfo[] dirFiles,
-            string[] dirFilePaths,
-            IReadOnlyList<IProjectParser>? inheritedProjectParsers,
-            bool isGitRepoRoot,
-            ParsingContext ctx)
+    private static (FolderNode? Folder, IOntologyNode CurrentParent) CreateFolderNodeIfNonRoot(
+        string currentDir,
+        string dirName,
+        bool isRoot,
+        bool isGitRepoRoot,
+        IOntologyNode parentNode,
+        WalkCollectorState state)
     {
-        var hasManifest = false;
-        for (var i = 0; i < dirFiles.Length; i++)
+        if (isRoot) return (null, parentNode);
+
+        var absoluteFolderPath = currentDir.NormalizeFullPath();
+        var folderId = $"{state.Ctx.WorkspaceId}:{OntologyConstants.IdPrefixes.Folder}:{absoluteFolderPath}";
+        var folderNode = new FolderNode(folderId, dirName, absoluteFolderPath);
+        state.AllVisitedFolders.Add((folderNode, parentNode));
+        if (isGitRepoRoot)
         {
-            if (ctx.FileFilter.IsManifestFile(dirFiles[i].Name))
+            AttachNestedGitSettingsIfPresent(currentDir, folderNode, state.Ctx);
+        }
+        return (folderNode, folderNode);
+    }
+
+    private static bool FinalizeScopesAndCollectFiles(
+        ScopedDirectoryTreeNode node,
+        IReadOnlyList<IProjectParser>? inheritedParsers,
+        WalkCollectorState state)
+    {
+        var ctx = state.Ctx;
+        var effectiveInherited = !node.IsRoot && node.IsGitRepoRoot ? null : inheritedParsers;
+        var wrapsChildProjects = node.DescendantGitRepoCount > 0 ||
+                                 PhysicalFileStore.HasChildConfiguredProjects(node.DirectoryPath);
+
+        var (directNonFallback, localFallback) = ResolveFinalDirectoryParsers(node, effectiveInherited, wrapsChildProjects, ctx);
+
+        IReadOnlyList<IProjectParser>? activeFileParsers;
+        if (wrapsChildProjects && directNonFallback is not { Count: > 0 } && effectiveInherited is not { Count: > 0 })
+        {
+            activeFileParsers = null;
+        }
+        else
+        {
+            activeFileParsers = directNonFallback
+                                ?? effectiveInherited
+                                ?? localFallback
+                                ?? ctx.FileFilter.MatchFileSupportedProjectParsers(node.DirFiles, includeFallback: false)
+                                ?? ctx.FileFilter.MatchFileSupportedProjectParsers(node.DirFiles, includeFallback: true);
+        }
+
+        if (activeFileParsers is { Count: > 0 })
+        {
+            state.HasAnyOwnedDirectory = true;
+            if (effectiveInherited is not { Count: > 0 } && directNonFallback is not { Count: > 0 } && localFallback is { Count: > 0 })
             {
-                hasManifest = true;
-                break;
+                state.FallbackCandidateDirectories.Add(node.DirectoryPath);
             }
         }
 
-        IReadOnlyList<IProjectParser>? directNonFallback = null;
-        if (inheritedProjectParsers is not { Count: > 0 } || hasManifest || isGitRepoRoot ||
-            ProjectTriggerDetector.IsPotentialManifestlessBinarySubfolder(currentDir) ||
-            (PhysicalFileStore.HasAnyConfiguredProjects && PhysicalFileStore.TryGetConfiguredProject(currentDir, out _)))
+        CollectScopedDirectoryFiles(
+            node.IsRoot,
+            node.KeptForNegation,
+            node.DirFiles,
+            node.FileParentNode,
+            node.FolderNode,
+            node.GitScope,
+            activeFileParsers,
+            state);
+
+        if (directNonFallback is { Count: > 0 } && !node.HasCandidateManifest)
         {
-            directNonFallback = ctx.FileFilter.MatchDirectProjectParsers(currentDir, dirFiles, dirFilePaths, allowFallback: false);
+            node.HasCandidateManifest = true;
+            node.SubtreeHasCandidateManifest = true;
+        }
+
+        var subtreeHasCandidate = node.SubtreeHasCandidateManifest;
+        for (var i = 0; i < node.Children.Count; i++)
+        {
+            if (FinalizeScopesAndCollectFiles(node.Children[i], activeFileParsers, state))
+            {
+                subtreeHasCandidate = true;
+            }
+        }
+
+        if (subtreeHasCandidate && !node.SubtreeHasCandidateManifest)
+        {
+            node.HasCandidateManifest = true;
+            node.SubtreeHasCandidateManifest = true;
+        }
+
+        if (node.FolderNode != null && (directNonFallback is { Count: > 0 } || node.FolderNode.Children.Count > 0))
+        {
+            state.KeptFolders.Add(node.FolderNode);
+        }
+
+        return node.SubtreeHasCandidateManifest;
+    }
+
+    private static bool HasAnyManifestFile(FileInfo[] dirFiles, WorkspaceFileFilter filter)
+    {
+        for (var i = 0; i < dirFiles.Length; i++)
+        {
+            if (filter.IsManifestFile(dirFiles[i].Name)) return true;
+        }
+        return false;
+    }
+
+    private static (IReadOnlyList<IProjectParser>? DirectNonFallback, IReadOnlyList<IProjectParser>? LocalFallback)
+        ResolveFinalDirectoryParsers(
+            ScopedDirectoryTreeNode node,
+            IReadOnlyList<IProjectParser>? inheritedProjectParsers,
+            bool wrapsChildProjects,
+            ParsingContext ctx)
+    {
+        var hasConfigured = PhysicalFileStore.HasAnyConfiguredProjects &&
+                            PhysicalFileStore.TryGetConfiguredProject(node.DirectoryPath, out _);
+
+        IReadOnlyList<IProjectParser>? directNonFallback = null;
+        var canProbeDirectNonFallback = (!wrapsChildProjects || node.HasManifestInDir || hasConfigured) &&
+                                        (inheritedProjectParsers is not { Count: > 0 } ||
+                                         node.HasManifestInDir ||
+                                         node.IsGitRepoRoot ||
+                                         hasConfigured ||
+                                         ProjectTriggerDetector.IsPotentialManifestlessBinarySubfolder(node.DirectoryPath));
+
+        if (canProbeDirectNonFallback)
+        {
+            directNonFallback = ctx.FileFilter.MatchDirectProjectParsers(
+                node.DirectoryPath,
+                node.DirFiles,
+                node.FilesInDir,
+                allowFallback: false);
             if (directNonFallback is not { Count: > 0 } &&
-                PhysicalFileStore.HasAnyConfiguredProjects &&
-                PhysicalFileStore.TryGetConfiguredProject(currentDir, out var cfgProj) &&
+                hasConfigured &&
+                PhysicalFileStore.TryGetConfiguredProject(node.DirectoryPath, out var cfgProj) &&
                 cfgProj != null)
             {
                 directNonFallback = ctx.FileFilter.ConnectedProjectParsers
@@ -399,30 +440,45 @@ public class Layer1PhysicalParser
         }
 
         IReadOnlyList<IProjectParser>? localFallback = null;
-        if (directNonFallback is not { Count: > 0 } && inheritedProjectParsers is not { Count: > 0 } && dirFiles.Length > 0)
+        if (!wrapsChildProjects &&
+            directNonFallback is not { Count: > 0 } &&
+            inheritedProjectParsers is not { Count: > 0 } &&
+            node.DirFiles.Length > 0)
         {
-            localFallback = ctx.FileFilter.MatchDirectProjectParsers(currentDir, dirFiles, dirFilePaths, allowFallback: true);
+            localFallback = ctx.FileFilter.MatchDirectProjectParsers(
+                node.DirectoryPath,
+                node.DirFiles,
+                node.FilesInDir,
+                allowFallback: true);
+            if (localFallback is not { Count: > 0 } &&
+                hasConfigured &&
+                PhysicalFileStore.TryGetConfiguredProject(node.DirectoryPath, out var fbProj) &&
+                fbProj != null)
+            {
+                localFallback = ctx.FileFilter.ConnectedProjectParsers
+                    .Where(p => string.IsNullOrEmpty(fbProj.Language) ||
+                                p.ProjectType.Equals(fbProj.Language, StringComparison.OrdinalIgnoreCase))
+                    .ToList();
+            }
         }
 
         return (directNonFallback is { Count: > 0 } ? directNonFallback : null,
-                localFallback is { Count: > 0 } ? localFallback : null,
-                hasManifest);
+                localFallback is { Count: > 0 } ? localFallback : null);
     }
 
-    private static List<string>? NotifyParsersAndCollectIgnorePatterns(
+    private static void NotifyParsersAndCollectIgnorePatterns(
         string currentDir,
         string relativeDir,
         FileInfo[] dirFiles,
         IReadOnlyList<IProjectParser>? activeFileParsers,
         WalkCollectorState state)
     {
-        if (dirFiles.Length == 0) return null;
+        if (dirFiles.Length == 0) return;
 
         var parsersToNotify = activeFileParsers is { Count: > 0 }
             ? activeFileParsers
             : state.Ctx.FileFilter.ConnectedProjectParsers;
 
-        List<string>? globalPatterns = null;
         var scratch = new List<string>();
         for (var i = 0; i < parsersToNotify.Count; i++)
         {
@@ -433,18 +489,12 @@ public class Layer1PhysicalParser
                 state.Ctx.AbsoluteWorkspacePath,
                 scratch,
                 state.Ctx.Layer1Log.DirectoryScanHookMessage);
-            if (scratch.Count > 0)
+            for (var p = 0; p < scratch.Count; p++)
             {
-                for (var p = 0; p < scratch.Count; p++)
-                {
-                    state.GitTrie.AddPattern(scratch[p]);
-                }
-                globalPatterns ??= [];
-                globalPatterns.AddRange(scratch);
+                state.GitTrie.AddPattern(scratch[p]);
             }
             parsersToNotify[i].InspectDirectoryFiles(currentDir, dirFiles, state.WorkspaceNode);
         }
-        return globalPatterns;
     }
 
     private static void CollectScopedDirectoryFiles(
@@ -520,19 +570,6 @@ public class Layer1PhysicalParser
             }
             else
             {
-                state.UnownedFallbackCandidates.Add(item);
-            }
-        }
-    }
-
-    private static void DemoteContainerLooseFiles(int ownedStartIdx, bool isRoot, WalkCollectorState state)
-    {
-        for (var i = state.OwnedCandidates.Count - 1; i >= ownedStartIdx; i--)
-        {
-            var item = state.OwnedCandidates[i];
-            if (!item.IsManifest && !WorkspaceFileFilter.IsStandaloneContractOrEnvFile(item.RelativeFile, isRoot))
-            {
-                state.OwnedCandidates.RemoveAt(i);
                 state.UnownedFallbackCandidates.Add(item);
             }
         }

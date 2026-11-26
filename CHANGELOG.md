@@ -5,6 +5,11 @@ All notable changes to the CodeExplorer project (CLI, MCP Server, and VS Code Ex
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.106.3] - 2026-11-27
+
+### Fixed
+- **Multi-Repo Container Scope Finalization & Child Repository File Preservation (`Layer1PhysicalAnalyzer`, `UnifiedWorkspaceScanPlan`, `PhpProjectParser`, `PerlProjectParser`, `PythonProjectParser`)**: Fixed a post-order candidate demotion bug in `v1.106.2` where loose scripts/files in a multi-repository umbrella root caused child repository source files collected after `ownedStartIdx` to be demoted out of `OwnedCandidates`, and deferred final project-scope resolution and candidate file collection to an $O(D)$ in-memory pass over the populated `ScopedDirectoryTreeNode` tree (`0` extra disk reads) while bounding `HasAncestor*Project` checks at `.git` repository boundaries so manifestless PHP, Perl, and Python repositories inside multi-repo workspaces preserve all source and configuration files.
+
 ## [1.106.2] - 2026-11-26
 
 ### Changed

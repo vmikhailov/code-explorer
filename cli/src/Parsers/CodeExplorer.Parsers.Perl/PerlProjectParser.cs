@@ -340,6 +340,12 @@ public class PerlProjectParser : IProjectParser
 
     private static bool HasAncestorPerlProject(string directoryPath)
     {
+        if ((PhysicalFileStore.IsGitRepositoryRoot(directoryPath) && !PhysicalFileStore.HasChildGitRepositories(directoryPath)) ||
+            (PhysicalFileStore.HasAnyConfiguredProjects && PhysicalFileStore.TryGetConfiguredProject(directoryPath, out _)))
+        {
+            return false;
+        }
+
         var useCacheBound = PhysicalFileStore.HasCachedDirectory(directoryPath);
         var current = Directory.GetParent(directoryPath);
         var depth = 0;
@@ -347,6 +353,12 @@ public class PerlProjectParser : IProjectParser
         {
             depth++;
             if (useCacheBound && !PhysicalFileStore.HasCachedDirectory(current.FullName))
+            {
+                break;
+            }
+
+            if (PhysicalFileStore.HasChildGitRepositories(current.FullName) ||
+                PhysicalFileStore.HasChildConfiguredProjects(current.FullName))
             {
                 break;
             }
@@ -359,6 +371,11 @@ public class PerlProjectParser : IProjectParser
                 IsPerlContainerRoot(current.FullName, parentFiles))
             {
                 return true;
+            }
+
+            if (PhysicalFileStore.IsGitRepositoryRoot(current.FullName))
+            {
+                break;
             }
 
             current = current.Parent;

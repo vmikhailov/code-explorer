@@ -631,4 +631,80 @@ snapshots/*.snap
             if (Directory.Exists(tempDir)) Directory.Delete(tempDir, true);
         }
     }
+
+    [Test]
+    public async Task Test_MultiRepoContainerWithLooseScripts_PreservesAllChildRepoSourceFilesAndFunctions()
+    {
+        var tempDir = Path.Combine(Path.GetTempPath(), "ce_ats_multirepo_test_" + Guid.NewGuid());
+        Directory.CreateDirectory(tempDir);
+        try
+        {
+            // Umbrella root has loose scripts + standalone SQL contract (exact ATS multi-repo trigger)
+            await File.WriteAllTextAsync(Path.Combine(tempDir, "clone-all.sh"), "#!/usr/bin/env bash\necho clone\n");
+            await File.WriteAllTextAsync(Path.Combine(tempDir, "sync-repos.py"), "def sync_all():\n    pass\n");
+            await File.WriteAllTextAsync(Path.Combine(tempDir, "global-schema.sql"), "CREATE TABLE accounts (id INT PRIMARY KEY);\n");
+
+            // Repo 1: Manifestless PHP repository (files in public/ + application/configs/ + library/)
+            var phpRepo = Path.Combine(tempDir, "ats-billing-php");
+            Directory.CreateDirectory(Path.Combine(phpRepo, ".git"));
+            Directory.CreateDirectory(Path.Combine(phpRepo, "public"));
+            Directory.CreateDirectory(Path.Combine(phpRepo, "application", "configs"));
+            Directory.CreateDirectory(Path.Combine(phpRepo, "library"));
+            await File.WriteAllTextAsync(Path.Combine(phpRepo, ".git", "config"), "[remote \"origin\"]\n\turl = git@example.com:ats/billing-php.git\n");
+            await File.WriteAllTextAsync(Path.Combine(phpRepo, "Dockerfile"), "FROM php:8.2-apache\n");
+            await File.WriteAllTextAsync(Path.Combine(phpRepo, "public", "index.php"), "<?php\nfunction bootstrapBilling() { return true; }\n");
+            await File.WriteAllTextAsync(Path.Combine(phpRepo, "application", "configs", "application.ini"), "[production]\ndb.host = \"localhost\"\n");
+            await File.WriteAllTextAsync(Path.Combine(phpRepo, "library", "InvoiceProcessor.php"), "<?php\nclass InvoiceProcessor { public function chargeCustomer() {} }\n");
+
+            // Repo 2: Manifestless Perl repository (files in lib/ + script/)
+            var perlRepo = Path.Combine(tempDir, "ats-domain-perl");
+            Directory.CreateDirectory(Path.Combine(perlRepo, ".git"));
+            Directory.CreateDirectory(Path.Combine(perlRepo, "lib", "ATS"));
+            Directory.CreateDirectory(Path.Combine(perlRepo, "scripts"));
+            await File.WriteAllTextAsync(Path.Combine(perlRepo, ".git", "config"), "[remote \"origin\"]\n\turl = git@example.com:ats/domain-perl.git\n");
+            await File.WriteAllTextAsync(Path.Combine(perlRepo, "Dockerfile"), "FROM perl:5.38\n");
+            await File.WriteAllTextAsync(Path.Combine(perlRepo, "lib", "ATS", "Registrar.pm"), "package ATS::Registrar;\nsub register_domain { return 1; }\n1;\n");
+            await File.WriteAllTextAsync(Path.Combine(perlRepo, "scripts", "sync.pl"), "#!/usr/bin/perl\nsub run_sync { return 1; }\n");
+
+            // Repo 3: Explicit manifest TypeScript repository
+            var tsRepo = Path.Combine(tempDir, "ats-portal-ui");
+            Directory.CreateDirectory(Path.Combine(tsRepo, ".git"));
+            Directory.CreateDirectory(Path.Combine(tsRepo, "src"));
+            await File.WriteAllTextAsync(Path.Combine(tsRepo, ".git", "config"), "[remote \"origin\"]\n\turl = git@example.com:ats/portal-ui.git\n");
+            await File.WriteAllTextAsync(Path.Combine(tsRepo, "package.json"), """{"name": "@ats/portal-ui", "version": "1.0.0"}""");
+            await File.WriteAllTextAsync(Path.Combine(tsRepo, "src", "PortalApp.ts"), "export function renderPortal(): string { return 'ok'; }\n");
+
+            var dbPath = Path.Combine(tempDir, "ats_graph.db");
+            await using var client = new SqliteGraphClient(dbPath);
+            WorkspaceIndexer.AutoRegisterParsers();
+
+            var indexer = new WorkspaceIndexer(client);
+            await indexer.IndexAsync(tempDir, tempDir, clear: true);
+
+            var filesJson = (await client.ExecuteCypherAsync("MATCH (f:File) RETURN f.path AS path")).ToJson();
+            // Child repo source & config files MUST all be indexed (not wiped by parent container demotion!)
+            filesJson.Should().Contain("ats-billing-php/public/index.php");
+            filesJson.Should().Contain("ats-billing-php/application/configs/application.ini");
+            filesJson.Should().Contain("ats-billing-php/library/InvoiceProcessor.php");
+            filesJson.Should().Contain("ats-domain-perl/lib/ATS/Registrar.pm");
+            filesJson.Should().Contain("ats-domain-perl/scripts/sync.pl");
+            filesJson.Should().Contain("ats-portal-ui/src/PortalApp.ts");
+            filesJson.Should().Contain("global-schema.sql");
+
+            // Loose scripts at multi-repo umbrella root must NOT be indexed as unowned project files
+            filesJson.Should().NotContain("clone-all.sh");
+            filesJson.Should().NotContain("sync-repos.py");
+
+            // Functions across all 3 child repositories must be extracted in Layer 3
+            var funcsJson = (await client.ExecuteCypherAsync("MATCH (fn:Function) RETURN fn.name AS name")).ToJson();
+            funcsJson.Should().Contain("bootstrapBilling");
+            funcsJson.Should().Contain("chargeCustomer");
+            funcsJson.Should().Contain("register_domain");
+            funcsJson.Should().Contain("renderPortal");
+        }
+        finally
+        {
+            if (Directory.Exists(tempDir)) Directory.Delete(tempDir, true);
+        }
+    }
 }
