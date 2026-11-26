@@ -5,6 +5,8 @@ namespace CodeExplorer.Core.Parser.Layers;
 
 public class Layer1PhysicalParser
 {
+    private const int ProgressFileStep = 1000;
+    private const string Layer1ProgressTitle = "Layer 1: Physical";
     public async Task<Layer1Result> ParseAsync(ParsingContext ctx)
     {
         var sw = System.Diagnostics.Stopwatch.StartNew();
@@ -76,16 +78,18 @@ public class Layer1PhysicalParser
 
         var discoveredDirs = new List<DiscoveredDirectoryEntry>();
         var vscodeTaskDirs = new List<string>();
+        var discoveredRawFiles = 0;
+        var nextDiscoveryReportThreshold = ProgressFileStep;
 
         if (!ctx.IsSubtreeScan)
         {
-            DiscoverDirectoryTree(ctx.AbsoluteWorkspacePath, filesStructureNode, workspaceNode, gitignore, null, discoveredDirs, vscodeTaskDirs, ctx);
+            DiscoverDirectoryTree(ctx.AbsoluteWorkspacePath, filesStructureNode, workspaceNode, gitignore, null, discoveredDirs, vscodeTaskDirs, ctx, ref discoveredRawFiles, ref nextDiscoveryReportThreshold);
         }
         else
         {
             var initialParsers = ctx.FileFilter.ResolveAncestorProjectParsers(ctx.ScanPath, ctx.AbsoluteWorkspacePath);
             var currentParent = BuildSubtreeIntermediateFolders(wsId, filesStructureNode, folders, ctx);
-            DiscoverDirectoryTree(ctx.ScanPath, currentParent, workspaceNode, gitignore, initialParsers, discoveredDirs, vscodeTaskDirs, ctx);
+            DiscoverDirectoryTree(ctx.ScanPath, currentParent, workspaceNode, gitignore, initialParsers, discoveredDirs, vscodeTaskDirs, ctx, ref discoveredRawFiles, ref nextDiscoveryReportThreshold);
         }
 
         RefreshContainerProjectParsers(discoveredDirs, ctx);
@@ -100,6 +104,8 @@ public class Layer1PhysicalParser
 
         if (candidates.Count > 0)
         {
+            var totalCandidates = candidates.Count;
+            var streamedCount = 0;
             var parallelOptions = new ParallelOptions
             {
                 CancellationToken = ctx.CancellationToken,
@@ -109,6 +115,19 @@ public class Layer1PhysicalParser
             await Parallel.ForEachAsync(candidates, parallelOptions, async (item, _) =>
             {
                 streamedFiles[item.Index] = await StreamCandidateFileAsync(item, ctx);
+                var current = Interlocked.Increment(ref streamedCount);
+                if (current % ProgressFileStep == 0 || (current == totalCandidates && totalCandidates >= ProgressFileStep))
+                {
+                    var pct = (int)Math.Round(current * 100.0 / totalCandidates);
+                    var globalPct = 2 + (int)(6.0 * current / totalCandidates);
+                    ctx.Layer1Log.StreamingProgress(current, totalCandidates, pct);
+                    ctx.ReportProgress(
+                        globalPct,
+                        Layer1ProgressTitle,
+                        $"Streaming physical files: {current:N0}/{totalCandidates:N0} ({pct}%)",
+                        current,
+                        totalCandidates);
+                }
             });
 
             for (int i = 0; i < candidates.Count; i++)
@@ -181,7 +200,9 @@ public class Layer1PhysicalParser
         IReadOnlyList<IProjectParser>? inheritedParsers,
         List<DiscoveredDirectoryEntry> discoveredDirs,
         List<string> vscodeTaskDirs,
-        ParsingContext ctx)
+        ParsingContext ctx,
+        ref int discoveredRawFiles,
+        ref int nextDiscoveryReportThreshold)
     {
         ctx.CancellationToken.ThrowIfCancellationRequested();
         var isRoot = string.Equals(currentDir, ctx.AbsoluteWorkspacePath, StringComparison.OrdinalIgnoreCase);
@@ -324,9 +345,22 @@ public class Layer1PhysicalParser
             IsProjectRoot: directParsers is { Count: > 0 },
             KeptForNegation: keptForNegation));
 
+        discoveredRawFiles += dirFiles.Length;
+        if (discoveredRawFiles >= nextDiscoveryReportThreshold)
+        {
+            nextDiscoveryReportThreshold = ((discoveredRawFiles / ProgressFileStep) + 1) * ProgressFileStep;
+            ctx.Layer1Log.DiscoveringProgress(discoveredRawFiles, discoveredDirs.Count);
+            ctx.ReportProgress(
+                2,
+                Layer1ProgressTitle,
+                $"Discovering directory tree: {discoveredRawFiles:N0} files across {discoveredDirs.Count:N0} folders...",
+                discoveredRawFiles,
+                discoveredRawFiles);
+        }
+
         for (int i = 0; i < subDirs.Length; i++)
         {
-            DiscoverDirectoryTree(subDirs[i].FullName, currentParentNode, workspaceNode, gitignore, activeParsers, discoveredDirs, vscodeTaskDirs, ctx);
+            DiscoverDirectoryTree(subDirs[i].FullName, currentParentNode, workspaceNode, gitignore, activeParsers, discoveredDirs, vscodeTaskDirs, ctx, ref discoveredRawFiles, ref nextDiscoveryReportThreshold);
         }
     }
 

@@ -62,7 +62,7 @@ public partial class SqliteGraphClient
         emptyRelCmd.Transaction = tx;
         emptyRelCmd.CommandText = isFresh
             ? "INSERT INTO edges (from_id, to_id, kind, properties) VALUES (@f, @t, @k, jsonb('{}'));"
-            : "INSERT INTO edges (from_id, to_id, kind, properties) VALUES (@f, @t, @k, jsonb('{}')) ON CONFLICT(from_id, to_id, kind) DO UPDATE SET properties = excluded.properties;";
+            : "INSERT INTO edges (from_id, to_id, kind, properties) VALUES (@f, @t, @k, jsonb('{}')) ON CONFLICT(from_id, kind, to_id) DO UPDATE SET properties = excluded.properties;";
         var pEmptyFrom = emptyRelCmd.Parameters.Add(paramF, SqliteType.Integer);
         var pEmptyTo = emptyRelCmd.Parameters.Add(paramT, SqliteType.Integer);
         var pEmptyKind = emptyRelCmd.Parameters.Add(paramK, SqliteType.Integer);
@@ -73,7 +73,7 @@ public partial class SqliteGraphClient
         propRelCmd.Transaction = tx;
         propRelCmd.CommandText = isFresh
             ? "INSERT INTO edges (from_id, to_id, kind, properties) VALUES (@f, @t, @k, jsonb(@p));"
-            : "INSERT INTO edges (from_id, to_id, kind, properties) VALUES (@f, @t, @k, jsonb(@p)) ON CONFLICT(from_id, to_id, kind) DO UPDATE SET properties = excluded.properties;";
+            : "INSERT INTO edges (from_id, to_id, kind, properties) VALUES (@f, @t, @k, jsonb(@p)) ON CONFLICT(from_id, kind, to_id) DO UPDATE SET properties = excluded.properties;";
         var pPropFrom = propRelCmd.Parameters.Add(paramF, SqliteType.Integer);
         var pPropTo = propRelCmd.Parameters.Add(paramT, SqliteType.Integer);
         var pPropKind = propRelCmd.Parameters.Add(paramK, SqliteType.Integer);

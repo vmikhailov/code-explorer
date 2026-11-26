@@ -27,6 +27,12 @@ public static partial class Layer1LogMessages
 
     [LoggerMessage(EventId = 1008, Level = LogLevel.Warning, Message = "[Layer 1    ] Skipping broken symlink or missing file '{RelativeFile}'.")]
     public static partial void SkippingBrokenSymlink(ILogger logger, string relativeFile);
+
+    [LoggerMessage(EventId = 1009, Level = LogLevel.Information, Message = "[Layer 1    ] Discovering directory tree: {DiscoveredFiles:N0} files across {DiscoveredFolders:N0} folders...")]
+    public static partial void DiscoveringDirectoriesProgress(ILogger logger, int discoveredFiles, int discoveredFolders);
+
+    [LoggerMessage(EventId = 1010, Level = LogLevel.Information, Message = "[Layer 1    ] Streaming physical files: {Completed:N0}/{TotalCandidates:N0} ({Percentage}%)...")]
+    public static partial void StreamingFilesProgress(ILogger logger, int completed, int totalCandidates, int percentage);
 }
 
 public readonly struct Layer1Logger(ILogger logger)
@@ -39,6 +45,8 @@ public readonly struct Layer1Logger(ILogger logger)
     public void SkippingBrokenSymlink(string relativeFile) => Layer1LogMessages.SkippingBrokenSymlink(logger, relativeFile);
     public void WorkspaceNameLookupFallback(string workspacePath, Exception ex) => Layer1LogMessages.WorkspaceNameLookupFallback(logger, workspacePath, ex.Message);
     public void DirectoryScanHookMessage(string hookMessage) => Layer1LogMessages.DirectoryScanHookMessage(logger, hookMessage);
+    public void DiscoveringProgress(int discoveredFiles, int discoveredFolders) => Layer1LogMessages.DiscoveringDirectoriesProgress(logger, discoveredFiles, discoveredFolders);
+    public void StreamingProgress(int completed, int totalCandidates, int percentage) => Layer1LogMessages.StreamingFilesProgress(logger, completed, totalCandidates, percentage);
 }
 
 public static partial class Layer2LogMessages

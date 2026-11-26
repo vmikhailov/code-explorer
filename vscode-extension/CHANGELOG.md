@@ -5,6 +5,12 @@ All notable changes to the CodeExplorer project (CLI, MCP Server, and VS Code Ex
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.105.4] - 2026-11-26
+
+### Fixed
+- **Layer 1 Physical Scan Progress Reporting Every 1,000 Files (`Layer1PhysicalAnalyzer`, `PipelineLoggers`)**: Added periodic progress logs and UI notifications every `1,000` files during both directory tree discovery (`Discovering directory tree: X files across Y folders...`) and parallel physical file streaming (`Streaming physical files: X/Total (Z%)...`), eliminating silent startup pauses on large multi-hundred-project workspaces.
+- **SQLite Fresh Bulk-Load Edge Cleanup & Conflict Clause Alignment (`SqliteGraphClient`, `SqliteGraphClient.BulkLoad`)**: Cleared `edges` alongside `nodes` before fresh bulk-load commits and aligned `ON CONFLICT(from_id, kind, to_id)` with `idx_edges_from_kind_to`.
+
 ## [1.105.3] - 2026-11-26
 
 ### Fixed

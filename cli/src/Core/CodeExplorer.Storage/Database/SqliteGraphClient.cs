@@ -199,7 +199,7 @@ public partial class SqliteGraphClient : IGraphClient, IDisposable
                     await using var delWsCmd = _conn.CreateCommand();
                     delWsCmd.CommandTimeout = 0;
                     delWsCmd.Transaction = tx;
-                    delWsCmd.CommandText = "DELETE FROM nodes;";
+                    delWsCmd.CommandText = "DELETE FROM edges; DELETE FROM nodes;";
                     await delWsCmd.ExecuteNonQueryAsync(cancellationToken);
                 }
                 else if (dropIdIdx)
