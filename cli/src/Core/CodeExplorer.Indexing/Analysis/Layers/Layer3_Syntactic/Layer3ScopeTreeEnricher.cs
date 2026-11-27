@@ -95,7 +95,12 @@ internal static class Layer3ScopeTreeEnricher
         public int CognitiveComplexity;
         public int MaxNestingDepth;
         public int MaxLoopDepth;
+        public int MaxEffectiveLoopDepth;
         public int LoopAwaitCount;
+        public int LoopLinearScanCount;
+        public bool HasUnpartitionedLoop;
+        public HashSet<string>? LocalListVars;
+        public HashSet<string>? PartitionedVars;
     }
 
     private static void AnalyzeFunctionAstAndPopulateScopes(
@@ -124,6 +129,7 @@ internal static class Layer3ScopeTreeEnricher
 
         var acc = new FunctionScopeAccumulator();
         var bodyNode = (SyntaxNode?)fnDecl.Body ?? fnDecl;
+        Layer3LoopComplexityClassifier.CollectLocalCollectionHints(bodyNode, out acc.LocalListVars, out acc.PartitionedVars);
 
         WalkSyntaxSubtree(
             bodyNode,
@@ -131,6 +137,7 @@ internal static class Layer3ScopeTreeEnricher
             currentScope: null,
             depth: 0,
             loopDepth: 0,
+            effectiveLoopDepth: 0,
             acc,
             existingCatches,
             workspaceId,
@@ -154,7 +161,12 @@ internal static class Layer3ScopeTreeEnricher
         fnNode.CognitiveComplexity = acc.CognitiveComplexity;
         fnNode.MaxNestingDepth = acc.MaxNestingDepth;
         fnNode.MaxLoopDepth = acc.MaxLoopDepth;
+        fnNode.EffectiveLoopDepth = acc.MaxEffectiveLoopDepth;
         fnNode.LoopAwaitCount = acc.LoopAwaitCount;
+        fnNode.LoopLinearScanCount = acc.LoopLinearScanCount;
+        fnNode.HasUnpartitionedLoop = acc.HasUnpartitionedLoop;
+        fnNode.CallerLoopDepth = 0;
+        fnNode.TransitiveLoopDepth = acc.MaxEffectiveLoopDepth;
     }
 
     private static void WalkSyntaxSubtree(
@@ -163,6 +175,7 @@ internal static class Layer3ScopeTreeEnricher
         ScopeNode? currentScope,
         int depth,
         int loopDepth,
+        int effectiveLoopDepth,
         FunctionScopeAccumulator acc,
         Dictionary<(int Line, int Col), ScopeNode>? existingCatches,
         string workspaceId,
@@ -208,11 +221,34 @@ internal static class Layer3ScopeTreeEnricher
                     currentScope.BranchCount++;
                 }
             }
+            else if (child is CallExprSyntax callExpr &&
+                     Layer3LoopComplexityClassifier.IsDisguisedLinearScanCall(callExpr, acc.LocalListVars))
+            {
+                if (currentScope != null)
+                {
+                    currentScope.LinearScanCount++;
+                }
+                if (effectiveLoopDepth > 0)
+                {
+                    acc.LoopLinearScanCount++;
+                    var boostedDepth = effectiveLoopDepth + 1;
+                    if (boostedDepth > acc.MaxEffectiveLoopDepth)
+                    {
+                        acc.MaxEffectiveLoopDepth = boostedDepth;
+                    }
+                    if (currentScope != null && boostedDepth > currentScope.EffectiveLoopDepth)
+                    {
+                        currentScope.EffectiveLoopDepth = boostedDepth;
+                    }
+                }
+            }
 
             if (TryClassifyScopeNode(
                     child,
                     depth + 1,
                     loopDepth,
+                    effectiveLoopDepth,
+                    currentScope,
                     acc,
                     existingCatches,
                     workspaceId,
@@ -222,6 +258,7 @@ internal static class Layer3ScopeTreeEnricher
                     projectName,
                     out var createdScope,
                     out var childLoopDepth,
+                    out var childEffectiveLoopDepth,
                     out var isTryWithFinally,
                     out var finallyBlockNode))
             {
@@ -249,6 +286,7 @@ internal static class Layer3ScopeTreeEnricher
                         nextScope,
                         depth + 1,
                         childLoopDepth,
+                        childEffectiveLoopDepth,
                         acc,
                         existingCatches,
                         workspaceId,
@@ -265,6 +303,7 @@ internal static class Layer3ScopeTreeEnricher
                         nextScope,
                         depth + 1,
                         childLoopDepth,
+                        childEffectiveLoopDepth,
                         acc,
                         existingCatches,
                         workspaceId,
@@ -282,6 +321,7 @@ internal static class Layer3ScopeTreeEnricher
                 currentScope,
                 depth,
                 loopDepth,
+                effectiveLoopDepth,
                 acc,
                 existingCatches,
                 workspaceId,
@@ -300,6 +340,7 @@ internal static class Layer3ScopeTreeEnricher
         ScopeNode? tryScope,
         int tryDepth,
         int loopDepth,
+        int effectiveLoopDepth,
         FunctionScopeAccumulator acc,
         Dictionary<(int Line, int Col), ScopeNode>? existingCatches,
         string workspaceId,
@@ -339,12 +380,15 @@ internal static class Layer3ScopeTreeEnricher
                     finContainer = finNode;
                 }
 
+                finNode.EffectiveLoopDepth = effectiveLoopDepth;
+
                 WalkSyntaxSubtree(
                     c,
                     finContainer,
                     finNode,
                     tryDepth,
                     loopDepth,
+                    effectiveLoopDepth,
                     acc,
                     existingCatches,
                     workspaceId,
@@ -360,6 +404,8 @@ internal static class Layer3ScopeTreeEnricher
                         c,
                         tryDepth,
                         loopDepth,
+                        effectiveLoopDepth,
+                        tryScope,
                         acc,
                         existingCatches,
                         workspaceId,
@@ -369,6 +415,7 @@ internal static class Layer3ScopeTreeEnricher
                         projectName,
                         out var catchScope,
                         out var catchLoopDepth,
+                        out var catchEffectiveDepth,
                         out _,
                         out _))
                 {
@@ -384,6 +431,7 @@ internal static class Layer3ScopeTreeEnricher
                         catchScope ?? tryScope,
                         tryDepth,
                         catchLoopDepth,
+                        catchEffectiveDepth,
                         acc,
                         existingCatches,
                         workspaceId,
@@ -401,6 +449,7 @@ internal static class Layer3ScopeTreeEnricher
                     tryScope,
                     tryDepth,
                     loopDepth,
+                    effectiveLoopDepth,
                     acc,
                     existingCatches,
                     workspaceId,
@@ -416,6 +465,8 @@ internal static class Layer3ScopeTreeEnricher
         SyntaxNode node,
         int depth,
         int loopDepth,
+        int effectiveLoopDepth,
+        ScopeNode? parentScope,
         FunctionScopeAccumulator acc,
         Dictionary<(int Line, int Col), ScopeNode>? existingCatches,
         string workspaceId,
@@ -425,11 +476,13 @@ internal static class Layer3ScopeTreeEnricher
         string? projectName,
         out ScopeNode? scopeNode,
         out int nextLoopDepth,
+        out int nextEffectiveLoopDepth,
         out bool isTryWithFinally,
         out SyntaxNode? finallyBlockNode)
     {
         scopeNode = null;
         nextLoopDepth = loopDepth;
+        nextEffectiveLoopDepth = effectiveLoopDepth;
         isTryWithFinally = false;
         finallyBlockNode = null;
 
@@ -497,9 +550,18 @@ internal static class Layer3ScopeTreeEnricher
                     return true;
 
                 case ControlFlowKind.Loop:
+                    var loopSource = Layer3LoopComplexityClassifier.ClassifyLoopSource(cf, acc.PartitionedVars);
                     nextLoopDepth = loopDepth + 1;
+                    nextEffectiveLoopDepth = loopSource == LoopSourceKind.Bounded
+                        ? effectiveLoopDepth
+                        : effectiveLoopDepth + 1;
+                    if (loopSource == LoopSourceKind.Unpartitioned)
+                    {
+                        acc.HasUnpartitionedLoop = true;
+                    }
                     if (depth > acc.MaxNestingDepth) acc.MaxNestingDepth = depth;
                     if (nextLoopDepth > acc.MaxLoopDepth) acc.MaxLoopDepth = nextLoopDepth;
+                    if (nextEffectiveLoopDepth > acc.MaxEffectiveLoopDepth) acc.MaxEffectiveLoopDepth = nextEffectiveLoopDepth;
                     acc.TotalBranchPoints++;
                     acc.CognitiveComplexity += depth;
 
@@ -527,6 +589,8 @@ internal static class Layer3ScopeTreeEnricher
                         isTest,
                         projectKind,
                         projectName);
+                    scopeNode.EffectiveLoopDepth = nextEffectiveLoopDepth;
+                    scopeNode.LoopSource = loopSource;
                     if (isAsyncLoop)
                     {
                         scopeNode.AwaitCount++;
@@ -636,8 +700,19 @@ internal static class Layer3ScopeTreeEnricher
                 if (FunctionalIterationLookup.Contains(outerCall.MethodNameSpan))
                 {
                     nextLoopDepth = loopDepth + 1;
+                    nextEffectiveLoopDepth = effectiveLoopDepth + 1;
                     if (depth > acc.MaxNestingDepth) acc.MaxNestingDepth = depth;
                     if (nextLoopDepth > acc.MaxLoopDepth) acc.MaxLoopDepth = nextLoopDepth;
+                    if (nextEffectiveLoopDepth > acc.MaxEffectiveLoopDepth) acc.MaxEffectiveLoopDepth = nextEffectiveLoopDepth;
+                    if (effectiveLoopDepth > 0 &&
+                        Layer3LoopComplexityClassifier.IsFunctionalLinearScan(outerCall.MethodNameSpan))
+                    {
+                        acc.LoopLinearScanCount++;
+                        if (parentScope != null)
+                        {
+                            parentScope.LinearScanCount++;
+                        }
+                    }
                     acc.TotalBranchPoints++;
                     acc.CognitiveComplexity += depth;
                     var isAsyncLambda = GetBoundedHeaderSpan(lambda).StartsWith(KeywordAsync.AsSpan(), StringComparison.Ordinal);
@@ -656,6 +731,8 @@ internal static class Layer3ScopeTreeEnricher
                         isTest,
                         projectKind,
                         projectName);
+                    scopeNode.EffectiveLoopDepth = nextEffectiveLoopDepth;
+                    scopeNode.LoopSource = LoopSourceKind.Collection;
                     return true;
                 }
 

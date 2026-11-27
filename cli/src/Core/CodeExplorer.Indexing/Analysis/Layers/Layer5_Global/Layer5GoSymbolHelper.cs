@@ -60,35 +60,15 @@ internal static class Layer5GoSymbolHelper
         Layer5AnalysisParser.SymbolLookups symbols)
     {
         var cleanDir = dirPath.Trim(SlashChar);
-        if (symbols.GoFilesByDir.Count > 0)
+        if (symbols.GoFilesByDir.TryGetValue(cleanDir, out var dirGoFiles))
         {
-            if (symbols.GoFilesByDir.TryGetValue(cleanDir, out var dirGoFiles))
+            for (var i = 0; i < dirGoFiles.Count; i++)
             {
-                for (var i = 0; i < dirGoFiles.Count; i++)
+                var known = dirGoFiles[i];
+                if (!results.Contains(known))
                 {
-                    var known = dirGoFiles[i];
-                    if (!results.Contains(known))
-                    {
-                        results.Add(known);
-                    }
+                    results.Add(known);
                 }
-            }
-            return;
-        }
-
-        foreach (var known in symbols.KnownFiles)
-        {
-            if (!known.EndsWith(GoExt, StringComparison.OrdinalIgnoreCase) ||
-                known.EndsWith(GoTestExt, StringComparison.OrdinalIgnoreCase))
-            {
-                continue;
-            }
-
-            var lastSlash = known.LastIndexOf(SlashChar);
-            var fileDir = lastSlash > 0 ? known[..lastSlash] : string.Empty;
-            if (string.Equals(fileDir, cleanDir, StringComparison.OrdinalIgnoreCase) && !results.Contains(known))
-            {
-                results.Add(known);
             }
         }
     }

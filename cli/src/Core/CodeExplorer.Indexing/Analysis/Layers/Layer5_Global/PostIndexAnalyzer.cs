@@ -148,6 +148,7 @@ public partial class PostIndexAnalyzer(IGraphClient db)
         }
 
         var implements = new Dictionary<string, List<string>>();
+        var implementsSets = new Dictionary<string, HashSet<string>>();
         void AddImplements(string epId, string fnId)
         {
             if (string.IsNullOrEmpty(epId) || string.IsNullOrEmpty(fnId)) return;
@@ -155,8 +156,9 @@ public partial class PostIndexAnalyzer(IGraphClient db)
             {
                 list = [];
                 implements[epId] = list;
+                implementsSets[epId] = new HashSet<string>(StringComparer.Ordinal);
             }
-            if (!list.Contains(fnId))
+            if (implementsSets[epId].Add(fnId))
             {
                 list.Add(fnId);
             }
@@ -185,28 +187,35 @@ public partial class PostIndexAnalyzer(IGraphClient db)
         foreach (var rel in referenceRelationships) ProcessImplementsRel(rel);
         foreach (var rel in ctx.TreeRelationships) ProcessImplementsRel(rel);
 
-        var projectToEntryPoints = new Dictionary<string, List<string>>();
+        var projectToEntryPoints = new Dictionary<string, List<string>>(ctx.Projects.Count);
+        var projectEntryPointSets = new Dictionary<string, HashSet<string>>(ctx.Projects.Count);
+        var projectById = new Dictionary<string, ProjectNode>(ctx.Projects.Count, StringComparer.Ordinal);
         foreach (var project in ctx.Projects)
         {
+            projectById.TryAdd(project.Id, project);
             var epList = new List<string>();
+            var epSet = new HashSet<string>(StringComparer.Ordinal);
             foreach (var child in project.Children)
             {
-                if (child is EntryPointNode ep && !epList.Contains(ep.Id)) epList.Add(ep.Id);
-                else if (child is EndpointNode endp && !epList.Contains(endp.Id)) epList.Add(endp.Id);
+                if (child is EntryPointNode ep && epSet.Add(ep.Id)) epList.Add(ep.Id);
+                else if (child is EndpointNode endp && epSet.Add(endp.Id)) epList.Add(endp.Id);
             }
             projectToEntryPoints[project.Id] = epList;
+            projectEntryPointSets[project.Id] = epSet;
         }
         if (l4Result.SemanticStructure != null)
         {
             foreach (var workloadNode in l4Result.SemanticStructure.Children)
             {
                 var projId = (workloadNode as CompositeNode)?.ProjectId;
-                if (!string.IsNullOrEmpty(projId) && projectToEntryPoints.TryGetValue(projId, out var epList))
+                if (!string.IsNullOrEmpty(projId) &&
+                    projectToEntryPoints.TryGetValue(projId, out var epList) &&
+                    projectEntryPointSets.TryGetValue(projId, out var epSet))
                 {
                     foreach (var child in workloadNode.Children)
                     {
-                        if (child is EntryPointNode ep && !epList.Contains(ep.Id)) epList.Add(ep.Id);
-                        else if (child is EndpointNode endp && !epList.Contains(endp.Id)) epList.Add(endp.Id);
+                        if (child is EntryPointNode ep && epSet.Add(ep.Id)) epList.Add(ep.Id);
+                        else if (child is EndpointNode endp && epSet.Add(endp.Id)) epList.Add(endp.Id);
                     }
                 }
             }
@@ -215,9 +224,12 @@ public partial class PostIndexAnalyzer(IGraphClient db)
         var callersSet = new HashSet<string>(callsAdjacency.Keys.Where(functionIds.Contains));
         foreach (var fnList in implements.Values)
         {
-            foreach (var fnId in fnList.Where(functionIds.Contains))
+            foreach (var fnId in fnList)
             {
-                callersSet.Add(fnId);
+                if (functionIds.Contains(fnId))
+                {
+                    callersSet.Add(fnId);
+                }
             }
         }
 
@@ -232,8 +244,7 @@ public partial class PostIndexAnalyzer(IGraphClient db)
         // Update project nodes in memory
         foreach (var (projId, domains) in result.ProjectExternalApis)
         {
-            var proj = ctx.Projects.FirstOrDefault(p => p.Id == projId);
-            if (proj != null)
+            if (projectById.TryGetValue(projId, out var proj))
             {
                 proj.ExternalApis = JsonSerializer.Serialize(domains);
             }

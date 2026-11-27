@@ -649,6 +649,9 @@ public static class RouteDictionaryRegistry
         try
         {
             ScanServiceDomains(content);
+            var knownServices = _serviceDomains.Count > 0
+                ? _serviceDomains.Values.Distinct(StringComparer.OrdinalIgnoreCase).ToArray()
+                : [];
 
         // 1a-1. Top-level string/URL constant declarations:
         // const apiRoot = 'https://api.HOSTNAME/api/v1';
@@ -663,7 +666,7 @@ public static class RouteDictionaryRegistry
             var cVal = tcm.Groups[2].Value.Trim();
             if (cVal.Contains('/') || cVal.StartWithIC("http://") || cVal.StartWithIC("https://"))
             {
-                Register(cName, cVal, InferService(cName, cVal));
+                Register(cName, cVal, InferService(cName, cVal, knownServices));
             }
         }
 
@@ -691,7 +694,7 @@ public static class RouteDictionaryRegistry
 
                 if (val.Contains('/') || val.StartWithIC("http://") || val.StartWithIC("https://"))
                 {
-                    var inferredSvc = InferService(key, val);
+                    var inferredSvc = InferService(key, val, knownServices);
                     Register(key, val, inferredSvc);
                     Register($"{varName}.{key}", val, inferredSvc);
                     if (varName.StartWithIC("env"))
@@ -713,7 +716,7 @@ public static class RouteDictionaryRegistry
                 if (TryResolve(baseVar, out var baseVal, out var baseSvc))
                 {
                     var combined = baseVal.TrimEnd('/') + "/" + suffix.TrimStart('/');
-                    var inferredSvc = baseSvc ?? InferService(key, combined);
+                    var inferredSvc = baseSvc ?? InferService(key, combined, knownServices);
                     Register(key, combined, inferredSvc);
                     Register($"{varName}.{key}", combined, inferredSvc);
                     if (varName.StartWithIC("env"))
@@ -756,7 +759,7 @@ public static class RouteDictionaryRegistry
                 else if (nm.Groups[4].Success)
                 {
                     var rawVal = nm.Groups[4].Value.Trim();
-                    var inferredSvc = InferService(secName, rawVal);
+                    var inferredSvc = InferService(secName, rawVal, knownServices);
                     Register($"{varName}.{secName}.endpoint", rawVal, inferredSvc);
                     Register($"{secName}.endpoint", rawVal, inferredSvc);
                     Register(secName, rawVal, inferredSvc);
@@ -941,7 +944,7 @@ public static class RouteDictionaryRegistry
         }
     }
 
-    private static string? InferService(string key, string val)
+    private static string? InferService(string key, string val, string[] knownServices)
     {
         if (Uri.TryCreate(val, UriKind.Absolute, out var parsedUri))
         {
@@ -957,9 +960,18 @@ public static class RouteDictionaryRegistry
             }
         }
 
-        var normKey = WorkspaceConventions.NormalizeServiceName(key);
-        foreach (var svc in _serviceDomains.Values)
+        if (_serviceDomains.TryGetValue(key, out var exactSvc))
         {
+            return exactSvc;
+        }
+        var normKey = WorkspaceConventions.NormalizeServiceName(key);
+        if (!string.IsNullOrEmpty(normKey) && _serviceDomains.TryGetValue(normKey, out var normSvc))
+        {
+            return normSvc;
+        }
+        for (var i = 0; i < knownServices.Length; i++)
+        {
+            var svc = knownServices[i];
             if (!string.IsNullOrEmpty(svc) && (key.Contains(svc, StringComparison.OrdinalIgnoreCase) || normKey.Contains(svc, StringComparison.OrdinalIgnoreCase)))
             {
                 return svc;

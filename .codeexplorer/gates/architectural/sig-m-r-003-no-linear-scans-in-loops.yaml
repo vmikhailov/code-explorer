@@ -1,0 +1,23 @@
+id: SIG-M-R-003
+category: Architectural
+platform: agnostic
+scope: Method
+dimension: Resources
+name: "Disallow Linear Collection Scans Inside Loops"
+severity: Error
+description: "Methods must not execute O(N) linear collection scans (e.g. FirstOrDefault, Any, Where, SingleOrDefault, Find, RemoveAll, or List.Contains) inside non-bounded loops, which turns O(N) iterations into hidden O(N^2) bottlenecks."
+remediation: "Pre-index the searched collection into a HashSet or Dictionary outside the loop and perform O(1) Contains / TryGetValue lookups inside the loop."
+target: "{f.loop_linear_scan_count} linear scan(s) in loop"
+message: "Method '{f.name}' executes {f.loop_linear_scan_count} linear collection scan(s) inside a loop (effective_loop_depth = {f.effective_loop_depth}). Pre-index into a HashSet/Dictionary outside the loop."
+thresholds:
+  warning: 1
+  error: 1
+query: |
+  MATCH (f:Function)
+  WHERE NOT coalesce(f.is_test, false)
+    AND f.name <> '<module_init>'
+    AND coalesce(f.loop_linear_scan_count, 0) > 0
+  RETURN f
+ratchet:
+  enabled: true
+  baseline: baselines/SIG-M-R-003.json

@@ -36,7 +36,16 @@ public partial class PostIndexAnalyzer
 
         var libraryProjects = projectList.Where(p => p.IsLibrary).ToDictionary(p => p.Id, p => p, StringComparer.OrdinalIgnoreCase);
         var projById = projectList.ToDictionary(p => p.Id, p => p, StringComparer.OrdinalIgnoreCase);
+        var nonLibProjByName = new Dictionary<string, (string Id, string Name)>(StringComparer.OrdinalIgnoreCase);
+        foreach (var p in projectList)
+        {
+            if (!p.IsLibrary && !p.IsTest && !string.IsNullOrEmpty(p.Id) && !string.IsNullOrEmpty(p.Name))
+            {
+                nonLibProjByName.TryAdd(p.Name, (p.Id, p.Name));
+            }
+        }
         var serviceToReferencedLibs = new Dictionary<string, List<(string Id, string Name)>>(StringComparer.OrdinalIgnoreCase);
+        var libToReferencingServices = new Dictionary<string, List<(string Id, string Name)>>(StringComparer.OrdinalIgnoreCase);
         var workloadToProject = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         var projectToWorkload = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
 
@@ -84,6 +93,15 @@ public partial class PostIndexAnalyzer
                         serviceToReferencedLibs[resolvedSrc] = lList;
                     }
                     lList.Add((lib.Id, lib.Name));
+                    if (projById.TryGetValue(resolvedSrc, out var refSvcProj) && !refSvcProj.IsTest && !string.IsNullOrEmpty(refSvcProj.Id))
+                    {
+                        if (!libToReferencingServices.TryGetValue(lib.Id, out var svcList))
+                        {
+                            svcList = [];
+                            libToReferencingServices[lib.Id] = svcList;
+                        }
+                        svcList.Add((refSvcProj.Id, refSvcProj.Name));
+                    }
                 }
                 continue;
             }
@@ -107,9 +125,7 @@ public partial class PostIndexAnalyzer
                 // Resolve owning project
                 string? projId = null;
                 var projName = "";
-                var exactProj = projectList.FirstOrDefault(p => p.Id == resolvedCaller);
-
-                if (!string.IsNullOrEmpty(exactProj.Id))
+                if (projById.TryGetValue(resolvedCaller, out var exactProj))
                 {
                     if (exactProj.IsTest) continue;
                     projId = exactProj.Id;
@@ -117,10 +133,7 @@ public partial class PostIndexAnalyzer
                 }
                 else
                 {
-                    var matched = projectList.FirstOrDefault(p =>
-                        resolvedCaller.StartWithIC(p.Id) ||
-                        (!string.IsNullOrEmpty(p.Path) &&
-                         resolvedCaller.Contains(p.Path, StringComparison.OrdinalIgnoreCase)));
+                    var matched = FindOwningProjectTuple(projectList, resolvedCaller);
                     if (matched.IsTest) continue;
                     projId = matched.Id;
                     projName = matched.Name;
@@ -150,10 +163,8 @@ public partial class PostIndexAnalyzer
                             if (slashIdx > 0)
                             {
                                 var subBinName = afterBin[..slashIdx];
-                                var matchingBinProj = projectList.FirstOrDefault(p =>
-                                    !p.IsLibrary && !p.IsTest && !string.IsNullOrEmpty(p.Id) && p.Id != projId &&
-                                    string.Equals(p.Name, subBinName, StringComparison.OrdinalIgnoreCase));
-                                if (!string.IsNullOrEmpty(matchingBinProj.Id))
+                                if (nonLibProjByName.TryGetValue(subBinName, out var matchingBinProj) &&
+                                    matchingBinProj.Id != projId)
                                 {
                                     projectDbEdges.Add(((matchingBinProj.Id, matchingBinProj.Name), canonicalId, rel, false));
                                 }
@@ -168,8 +179,7 @@ public partial class PostIndexAnalyzer
         var libReferencingDomains = new Dictionary<string, HashSet<string>>(StringComparer.OrdinalIgnoreCase);
         foreach (var (svcId, libs) in serviceToReferencedLibs)
         {
-            var svcProj = projectList.FirstOrDefault(p => p.Id == svcId);
-            if (svcProj.IsTest || string.IsNullOrEmpty(svcProj.Id)) continue;
+            if (!projById.TryGetValue(svcId, out var svcProj) || svcProj.IsTest || string.IsNullOrEmpty(svcProj.Id)) continue;
             var dom = ResourceSemanticAnalyzer.CleanProjectNameToDomain(svcProj.Name);
             if (string.IsNullOrEmpty(dom)) dom = svcProj.Id;
             foreach (var l in libs)
@@ -236,19 +246,11 @@ public partial class PostIndexAnalyzer
             if (!isMultiDomainLib || !isGenericTarget)
             {
                 filteredProjectDbEdges.Add(edge);
-            }
-
-            if (!isMultiDomainLib || !isGenericTarget)
-            {
-                foreach (var (svcId, libs) in serviceToReferencedLibs)
+                if (libToReferencingServices.TryGetValue(edge.Owner.Id, out var referencingServices))
                 {
-                    if (libs.Any(l => l.Id == edge.Owner.Id))
+                    for (var i = 0; i < referencingServices.Count; i++)
                     {
-                        var svcProj = projectList.FirstOrDefault(p => p.Id == svcId);
-                        if (!string.IsNullOrEmpty(svcProj.Id) && !svcProj.IsTest)
-                        {
-                            filteredProjectDbEdges.Add(((svcProj.Id, svcProj.Name), edge.CanonicalTarget, edge.Rel, edge.IsImplicitEdge));
-                        }
+                        filteredProjectDbEdges.Add((referencingServices[i], edge.CanonicalTarget, edge.Rel, edge.IsImplicitEdge));
                     }
                 }
             }
@@ -412,6 +414,22 @@ public partial class PostIndexAnalyzer
         await CleanupAndPropagateDatabaseEntitiesAsync(db, rawToCanonical, canonicalNodes, cancellationToken);
 
         return new CanonicalizeDatabasesResult(uploadedNodesCount, uploadedRelationshipsCount);
+    }
+
+    private static (string Id, string Name, string? Path, bool IsTest, bool IsLibrary) FindOwningProjectTuple(
+        List<(string Id, string Name, string? Path, bool IsTest, bool IsLibrary)> projectList,
+        string resolvedCaller)
+    {
+        for (var i = 0; i < projectList.Count; i++)
+        {
+            var p = projectList[i];
+            if (resolvedCaller.StartWithIC(p.Id) ||
+                (!string.IsNullOrEmpty(p.Path) && resolvedCaller.Contains(p.Path, StringComparison.OrdinalIgnoreCase)))
+            {
+                return p;
+            }
+        }
+        return default;
     }
 }
 

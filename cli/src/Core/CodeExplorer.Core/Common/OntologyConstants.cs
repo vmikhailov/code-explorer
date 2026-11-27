@@ -314,6 +314,13 @@ public static class OntologyConstants
         public const string MaxNestingDepth = "max_nesting_depth";
         public const string MaxLoopDepth = "max_loop_depth";
         public const string LoopAwaitCount = "loop_await_count";
+        public const string LinearScanCount = "linear_scan_count";
+        public const string EffectiveLoopDepth = "effective_loop_depth";
+        public const string LoopSource = "loop_source";
+        public const string LoopLinearScanCount = "loop_linear_scan_count";
+        public const string HasUnpartitionedLoop = "has_unpartitioned_loop";
+        public const string CallerLoopDepth = "caller_loop_depth";
+        public const string TransitiveLoopDepth = "transitive_loop_depth";
         public const string Extends = "extends";
         public const string Implements = "implements";
         public const string Attributes = "attributes";

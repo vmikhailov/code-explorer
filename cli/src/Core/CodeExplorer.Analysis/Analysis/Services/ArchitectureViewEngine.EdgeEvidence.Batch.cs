@@ -58,7 +58,7 @@ public partial class ArchitectureViewEngine
                     var symService = row.GetStringProp("service");
                     if (string.IsNullOrEmpty(path)) continue;
 
-                    var matchedScope = scopes.FirstOrDefault(s => s.Matches(path, symService, symId));
+                    var matchedScope = FindMatchingEvidenceScope(scopes, path, symService, symId);
                     if (matchedScope is null) continue;
 
                     var line = ParseLineProp(rProps, OntologyConstants.PropertyNames.Line, row, "line");
@@ -145,7 +145,7 @@ public partial class ArchitectureViewEngine
                     var symService = row.GetStringProp("service");
                     if (string.IsNullOrEmpty(path)) continue;
 
-                    var matchedScope = scopes.FirstOrDefault(s => s.Matches(path, symService, symId));
+                    var matchedScope = FindMatchingEvidenceScope(scopes, path, symService, symId);
                     if (matchedScope is null) continue;
 
                     var symKind = row.GetStringProp("kind");
@@ -239,11 +239,9 @@ public partial class ArchitectureViewEngine
                 var epSvc = row.GetStringProp("ep_service");
                 if (string.IsNullOrEmpty(path)) continue;
 
-                var matchedCaller = callerScopes.FirstOrDefault(cs => cs.Scope.Matches(path, callerSvc, symId));
+                var matchedCaller = FindMatchingNodeScope(callerScopes, path, callerSvc, symId);
                 if (matchedCaller.Scope is null) continue;
-                var matchedCallee = calleeScopes.FirstOrDefault(cs =>
-                    !cs.Node.Id.Equals(matchedCaller.Node.Id, StringComparison.OrdinalIgnoreCase) &&
-                    cs.Scope.Matches(epPath, epSvc, epId));
+                var matchedCallee = FindMatchingNodeScope(calleeScopes, epPath, epSvc, epId, matchedCaller.Node.Id);
                 if (matchedCallee.Scope is null) continue;
 
                 var protocol = row.GetStringProp("protocol");
@@ -312,11 +310,9 @@ public partial class ArchitectureViewEngine
                     var tPath = row.GetStringProp("target_path");
                     if (string.IsNullOrEmpty(cPath) || string.IsNullOrEmpty(tPath)) continue;
 
-                    var matchedCaller = callerScopes.FirstOrDefault(cs => cs.Scope.Matches(cPath, null, sym1Id));
+                    var matchedCaller = FindMatchingNodeScope(callerScopes, cPath, null, sym1Id);
                     if (matchedCaller.Scope is null) continue;
-                    var matchedCallee = calleeScopes.FirstOrDefault(cs =>
-                        !cs.Node.Id.Equals(matchedCaller.Node.Id, StringComparison.OrdinalIgnoreCase) &&
-                        cs.Scope.Matches(tPath, null, sym2Id));
+                    var matchedCallee = FindMatchingNodeScope(calleeScopes, tPath, null, sym2Id, matchedCaller.Node.Id);
                     if (matchedCallee.Scope is null) continue;
 
                     var line = row.GetNullableIntProp("line");
@@ -374,11 +370,9 @@ public partial class ArchitectureViewEngine
                     var p1Name = row.GetStringProp("p1_name");
                     var p2Name = row.GetStringProp("p2_name");
 
-                    var matchedCaller = callerScopes.FirstOrDefault(cs => cs.Scope.Matches(p1Path, p1Name, p1Id));
+                    var matchedCaller = FindMatchingNodeScope(callerScopes, p1Path, p1Name, p1Id);
                     if (matchedCaller.Scope is null) continue;
-                    var matchedCallee = calleeScopes.FirstOrDefault(cs =>
-                        !cs.Node.Id.Equals(matchedCaller.Node.Id, StringComparison.OrdinalIgnoreCase) &&
-                        cs.Scope.Matches(p2Path, p2Name, p2Id));
+                    var matchedCallee = FindMatchingNodeScope(calleeScopes, p2Path, p2Name, p2Id, matchedCaller.Node.Id);
                     if (matchedCallee.Scope is null) continue;
 
                     var pkgName = row.GetStringProp("pkg_name");
@@ -414,6 +408,8 @@ public partial class ArchitectureViewEngine
         // 4. Direct project/service macro-relationship fallback if still empty and an actual graph edge exists between caller and callee
         if (items.Count == 0 && callerScopes.Any(cs => !string.IsNullOrEmpty(cs.Scope.Directory)))
         {
+            var callerById = callerScopes.ToDictionary(cs => cs.Node.Id, StringComparer.OrdinalIgnoreCase);
+            var calleeById = calleeScopes.ToDictionary(cs => cs.Node.Id, StringComparer.OrdinalIgnoreCase);
             var callerTerms = callerScopes.SelectMany(cs => new[] { cs.Node.Id, cs.Node.Name }).Distinct().Select(EscapeCypherStringLiteral);
             var calleeTerms = calleeScopes.SelectMany(cs => new[] { cs.Node.Id, cs.Node.Name }).Distinct().Select(EscapeCypherStringLiteral);
             var directEdgeQuery = $"""
@@ -431,8 +427,8 @@ public partial class ArchitectureViewEngine
                 {
                     var s1Id = row.GetStringProp("s1_id");
                     var s2Id = row.GetStringProp("s2_id");
-                    var matchedCaller = callerScopes.FirstOrDefault(cs => cs.Node.Id.Equals(s1Id, StringComparison.OrdinalIgnoreCase));
-                    var matchedCallee = calleeScopes.FirstOrDefault(cs => cs.Node.Id.Equals(s2Id, StringComparison.OrdinalIgnoreCase));
+                    callerById.TryGetValue(s1Id, out var matchedCaller);
+                    calleeById.TryGetValue(s2Id, out var matchedCallee);
                     if (matchedCaller.Scope is null || matchedCallee.Scope is null || string.IsNullOrEmpty(matchedCaller.Scope.Directory))
                         continue;
 
@@ -668,4 +664,41 @@ public partial class ArchitectureViewEngine
         return items;
     }
 
+    private static EvidenceScope? FindMatchingEvidenceScope(
+        List<EvidenceScope> scopes,
+        string path,
+        string? service,
+        string symId)
+    {
+        for (var i = 0; i < scopes.Count; i++)
+        {
+            if (scopes[i].Matches(path, service, symId))
+            {
+                return scopes[i];
+            }
+        }
+        return null;
+    }
+
+    private static (EvidenceNodeRef Node, EvidenceScope Scope) FindMatchingNodeScope(
+        List<(EvidenceNodeRef Node, EvidenceScope Scope)> scopes,
+        string path,
+        string? service,
+        string symId,
+        string? excludedNodeId = null)
+    {
+        for (var i = 0; i < scopes.Count; i++)
+        {
+            var entry = scopes[i];
+            if (excludedNodeId != null && entry.Node.Id.Equals(excludedNodeId, StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+            if (entry.Scope.Matches(path, service, symId))
+            {
+                return entry;
+            }
+        }
+        return default;
+    }
 }

@@ -140,10 +140,9 @@ internal static class Layer3IncludePathResolver
     public static void AppendIncludePathCandidates(
         string callerFile,
         string importPath,
-        HashSet<string> knownFiles,
         List<string> results,
         Action<string> addFileCandidates,
-        IReadOnlyDictionary<string, List<string>>? filesByFileName = null)
+        IReadOnlyDictionary<string, List<string>> filesByFileName)
     {
         var cleanImport = importPath.Replace(BackslashChar, SlashChar).Trim(SlashChar);
         while (cleanImport.StartsWith(ParentDirPrefix, StringComparison.Ordinal))
@@ -165,32 +164,16 @@ internal static class Layer3IncludePathResolver
 
         if (results.Count == 0 && IsIncludeFilePath(cleanImport))
         {
-            var suffix = $"/{cleanImport}";
-            if (filesByFileName != null)
+            var fileName = Path.GetFileName(cleanImport);
+            if (!string.IsNullOrEmpty(fileName) && filesByFileName.TryGetValue(fileName, out var indexedCandidates))
             {
-                var fileName = Path.GetFileName(cleanImport);
-                if (!string.IsNullOrEmpty(fileName) && filesByFileName.TryGetValue(fileName, out var indexedCandidates))
+                var suffix = $"/{cleanImport}";
+                for (var i = 0; i < indexedCandidates.Count; i++)
                 {
-                    for (var i = 0; i < indexedCandidates.Count; i++)
-                    {
-                        var known = indexedCandidates[i];
-                        if ((string.Equals(known, cleanImport, StringComparison.OrdinalIgnoreCase) ||
-                             known.EndsWith(suffix, StringComparison.OrdinalIgnoreCase)) &&
-                            !results.Contains(known))
-                        {
-                            results.Add(known);
-                        }
-                    }
-                }
-                return;
-            }
-
-            foreach (var known in knownFiles)
-            {
-                if (string.Equals(known, cleanImport, StringComparison.OrdinalIgnoreCase) ||
-                    known.EndsWith(suffix, StringComparison.OrdinalIgnoreCase))
-                {
-                    if (!results.Contains(known))
+                    var known = indexedCandidates[i];
+                    if ((string.Equals(known, cleanImport, StringComparison.OrdinalIgnoreCase) ||
+                         known.EndsWith(suffix, StringComparison.OrdinalIgnoreCase)) &&
+                        !results.Contains(known))
                     {
                         results.Add(known);
                     }

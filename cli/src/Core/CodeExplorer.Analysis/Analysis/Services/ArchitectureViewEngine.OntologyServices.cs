@@ -584,6 +584,12 @@ public partial class ArchitectureViewEngine
         // 2. Downstream Services, Databases, Topics, and External Services from archGraph
         var projectNodes = archGraph.Nodes.Where(n => IsProjectNodeKind(n.Kind)).ToList();
         var internalProjectsByName = BuildInternalProjectsLookup(projectNodes);
+        var internalProjectStems = BuildInternalProjectStems(internalProjectsByName);
+        var archNodeById = new Dictionary<string, GraphNodeDto>(archGraph.Nodes.Count, StringComparer.OrdinalIgnoreCase);
+        foreach (var n in archGraph.Nodes)
+        {
+            archNodeById.TryAdd(n.Id, n);
+        }
 
         var seenDbs = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         var seenTopics = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
@@ -594,7 +600,7 @@ public partial class ArchitectureViewEngine
         {
             if (edge.Source.Equals(targetId, StringComparison.OrdinalIgnoreCase))
             {
-                var tgtNode = archGraph.Nodes.FirstOrDefault(n => n.Id.Equals(edge.Target, StringComparison.OrdinalIgnoreCase));
+                archNodeById.TryGetValue(edge.Target, out var tgtNode);
                 var tgtName = tgtNode?.Name ?? edge.Target;
 
                 if (edge.Category == GraphEdgeCategory.Database || edge.Kind == RelationshipKind.UsesDb || tgtNode?.Kind == NodeKind.Database)
@@ -664,7 +670,7 @@ public partial class ArchitectureViewEngine
                     }
                     else if (tgtNode?.Kind is NodeKind.ExternalService or NodeKind.CloudService || (!isInternalDirect && (edge.Kind is RelationshipKind.ServiceCall or RelationshipKind.CallsEndpoint)))
                     {
-                        var resolved = ResolveInternalServiceNode(tgtName, internalProjectsByName);
+                        var resolved = ResolveInternalServiceNode(tgtName, internalProjectsByName, internalProjectStems);
                         if (resolved != null)
                         {
                             var resolvedName = resolved.Name;
@@ -733,7 +739,7 @@ public partial class ArchitectureViewEngine
             {
                 if (edge.Category == GraphEdgeCategory.Messaging || edge.Kind is RelationshipKind.SubscribedBy or RelationshipKind.SubscribesTo or RelationshipKind.Triggers)
                 {
-                    var srcNode = archGraph.Nodes.FirstOrDefault(n => n.Id.Equals(edge.Source, StringComparison.OrdinalIgnoreCase));
+                    archNodeById.TryGetValue(edge.Source, out var srcNode);
                     var topicName = srcNode?.Name ?? edge.Source;
                     var isInternal = edge.Properties?.GetValueOrDefault("is_internal") == "true" ||
                                      srcNode?.Properties?.GetValueOrDefault("is_internal") == "true" ||
@@ -808,9 +814,24 @@ public partial class ArchitectureViewEngine
         return lookup;
     }
 
+    private static List<(string Stem, GraphNodeDto Node)> BuildInternalProjectStems(
+        Dictionary<string, GraphNodeDto> internalProjectsByName)
+    {
+        var stems = new List<(string Stem, GraphNodeDto Node)>(internalProjectsByName.Count);
+        foreach (var (k, v) in internalProjectsByName)
+        {
+            if (k.Length >= 3)
+            {
+                stems.Add((k, v));
+            }
+        }
+        return stems;
+    }
+
     private static GraphNodeDto? ResolveInternalServiceNode(
         string? nameOrDomain,
-        Dictionary<string, GraphNodeDto> internalProjectsByName)
+        Dictionary<string, GraphNodeDto> internalProjectsByName,
+        List<(string Stem, GraphNodeDto Node)>? internalProjectStems = null)
     {
         if (string.IsNullOrWhiteSpace(nameOrDomain)) return null;
         var n = nameOrDomain.Trim();
@@ -831,11 +852,13 @@ public partial class ArchitectureViewEngine
             }
         }
 
-        foreach (var (k, v) in internalProjectsByName)
+        var stems = internalProjectStems ?? BuildInternalProjectStems(internalProjectsByName);
+        for (var i = 0; i < stems.Count; i++)
         {
-            if (k.Length >= 3 && (k.Equals(clean, StringComparison.OrdinalIgnoreCase) ||
-                                  clean.StartWithIC(k) ||
-                                  k.StartWithIC(clean)))
+            var (k, v) = stems[i];
+            if (k.Equals(clean, StringComparison.OrdinalIgnoreCase) ||
+                clean.StartWithIC(k) ||
+                k.StartWithIC(clean))
             {
                 return v;
             }

@@ -32,7 +32,9 @@ public static partial class BuiltInGateCatalog
         NoFileReadAboveLayer3Gate,
         ProjectManifestSinglePassOwnershipGate,
         PerProjectAstEvictionGate,
-        ModuleCycleProhibitionGate
+        ModuleCycleProhibitionGate,
+        NoLinearScansInLoopsGate,
+        InterProceduralPolynomialCeilingGate
     ];
 
     public static IReadOnlyList<SemanticGate> GetExampleGates() =>
@@ -61,6 +63,8 @@ public static partial class BuiltInGateCatalog
         ProjectManifestSinglePassOwnershipGate,
         PerProjectAstEvictionGate,
         ModuleCycleProhibitionGate,
+        NoLinearScansInLoopsGate,
+        InterProceduralPolynomialCeilingGate,
 
         new SemanticGate
         {

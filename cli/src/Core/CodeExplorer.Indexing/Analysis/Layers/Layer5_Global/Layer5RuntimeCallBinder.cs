@@ -138,13 +138,44 @@ internal static class Layer5RuntimeCallBinder
         return true;
     }
 
+    public static List<ProjectNode> BuildCallableHostCandidateProjects(
+        IReadOnlyList<ProjectNode> allProjects,
+        IReadOnlySet<string> callableProjectIds)
+    {
+        var list = new List<ProjectNode>();
+        for (var i = 0; i < allProjects.Count; i++)
+        {
+            var proj = allProjects[i];
+            if (!IsCallableServiceTarget(proj) || !callableProjectIds.Contains(proj.Id))
+            {
+                continue;
+            }
+
+            var pName = proj.Name.ToLowerInvariant();
+            var excluded = false;
+            for (var s = 0; s < ExcludedTargetSuffixes.Length; s++)
+            {
+                if (pName.EndsWith(ExcludedTargetSuffixes[s], StringComparison.Ordinal))
+                {
+                    excluded = true;
+                    break;
+                }
+            }
+            if (!excluded)
+            {
+                list.Add(proj);
+            }
+        }
+        return list;
+    }
+
     public static void EmitServiceCallViaEntryPoint(
         Layer5Context ctx,
         ProjectNode? callerProj,
         ProjectNode? targetProj,
         string entryPointName,
         string? sourceDomain,
-        HashSet<(string From, string To)> addedServiceCalls,
+        Dictionary<(string From, string To), Relationship> serviceCallEdgesByPair,
         List<Relationship> lateBoundRels)
     {
         if (!CanEmitRuntimeServiceCall(callerProj, targetProj))
@@ -152,16 +183,19 @@ internal static class Layer5RuntimeCallBinder
             return;
         }
 
-        if (addedServiceCalls.Add((callerProj!.Id, targetProj!.Id)))
+        var key = (callerProj!.Id, targetProj!.Id);
+        if (!serviceCallEdgesByPair.ContainsKey(key))
         {
             ctx.Layer5Log.SynthesizedDependencyViaEntryPoint(callerProj.Name, targetProj.Name, entryPointName);
-            lateBoundRels.Add(Relationship.FromRelationship(new ServiceCallRelationship(callerProj.Id, targetProj.Id)
+            var svcCall = Relationship.FromRelationship(new ServiceCallRelationship(callerProj.Id, targetProj.Id)
             {
                 DependencyType = DepTypeServiceCall,
                 Reason = ReasonRuntimeEntrypoint,
                 MatchedEndpoint = entryPointName,
                 SourceDep = sourceDomain
-            }));
+            });
+            serviceCallEdgesByPair[key] = svcCall;
+            lateBoundRels.Add(svcCall);
         }
     }
 
@@ -172,7 +206,7 @@ internal static class Layer5RuntimeCallBinder
         string? routeTemplate,
         string? sourceDomain,
         Relationship contributingRel,
-        HashSet<(string From, string To)> addedServiceCalls,
+        Dictionary<(string From, string To), Relationship> serviceCallEdgesByPair,
         List<Relationship> lateBoundRels)
     {
         if (!CanEmitRuntimeServiceCall(callerProj, targetProj))
@@ -180,7 +214,8 @@ internal static class Layer5RuntimeCallBinder
             return;
         }
 
-        if (addedServiceCalls.Add((callerProj!.Id, targetProj!.Id)))
+        var key = (callerProj!.Id, targetProj!.Id);
+        if (!serviceCallEdgesByPair.TryGetValue(key, out var existing))
         {
             ctx.Layer5Log.SynthesizedDependencyViaEndpoint(callerProj.Name, targetProj.Name, routeTemplate);
             var svcCall = Relationship.FromRelationship(new ServiceCallRelationship(callerProj.Id, targetProj.Id)
@@ -191,26 +226,21 @@ internal static class Layer5RuntimeCallBinder
                 SourceDep = sourceDomain
             });
             EvidenceProvenanceHelper.RecordContributingEdge(svcCall, contributingRel);
+            serviceCallEdgesByPair[key] = svcCall;
             lateBoundRels.Add(svcCall);
         }
         else
         {
-            var existing = lateBoundRels.FirstOrDefault(r =>
-                r.From == callerProj.Id && r.To == targetProj.Id && r.Kind == RelationshipKind.ServiceCall);
-            if (existing != null)
-            {
-                EvidenceProvenanceHelper.RecordContributingEdge(existing, contributingRel);
-            }
+            EvidenceProvenanceHelper.RecordContributingEdge(existing, contributingRel);
         }
     }
 
     public static void TryInferServiceCallViaHost(
         Layer5Context ctx,
         Layer5AnalysisParser.PreparedExternalService extService,
-        IReadOnlyList<ProjectNode> allProjects,
-        IReadOnlySet<string> callableProjectIds,
+        IReadOnlyList<ProjectNode> callableHostCandidates,
         Func<ProjectNode, string, bool> checkProjectMatch,
-        HashSet<(string From, string To)> addedServiceCalls,
+        Dictionary<(string From, string To), Relationship> serviceCallEdgesByPair,
         List<Relationship> lateBoundRels)
     {
         var domain = extService.Service.DomainOrService;
@@ -239,39 +269,40 @@ internal static class Layer5RuntimeCallBinder
             return;
         }
 
-        var matches = new List<ProjectNode>();
-        foreach (var proj in allProjects)
+        ProjectNode? singleMatch = null;
+        for (var i = 0; i < callableHostCandidates.Count; i++)
         {
-            if (!CanEmitRuntimeServiceCall(callerProj, proj) || !callableProjectIds.Contains(proj.Id))
-            {
-                continue;
-            }
-
-            var pName = proj.Name.ToLowerInvariant();
-            if (ExcludedTargetSuffixes.Any(s => pName.EndsWith(s, StringComparison.Ordinal)))
+            var proj = callableHostCandidates[i];
+            if (proj.Id == callerProj.Id)
             {
                 continue;
             }
 
             if (checkProjectMatch(proj, domain))
             {
-                matches.Add(proj);
+                if (singleMatch != null)
+                {
+                    return;
+                }
+                singleMatch = proj;
             }
         }
 
         // Only emit when host unambiguously identifies a single runnable service
-        if (matches.Count == 1)
+        if (singleMatch != null)
         {
-            var target = matches[0];
-            if (addedServiceCalls.Add((callerProj.Id, target.Id)))
+            var key = (callerProj.Id, singleMatch.Id);
+            if (!serviceCallEdgesByPair.ContainsKey(key))
             {
-                ctx.Layer5Log.InferredDependencyViaDomain(callerProj.Name, target.Name, domain);
-                lateBoundRels.Add(Relationship.FromRelationship(new ServiceCallRelationship(callerProj.Id, target.Id)
+                ctx.Layer5Log.InferredDependencyViaDomain(callerProj.Name, singleMatch.Name, domain);
+                var svcCall = Relationship.FromRelationship(new ServiceCallRelationship(callerProj.Id, singleMatch.Id)
                 {
                     DependencyType = DepTypeServiceCall,
                     Reason = ReasonRuntimeHost,
                     SourceDep = domain
-                }));
+                });
+                serviceCallEdgesByPair[key] = svcCall;
+                lateBoundRels.Add(svcCall);
             }
         }
     }

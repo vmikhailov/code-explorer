@@ -506,10 +506,7 @@ public partial class Layer4SemanticParser
                 if (duplicateSdlIds.Count > 0)
                 {
                     projectSemanticNodes.RemoveAll(n => duplicateSdlIds.Contains(n.Id));
-                    foreach (var syntaxTree in projectTrees)
-                    {
-                        syntaxTree.FileNode?.Children.RemoveAll(c => duplicateSdlIds.Contains(c.Id));
-                    }
+                    RemoveFileChildNodesById(projectTrees, duplicateSdlIds);
                 }
             }
 
@@ -521,6 +518,19 @@ public partial class Layer4SemanticParser
 
             if (qualifiedTables.Count > 0)
             {
+                var qualifiedTablesByName = new Dictionary<string, List<TableNode>>(StringComparer.OrdinalIgnoreCase);
+                var seenQualTableIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                foreach (var qt in qualifiedTables)
+                {
+                    if (!seenQualTableIds.Add(qt.Id)) continue;
+                    if (!qualifiedTablesByName.TryGetValue(qt.Name, out var list))
+                    {
+                        list = [];
+                        qualifiedTablesByName[qt.Name] = list;
+                    }
+                    list.Add(qt);
+                }
+
                 var tableIdRemap = new Dictionary<string, string>(StringComparer.Ordinal);
                 var unqualifiedTables = projectSemanticNodes
                     .OfType<TableNode>()
@@ -529,35 +539,12 @@ public partial class Layer4SemanticParser
 
                 foreach (var ormTbl in unqualifiedTables)
                 {
-                    TableNode? matchedSqlTbl = null;
-                    if (!string.IsNullOrEmpty(ormTbl.Schema))
+                    if (!qualifiedTablesByName.TryGetValue(ormTbl.Name, out var byName) || byName.Count == 0)
                     {
-                        var schemaToken1 = $":ds:{ormTbl.Schema}:";
-                        var schemaToken2 = $":dataset:{ormTbl.Schema}:";
-                        matchedSqlTbl = qualifiedTables.FirstOrDefault(qt =>
-                            string.Equals(qt.Name, ormTbl.Name, StringComparison.OrdinalIgnoreCase) &&
-                            (qt.Id.Contains(schemaToken1, StringComparison.OrdinalIgnoreCase) ||
-                             qt.Id.Contains(schemaToken2, StringComparison.OrdinalIgnoreCase) ||
-                             string.Equals(qt.Schema, ormTbl.Schema, StringComparison.OrdinalIgnoreCase)));
+                        continue;
                     }
 
-                    if (matchedSqlTbl == null)
-                    {
-                        var byName = qualifiedTables
-                            .Where(qt => string.Equals(qt.Name, ormTbl.Name, StringComparison.OrdinalIgnoreCase))
-                            .DistinctBy(qt => qt.Id, StringComparer.OrdinalIgnoreCase)
-                            .ToList();
-                        if (byName.Count == 1)
-                        {
-                            matchedSqlTbl = byName[0];
-                        }
-                        else if (byName.Count > 1)
-                        {
-                            matchedSqlTbl = byName.FirstOrDefault(qt => qt.Id.Contains(":ds:core:", StringComparison.OrdinalIgnoreCase))
-                                            ?? byName[0];
-                        }
-                    }
-
+                    var matchedSqlTbl = SelectMatchingQualifiedTable(ormTbl, byName);
                     if (matchedSqlTbl != null && matchedSqlTbl.Id != ormTbl.Id)
                     {
                         tableIdRemap[ormTbl.Id] = matchedSqlTbl.Id;
@@ -567,10 +554,7 @@ public partial class Layer4SemanticParser
                 if (tableIdRemap.Count > 0)
                 {
                     projectSemanticNodes.RemoveAll(n => tableIdRemap.ContainsKey(n.Id));
-                    foreach (var syntaxTree in projectTrees)
-                    {
-                        syntaxTree.FileNode?.Children.RemoveAll(c => tableIdRemap.ContainsKey(c.Id));
-                    }
+                    RemoveFileChildNodesById(projectTrees, tableIdRemap.Keys);
 
                     for (var i = initialRelCount; i < semanticRelationships.Count; i++)
                     {
@@ -921,5 +905,52 @@ public partial class Layer4SemanticParser
                 }
             }
         }
+    }
+
+    private const string CoreSchemaDatasetToken = ":ds:core:";
+
+    private static void RemoveFileChildNodesById(List<SyntaxTree> projectTrees, ICollection<string> idsToRemove)
+    {
+        for (var i = 0; i < projectTrees.Count; i++)
+        {
+            var children = projectTrees[i].FileNode?.Children;
+            if (children is { Count: > 0 })
+            {
+                children.RemoveAll(c => idsToRemove.Contains(c.Id));
+            }
+        }
+    }
+
+    private static TableNode? SelectMatchingQualifiedTable(TableNode ormTbl, List<TableNode> byName)
+    {
+        if (!string.IsNullOrEmpty(ormTbl.Schema))
+        {
+            var schemaToken1 = $":ds:{ormTbl.Schema}:";
+            var schemaToken2 = $":dataset:{ormTbl.Schema}:";
+            for (var i = 0; i < byName.Count; i++)
+            {
+                var qt = byName[i];
+                if (qt.Id.Contains(schemaToken1, StringComparison.OrdinalIgnoreCase) ||
+                    qt.Id.Contains(schemaToken2, StringComparison.OrdinalIgnoreCase) ||
+                    string.Equals(qt.Schema, ormTbl.Schema, StringComparison.OrdinalIgnoreCase))
+                {
+                    return qt;
+                }
+            }
+        }
+
+        if (byName.Count == 1)
+        {
+            return byName[0];
+        }
+
+        for (var i = 0; i < byName.Count; i++)
+        {
+            if (byName[i].Id.Contains(CoreSchemaDatasetToken, StringComparison.OrdinalIgnoreCase))
+            {
+                return byName[i];
+            }
+        }
+        return byName[0];
     }
 }

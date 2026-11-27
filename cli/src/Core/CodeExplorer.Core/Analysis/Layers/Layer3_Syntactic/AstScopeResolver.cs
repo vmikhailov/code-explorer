@@ -425,7 +425,7 @@ public static class AstScopeResolver
             {
                 var name = !string.IsNullOrEmpty(fn.Name)
                     ? fn.Name
-                    : (fn.GetChildForField(SyntaxFields.Name) ?? fn.Children.FirstOrDefault(c => c is IdentifierExprSyntax))?.Text;
+                    : (fn.GetChildForField(SyntaxFields.Name) ?? FindFirstIdentifierChild(fn))?.Text;
                 if (name == funcName) return fn;
             }
             var sub = FindFunctionRecursive(child, funcName);
@@ -444,18 +444,18 @@ public static class AstScopeResolver
                 foreach (var p in fn.Parameters)
                 {
                     if (p.Name == varName) return true;
-                    var pat = p.GetField(SyntaxFields.Pattern) ?? p.GetField(SyntaxFields.Name) ?? p.Children.FirstOrDefault(c => c is IdentifierExprSyntax);
+                    var pat = p.GetField(SyntaxFields.Pattern) ?? p.GetField(SyntaxFields.Name) ?? FindFirstIdentifierChild(p);
                     if (pat.IsValid() && pat.Text == varName) return true;
                 }
 
-                var paramsNode = fn.GetField(SyntaxFields.Parameters) ?? fn.Children.FirstOrDefault(c => c.Type.Contains("parameter", StringComparison.Ordinal));
+                var paramsNode = fn.GetField(SyntaxFields.Parameters) ?? FindParametersChild(fn);
                 if (paramsNode.IsValid())
                 {
                     foreach (var p in paramsNode.Children)
                     {
                         if (!p.IsValid()) continue;
                         if (p is ParameterDeclSyntax pd && pd.Name == varName) return true;
-                        var pat = p.GetField(SyntaxFields.Pattern) ?? p.GetField(SyntaxFields.Name) ?? p.Children.FirstOrDefault(c => c is IdentifierExprSyntax);
+                        var pat = p.GetField(SyntaxFields.Pattern) ?? p.GetField(SyntaxFields.Name) ?? FindFirstIdentifierChild(p);
                         if (pat.IsValid() && pat.Text == varName) return true;
                     }
                 }
@@ -474,7 +474,7 @@ public static class AstScopeResolver
                 if (p.PassingMode is ParameterPassingMode.Receiver or ParameterPassingMode.MutBorrow)
                     continue;
                 if (!string.IsNullOrEmpty(p.Name)) return p.Name;
-                var pat = p.GetField(SyntaxFields.Pattern) ?? p.Children.FirstOrDefault(c => c is IdentifierExprSyntax);
+                var pat = p.GetField(SyntaxFields.Pattern) ?? FindFirstIdentifierChild(p);
                 if (pat.IsValid() && !pat.IsSelfOrSuper) return pat.Text;
             }
         }
@@ -487,10 +487,32 @@ public static class AstScopeResolver
                 if (p is ParameterDeclSyntax pd && pd.PassingMode is not (ParameterPassingMode.Receiver or ParameterPassingMode.MutBorrow))
                 {
                     if (!string.IsNullOrEmpty(pd.Name)) return pd.Name;
-                    var pat = pd.GetField(SyntaxFields.Pattern) ?? pd.Children.FirstOrDefault(c => c is IdentifierExprSyntax);
+                    var pat = pd.GetField(SyntaxFields.Pattern) ?? FindFirstIdentifierChild(pd);
                     if (pat.IsValid() && !pat.IsSelfOrSuper) return pat.Text;
                 }
             }
+        }
+        return null;
+    }
+
+    private const string ParameterNodeToken = "parameter";
+
+    private static Node? FindFirstIdentifierChild(Node parent)
+    {
+        for (var i = 0; i < parent.Children.Count; i++)
+        {
+            var c = parent.Children[i];
+            if (c is IdentifierExprSyntax) return c;
+        }
+        return null;
+    }
+
+    private static Node? FindParametersChild(Node fn)
+    {
+        for (var i = 0; i < fn.Children.Count; i++)
+        {
+            var c = fn.Children[i];
+            if (c.Type.Contains(ParameterNodeToken, StringComparison.Ordinal)) return c;
         }
         return null;
     }

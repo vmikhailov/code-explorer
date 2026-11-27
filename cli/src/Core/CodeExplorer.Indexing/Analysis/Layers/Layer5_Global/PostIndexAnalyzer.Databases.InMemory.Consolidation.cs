@@ -36,13 +36,28 @@ public partial class PostIndexAnalyzer
         var nonConfigDbNodes = allDbNodes
             .Where(d => d.FromConfig != true)
             .ToList();
+        var nonConfigDbById = new Dictionary<string, DatabaseNode>(nonConfigDbNodes.Count, StringComparer.OrdinalIgnoreCase);
+        foreach (var d in nonConfigDbNodes)
+        {
+            nonConfigDbById.TryAdd(d.Id, d);
+        }
+        var allDbById = new Dictionary<string, DatabaseNode>(allDbNodes.Count, StringComparer.OrdinalIgnoreCase);
+        foreach (var d in allDbNodes)
+        {
+            allDbById.TryAdd(d.Id, d);
+        }
+        var projectsById = new Dictionary<string, ProjectNode>(projects.Count, StringComparer.OrdinalIgnoreCase);
+        foreach (var p in projects)
+        {
+            projectsById.TryAdd(p.Id, p);
+        }
 
         var ownerCache = new Dictionary<string, ProjectNode?>(StringComparer.OrdinalIgnoreCase);
         ProjectNode? GetCachedOwner(string callerId)
         {
             if (ownerCache.TryGetValue(callerId, out var cached))
                 return cached;
-            var resolved = FindOwningProjectForId(callerId, projects, fileToProject);
+            var resolved = projectsById.GetValueOrDefault(callerId) ?? FindOwningProjectForId(callerId, projects, fileToProject);
             ownerCache[callerId] = resolved;
             return resolved;
         }
@@ -63,7 +78,7 @@ public partial class PostIndexAnalyzer
                 if (!isDbUsageRel) continue;
 
                 var relDbId = isReverseDbRel ? rel.From : rel.To;
-                var targetDb = nonConfigDbNodes.FirstOrDefault(d => d.Id == relDbId || relDbId.StartWithIC(d.Id));
+                var targetDb = FindDatabaseByIdOrPrefix(relDbId, nonConfigDbById, nonConfigDbNodes);
                 if (targetDb == null) continue;
 
                 var relCallerId = isReverseDbRel ? rel.To : rel.From;
@@ -251,18 +266,16 @@ public partial class PostIndexAnalyzer
         }
 
         // Prune unverified config USES_DB edges
-        var unverifiedEdges = new List<Relationship>();
+        var unverifiedEdges = new HashSet<Relationship>();
         foreach (var rel in allRelationships)
         {
             if (rel.Kind != RelationshipKind.UsesDb) continue;
 
-            var targetDb = allDbNodes.FirstOrDefault(d => d.Id == rel.To || rel.To.StartWithIC(d.Id));
+            var targetDb = FindDatabaseByIdOrPrefix(rel.To, allDbById, allDbNodes);
             var isConfigDb = targetDb?.FromConfig == true;
             if (!isConfigDb || targetDb == null) continue;
 
-            var owner = projects.FirstOrDefault(p => p.Id == rel.From || rel.From.StartWithIC(p.Id))
-                        ?? (fileToProject.TryGetValue(rel.From, out var fp) ? fp : null)
-                        ?? FindOwningProjectForId(rel.From, projects, fileToProject);
+            var owner = GetCachedOwner(rel.From);
             if (owner == null) continue;
 
             var domain = ResourceSemanticAnalyzer.CleanProjectNameToDomain(owner.Name);
@@ -284,7 +297,7 @@ public partial class PostIndexAnalyzer
             var vKeys = domainVerifiedKeys.GetValueOrDefault(domain, []);
 
             var isVerified = vEngines.Contains(normEng) ||
-                             (!string.IsNullOrEmpty(key) && (vKeys.Contains(key) || key.Split([':', '.']).Any(part => vKeys.Contains(part)))) ||
+                             (!string.IsNullOrEmpty(key) && HasVerifiedConfigKeyPart(key, vKeys)) ||
                              (targetDb.DbType == DatabaseType.Relational && vDbTypes.Contains("relational"));
 
             if (!isVerified)
@@ -295,27 +308,58 @@ public partial class PostIndexAnalyzer
 
         if (unverifiedEdges.Count > 0)
         {
-            foreach (var unv in unverifiedEdges)
-            {
-                allRelationships.Remove(unv);
-                ctx.TreeRelationships.Remove(unv);
-                ctx.GlobalProjectDependencies.Remove(unv);
-            }
+            allRelationships.RemoveAll(unverifiedEdges.Contains);
+            ctx.TreeRelationships.RemoveAll(unverifiedEdges.Contains);
+            ctx.GlobalProjectDependencies.RemoveAll(unverifiedEdges.Contains);
 
             // Remove any unverified config databases that now have 0 non-test incoming edges
             var remainingTargets = allRelationships.Where(r => r.Kind == RelationshipKind.UsesDb).Select(r => r.To).ToHashSet(StringComparer.OrdinalIgnoreCase);
             var orphanedConfigDbs = allDbNodes.Where(d => d.FromConfig == true && !remainingTargets.Contains(d.Id)).ToList();
-            foreach (var oDb in orphanedConfigDbs)
+            if (orphanedConfigDbs.Count > 0)
             {
-                allDbNodes.Remove(oDb);
-                canonicalDbNodes.Remove(oDb.Id);
-                if (rawToCanonical.TryGetValue(oDb.Id, out var cId))
+                var orphanedSet = new HashSet<DatabaseNode>(orphanedConfigDbs);
+                allDbNodes.RemoveAll(orphanedSet.Contains);
+                foreach (var oDb in orphanedConfigDbs)
                 {
-                    canonicalDbNodes.Remove(cId);
-                    rawToCanonical.Remove(oDb.Id);
+                    canonicalDbNodes.Remove(oDb.Id);
+                    if (rawToCanonical.TryGetValue(oDb.Id, out var cId))
+                    {
+                        canonicalDbNodes.Remove(cId);
+                        rawToCanonical.Remove(oDb.Id);
+                    }
                 }
             }
         }
+    }
+
+    private static readonly char[] ConfigKeySeparators = [':', '.'];
+
+    private static bool HasVerifiedConfigKeyPart(string key, HashSet<string> verifiedKeys)
+    {
+        if (verifiedKeys.Contains(key)) return true;
+        var parts = key.Split(ConfigKeySeparators);
+        for (var i = 0; i < parts.Length; i++)
+        {
+            if (verifiedKeys.Contains(parts[i])) return true;
+        }
+        return false;
+    }
+
+    private static DatabaseNode? FindDatabaseByIdOrPrefix(
+        string dbId,
+        Dictionary<string, DatabaseNode> dbById,
+        List<DatabaseNode> dbNodes)
+    {
+        if (dbById.TryGetValue(dbId, out var exact))
+        {
+            return exact;
+        }
+        for (var i = 0; i < dbNodes.Count; i++)
+        {
+            var d = dbNodes[i];
+            if (dbId.StartWithIC(d.Id)) return d;
+        }
+        return null;
     }
 
     internal static async Task<List<Relationship>> ConsolidateServiceDatabasesAsync(
@@ -379,6 +423,33 @@ public partial class PostIndexAnalyzer
             allRelationships,
             ResolveOwner,
             isTestSource);
+
+        var nonLibProjByName = new Dictionary<string, ProjectNode>(StringComparer.OrdinalIgnoreCase);
+        foreach (var pr in projects)
+        {
+            if (!pr.IsLibrary && !pr.IsTest && !string.IsNullOrEmpty(pr.Name))
+            {
+                nonLibProjByName.TryAdd(pr.Name, pr);
+            }
+        }
+        var libToReferencingServices = new Dictionary<string, List<ProjectNode>>(StringComparer.OrdinalIgnoreCase);
+        foreach (var (svcId, libs) in serviceToReferencedLibs)
+        {
+            if (!projectsById.TryGetValue(svcId, out var svcProj) || isTestSource(svcProj.Id, svcProj.Path))
+            {
+                continue;
+            }
+            for (var i = 0; i < libs.Count; i++)
+            {
+                var libId = libs[i].Id;
+                if (!libToReferencingServices.TryGetValue(libId, out var svcList))
+                {
+                    svcList = [];
+                    libToReferencingServices[libId] = svcList;
+                }
+                svcList.Add(svcProj);
+            }
+        }
 
         var (multiDomainSharedLibDbIds, implicitSchemaIds, concreteEnginesCount, serviceOwnDomainConcreteEngines) =
             AnalyzeDatabaseOwnersAndEngines(
@@ -460,10 +531,9 @@ public partial class PostIndexAnalyzer
                             if (slashIdx > 0)
                             {
                                 var subBinName = afterBin[..slashIdx];
-                                var matchingBinProj = projects.FirstOrDefault(p =>
-                                    !p.IsLibrary && !p.IsTest && p.Id != owner.Id &&
-                                    string.Equals(p.Name, subBinName, StringComparison.OrdinalIgnoreCase));
-                                if (matchingBinProj != null && !isTestSource(matchingBinProj.Id, matchingBinProj.Path))
+                                if (nonLibProjByName.TryGetValue(subBinName, out var matchingBinProj) &&
+                                    matchingBinProj.Id != owner.Id &&
+                                    !isTestSource(matchingBinProj.Id, matchingBinProj.Path))
                                 {
                                     projectDbEdges.Add((matchingBinProj, canonicalTarget, rel, false));
                                 }
@@ -471,24 +541,18 @@ public partial class PostIndexAnalyzer
                         }
                     }
 
-                    // Propagate library DB target to referencing services (multi-hop):
-                    // If owner is a multi-domain shared library, only suppress propagation to services that ALREADY have
-                    // their own single-domain concrete database for the same engine (e.g. eShop microservices referencing IntegrationEventLogEF).
-                    foreach (var (svcId, libs) in serviceToReferencedLibs)
+                    // Propagate library DB target to referencing services (multi-hop)
+                    if (libToReferencingServices.TryGetValue(owner.Id, out var refServices))
                     {
-                        if (libs.Any(l => l.Id == owner.Id))
+                        for (var i = 0; i < refServices.Count; i++)
                         {
-                            var svcProj = projects.FirstOrDefault(p => p.Id == svcId);
-                            if (svcProj != null && !isTestSource(svcProj.Id, svcProj.Path))
+                            var svcProj = refServices[i];
+                            var svcHasOwnDbForEngine = serviceOwnDomainConcreteEngines.TryGetValue(svcProj.Id, out var svcEngs) &&
+                                                       svcEngs.Contains(targetEng);
+                            var skipLibInheritance = svcHasOwnDbForEngine && isLibraryOwner && !isTrulyEngineOnlyTarget;
+                            if (!skipLibInheritance && (!isMultiDomainLib || !isGenericTarget || !svcHasOwnDbForEngine))
                             {
-                                var svcHasOwnDbForEngine = serviceOwnDomainConcreteEngines.TryGetValue(svcProj.Id, out var svcEngs) &&
-                                                           svcEngs.Contains(targetEng);
-                                // A service with its own concrete DB for this engine must not inherit a shared library's DB.
-                                var skipLibInheritance = svcHasOwnDbForEngine && isLibraryOwner && !isTrulyEngineOnlyTarget;
-                                if (!skipLibInheritance && (!isMultiDomainLib || !isGenericTarget || !svcHasOwnDbForEngine))
-                                {
-                                    projectDbEdges.Add((svcProj, canonicalTarget, rel, isRawImplicitEdge));
-                                }
+                                projectDbEdges.Add((svcProj, canonicalTarget, rel, isRawImplicitEdge));
                             }
                         }
                     }

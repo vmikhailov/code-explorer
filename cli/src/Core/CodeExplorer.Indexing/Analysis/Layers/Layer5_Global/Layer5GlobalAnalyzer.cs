@@ -156,6 +156,7 @@ public partial class Layer5AnalysisParser
         Layer5SymbolVisibilityResolver.ResolveSqlTriggerRelationships(_currentL4Result, ctx.FilesStructure, symbols, referenceRelationships, existingRefRels);
 
         await RunSemanticLayerEnrichersAsync(ctx, symbols, bindings, referenceRelationships, existingRefRels);
+        await Layer5ComplexityPropagator.PropagateAndUploadAsync(ctx, referenceRelationships);
 
         ctx.Layer5Log.CrossReferencesResolved(totalReferences, totalReferences, referenceRelationships.Count, sw.ElapsedMilliseconds);
 
@@ -275,10 +276,17 @@ public partial class Layer5AnalysisParser
 
         // Build mapping from symbol/node ID to containing ProjectNode (including DB-loaded candidates)
         var nodeToProject = new Dictionary<string, ProjectNode>();
+        var projectsByPath = new Dictionary<string, ProjectNode>(allProjects.Count, StringComparer.Ordinal);
+        foreach (var proj in allProjects)
+        {
+            if (!string.IsNullOrEmpty(proj.Path))
+            {
+                projectsByPath.TryAdd(proj.Path, proj);
+            }
+        }
         foreach (var pSem in l4Result.SemanticStructure.Children)
         {
-            var matchedProj = allProjects.FirstOrDefault(p => p.Path == pSem.Path);
-            if (matchedProj != null)
+            if (!string.IsNullOrEmpty(pSem.Path) && projectsByPath.TryGetValue(pSem.Path, out var matchedProj))
             {
                 MapProjectNodes(pSem, matchedProj, nodeToProject);
             }
@@ -372,7 +380,7 @@ public partial class Layer5AnalysisParser
         ctx.Layer5Log.LateBindingStarted(prepExtServices.Count, prepEndpoints.Count, prepEntryPoints.Count);
 
         var lateBoundRels = new List<Relationship>();
-        var addedProjectDeps = new HashSet<(string From, string To)>();
+        var serviceCallEdgesByPair = new Dictionary<(string From, string To), Relationship>();
         var addedFunctionCalls = new HashSet<(string From, string To)>();
         var boundServicesCount = 0;
 
@@ -397,6 +405,7 @@ public partial class Layer5AnalysisParser
                 callableProjectIds.Add(ep.TargetProj.Id);
             }
         }
+        var callableHostCandidates = Layer5RuntimeCallBinder.BuildCallableHostCandidateProjects(allProjects, callableProjectIds);
 
         var lastReport = Stopwatch.GetTimestamp();
         var processedExt = 0;
@@ -443,7 +452,7 @@ public partial class Layer5AnalysisParser
                     entryPoint.TargetProj,
                     entryPoint.EntryPoint.Name,
                     extService.Service.DomainOrService,
-                    addedProjectDeps,
+                    serviceCallEdgesByPair,
                     lateBoundRels);
             }
 
@@ -576,7 +585,7 @@ public partial class Layer5AnalysisParser
                     endpoint.Endpoint.RouteTemplate,
                     extService.Service.DomainOrService,
                     rel,
-                    addedProjectDeps,
+                    serviceCallEdgesByPair,
                     lateBoundRels);
             }
 
@@ -586,10 +595,9 @@ public partial class Layer5AnalysisParser
                 Layer5RuntimeCallBinder.TryInferServiceCallViaHost(
                     ctx,
                     extService,
-                    allProjects,
-                    callableProjectIds,
+                    callableHostCandidates,
                     CheckProjectMatch,
-                    addedProjectDeps,
+                    serviceCallEdgesByPair,
                     lateBoundRels);
             }
 

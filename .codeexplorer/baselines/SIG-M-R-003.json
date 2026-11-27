@@ -1,0 +1,1456 @@
+{
+  "gateId": "SIG-M-R-003",
+  "allowedViolations": 145,
+  "entries": [
+    {
+      "fingerprint": "c45d43acbdd602bb348a87446dcbc3b191322e91f81d05052371c1d13ef5958c",
+      "file": "cli/src/Core/CodeExplorer.Storage/Database/TestIntelligenceService.cs",
+      "line": 60,
+      "column": 5,
+      "symbol": "AnalyzeCoverageAsync",
+      "target": "1 linear scan(s) in loop",
+      "acknowledgedAt": "2026-11-27T19:14:14.497307+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-27 19:14:14"
+    },
+    {
+      "fingerprint": "214f46bdb09f9428b98768ef2cfc38dd89f6abed803df7db9fbb2afe3ad82db5",
+      "file": "cli/src/Cypher/CodeExplorer.Cypher/Compiler/SqliteCompiler.Paths.cs",
+      "line": 474,
+      "column": 5,
+      "symbol": "ApplyOptionalWhereExtra",
+      "target": "1 linear scan(s) in loop",
+      "acknowledgedAt": "2026-11-27T19:14:14.497307+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-27 19:14:14"
+    },
+    {
+      "fingerprint": "e40f9032f8fbaf30a6cea8194a4e5c1ae34f852f42a9fe29c0f695e50c55c4e9",
+      "file": "cli/src/Core/CodeExplorer.Indexing/Analysis/Layers/Layer5_Global/SemanticArgumentPropagator.cs",
+      "line": 493,
+      "column": 5,
+      "symbol": "AssembleEffectiveTargetValues",
+      "target": "1 linear scan(s) in loop",
+      "acknowledgedAt": "2026-11-27T19:14:14.497307+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-27 19:14:14"
+    },
+    {
+      "fingerprint": "55e6a90abb136451b322baa3a1557fce95a2de1fa81821c25b8702ac1fcb74b1",
+      "file": "cli/src/Cypher/CodeExplorer.Cypher/Common/GraphKindCodec.cs",
+      "line": 102,
+      "column": 5,
+      "symbol": "BuildLabelsFilterSql",
+      "target": "1 linear scan(s) in loop",
+      "acknowledgedAt": "2026-11-27T19:14:14.497307+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-27 19:14:14"
+    },
+    {
+      "fingerprint": "38aaca97ea9f68590e93e298d7a74f93418c108bcb57458a9eb5669598cd3fe1",
+      "file": "cli/src/Core/CodeExplorer.Indexing/Analysis/Layers/Layer5_Global/Layer5GlobalAnalyzer.Databases.cs",
+      "line": 1319,
+      "column": 5,
+      "symbol": "BuildProjectReachabilityMatrix",
+      "target": "2 linear scan(s) in loop",
+      "acknowledgedAt": "2026-11-27T19:14:14.497307+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-27 19:14:14"
+    },
+    {
+      "fingerprint": "4f8f048d90002ad5c76be5a24659bfa37e97f0edd97478b53d8680957937149f",
+      "file": "cli/src/Core/CodeExplorer.Indexing/Analysis/Layers/Layer5_Global/PostIndexAnalyzer.Databases.InMemory.Consolidation.Helpers.cs",
+      "line": 9,
+      "column": 5,
+      "symbol": "BuildWorkloadToProjectMap",
+      "target": "3 linear scan(s) in loop",
+      "acknowledgedAt": "2026-11-27T19:14:14.497307+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-27 19:14:14"
+    },
+    {
+      "fingerprint": "3c2e4d04aa8c3e938481cd20e6b86e72cdd5e602f3ff9f8a771e5356bd18ae74",
+      "file": "cli/src/Core/CodeExplorer.Indexing/Analysis/Layers/Layer5_Global/PostIndexAnalyzer.Databases.InMemory.cs",
+      "line": 9,
+      "column": 5,
+      "symbol": "CanonicalizeDatabasesInMemoryAsync",
+      "target": "4 linear scan(s) in loop",
+      "acknowledgedAt": "2026-11-27T19:14:14.497307+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-27 19:14:14"
+    },
+    {
+      "fingerprint": "b7ec16e812943fca633a52c0c14bc3d2e7abe07e39aaebba51b0cd97e7e5e0fe",
+      "file": "cli/src/Core/CodeExplorer.Core/Parser/TreeSitter/BaseParserVisitor.Visitors.cs",
+      "line": 338,
+      "column": 5,
+      "symbol": "CollectCallLiteralArguments",
+      "target": "1 linear scan(s) in loop",
+      "acknowledgedAt": "2026-11-27T19:14:14.497307+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-27 19:14:14"
+    },
+    {
+      "fingerprint": "f5a59edcfd993c4ae7caecc04c8ccb9beed8a6e1a20864697cb63c1aceb83a4e",
+      "file": "cli/src/Core/CodeExplorer.Analysis/Analysis/ProjectMap/ProjectMapBuilder.ClassMap.cs",
+      "line": 25,
+      "column": 5,
+      "symbol": "CollectClassCandidates",
+      "target": "1 linear scan(s) in loop",
+      "acknowledgedAt": "2026-11-27T19:14:14.497307+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-27 19:14:14"
+    },
+    {
+      "fingerprint": "3c1ce5eb94422ab634826608c67b3b58b5370e8eb93a96a02379a8d6c2651c38",
+      "file": "cli/src/Parsers/CodeExplorer.Parsers.Go/GoFileVisitor.Bindings.cs",
+      "line": 91,
+      "column": 5,
+      "symbol": "CollectGoInterfaceMethods",
+      "target": "1 linear scan(s) in loop",
+      "acknowledgedAt": "2026-11-27T19:14:14.497307+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-27 19:14:14"
+    },
+    {
+      "fingerprint": "6bd732db6066330afdeefdb99e5db068212f11bbc715a8d86f6def8b2a16d9b3",
+      "file": "cli/src/Parsers/CodeExplorer.Parsers.Python/Libraries/FastApiLibraryParser.cs",
+      "line": 621,
+      "column": 5,
+      "symbol": "CollectParameterDependencies",
+      "target": "2 linear scan(s) in loop",
+      "acknowledgedAt": "2026-11-27T19:14:14.497307+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-27 19:14:14"
+    },
+    {
+      "fingerprint": "ae64f88cba99200c48c90c0cee38944f42bbbb4651d59e32b8adce6258e91ad8",
+      "file": "cli/src/Parsers/CodeExplorer.Parsers.Rust/RustProjectParser.cs",
+      "line": 416,
+      "column": 5,
+      "symbol": "ComputeSourceReachability",
+      "target": "1 linear scan(s) in loop",
+      "acknowledgedAt": "2026-11-27T19:14:14.497307+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-27 19:14:14"
+    },
+    {
+      "fingerprint": "6e9d6946ba836cf1656ee61e65c9cc81d905c255dc56edb39150b0c5930142ce",
+      "file": "cli/src/Core/CodeExplorer.Indexing/Analysis/Layers/Layer5_Global/PostIndexAnalyzer.Databases.InMemory.Consolidation.cs",
+      "line": 365,
+      "column": 5,
+      "symbol": "ConsolidateServiceDatabasesAsync",
+      "target": "1 linear scan(s) in loop",
+      "acknowledgedAt": "2026-11-27T20:46:05.3860451+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-27 20:46:05"
+    },
+    {
+      "fingerprint": "12cd95624f8b312e1e339813a1c6b7f9cfc89048641717cac76f7a5af5572431",
+      "file": "cli/src/Core/CodeExplorer.Indexing/Analysis/Layers/Layer5_Global/Layer5RuntimeCallBinder.cs",
+      "line": 279,
+      "column": 5,
+      "symbol": "CountMeaningfulStaticSegments",
+      "target": "1 linear scan(s) in loop",
+      "acknowledgedAt": "2026-11-27T19:14:14.497307+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-27 19:14:14"
+    },
+    {
+      "fingerprint": "80bc0ef97c3071e44ff65e0547629120a336ce2ef86818bb72a1ce884d3c5700",
+      "file": "cli/src/Core/CodeExplorer.Core/Analysis/Layers/Layer2_Boundaries/ProjectNodeFactory.cs",
+      "line": 27,
+      "column": 5,
+      "symbol": "Create",
+      "target": "1 linear scan(s) in loop",
+      "acknowledgedAt": "2026-11-27T19:14:14.497307+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-27 19:14:14"
+    },
+    {
+      "fingerprint": "4080a2b7fd3c237f5a0f354a055286b2930b4c5e5382ce995f40dee9b358c4df",
+      "file": "cli/src/Core/CodeExplorer.Analysis/Analysis/Services/ArchitectureViewEngine.cs",
+      "line": 185,
+      "column": 5,
+      "symbol": "DiscoverSystemContextCandidatesAsync",
+      "target": "1 linear scan(s) in loop",
+      "acknowledgedAt": "2026-11-27T19:14:14.497307+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-27 19:14:14"
+    },
+    {
+      "fingerprint": "5fb7bd4cff456a85054cc108e0add51e3f89b60299c352637d0c277fbbec487f",
+      "file": "cli/src/Core/CodeExplorer.Indexing/Analysis/Layers/Layer4_Semantic/Analyzers/ResourceSemanticAnalyzer.cs",
+      "line": 146,
+      "column": 5,
+      "symbol": "EmitGroundingEdges",
+      "target": "1 linear scan(s) in loop",
+      "acknowledgedAt": "2026-11-27T19:14:14.497307+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-27 19:14:14"
+    },
+    {
+      "fingerprint": "c5252b16ae9c855d0b20326ea7a27b90529d1af6205d4aaaee2e0ce3d7ec3576",
+      "file": "cli/src/Core/CodeExplorer.Indexing/Analysis/Layers/Layer4_Semantic/Analyzers/ResourceSemanticAnalyzer.cs",
+      "line": 232,
+      "column": 5,
+      "symbol": "EnrichAsync",
+      "target": "3 linear scan(s) in loop",
+      "acknowledgedAt": "2026-11-27T19:14:14.497307+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-27 19:14:14"
+    },
+    {
+      "fingerprint": "c11e4886876f8cc5f1e653b91e3b67e2d94468558aea565f1fa47f7b22403abd",
+      "file": "cli/src/Parsers/CodeExplorer.Parsers.CSharp/Libraries/GrpcCSharpLibraryParser.cs",
+      "line": 65,
+      "column": 5,
+      "symbol": "EnrichGrpcSymbol",
+      "target": "1 linear scan(s) in loop",
+      "acknowledgedAt": "2026-11-27T19:14:14.497307+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-27 19:14:14"
+    },
+    {
+      "fingerprint": "66b6218fc7c29faf0e89b963899e0363aa6d27ee5022df7160b09b4de2a45ef0",
+      "file": "cli/src/Parsers/CodeExplorer.Parsers.CSharp/Libraries/HotChocolateLibraryParser.cs",
+      "line": 68,
+      "column": 5,
+      "symbol": "EnrichHotChocolateSymbol",
+      "target": "1 linear scan(s) in loop",
+      "acknowledgedAt": "2026-11-27T19:14:14.497307+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-27 19:14:14"
+    },
+    {
+      "fingerprint": "c6c3300493ad9ac6b1ccc01cf6529f21f4a15b8316be18f90f48658a81a659eb",
+      "file": "cli/src/Core/CodeExplorer.Indexing/Analysis/Layers/Layer3_Syntactic/Layer3ScopeVisibilityPass.cs",
+      "line": 21,
+      "column": 5,
+      "symbol": "EnrichMemberDeclarationsFromDocument",
+      "target": "1 linear scan(s) in loop",
+      "acknowledgedAt": "2026-11-27T19:14:14.497307+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-27 19:14:14"
+    },
+    {
+      "fingerprint": "2bd98813d01297a26022421e8ac8f0f7383556f5c6f51409c08730043dbb9d1f",
+      "file": "cli/src/Parsers/CodeExplorer.Parsers.CSharp/Libraries/AspNetCoreLibraryParser.MinimalApis.cs",
+      "line": 9,
+      "column": 5,
+      "symbol": "EnrichMinimalApiEndpoint",
+      "target": "2 linear scan(s) in loop",
+      "acknowledgedAt": "2026-11-27T19:14:14.497307+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-27 19:14:14"
+    },
+    {
+      "fingerprint": "209fb9a392dcf42732378a21dec2cc5580fa198cf35cbb347c2d559907f4e116",
+      "file": "cli/src/Core/CodeExplorer.Indexing/Analysis/Layers/Layer4_Semantic/Layer4SemanticAnalyzer.Workloads.cs",
+      "line": 315,
+      "column": 5,
+      "symbol": "EnrichSingleProjectCoreAsync",
+      "target": "1 linear scan(s) in loop",
+      "acknowledgedAt": "2026-11-27T20:46:05.3860451+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-27 20:46:05"
+    },
+    {
+      "fingerprint": "da5969f0a3e14e86dc9fc792a5698baa7efbb0e1a7c9a399730c79aaaf4dd4d3",
+      "file": "cli/src/Parsers/CodeExplorer.Parsers.TypeScript/Libraries/GraphQLClientLibraryParser.cs",
+      "line": 136,
+      "column": 5,
+      "symbol": "EnrichSymbolCore",
+      "target": "1 linear scan(s) in loop",
+      "acknowledgedAt": "2026-11-27T19:14:14.497307+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-27 19:14:14"
+    },
+    {
+      "fingerprint": "18802d0ca50211ace84ae3c2b0efa415b5a0312c05c302ba1e5d16b1580b51e4",
+      "file": "cli/src/Core/CodeExplorer.Indexing/Analysis/Layers/Layer5_Global/TableOwnershipEnricher.cs",
+      "line": 18,
+      "column": 5,
+      "symbol": "EnrichTableOwnership",
+      "target": "1 linear scan(s) in loop",
+      "acknowledgedAt": "2026-11-27T19:14:14.497307+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-27 19:14:14"
+    },
+    {
+      "fingerprint": "dc0e7b771be00f6716b6eef2e330974440fc65ea09159e2cda17743794c6912d",
+      "file": "cli/src/Parsers/CodeExplorer.Parsers.ColdFusion/ColdFusionFileParser.cs",
+      "line": 449,
+      "column": 5,
+      "symbol": "EnsureDatasourceHierarchy",
+      "target": "1 linear scan(s) in loop",
+      "acknowledgedAt": "2026-11-27T19:14:14.497307+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-27 19:14:14"
+    },
+    {
+      "fingerprint": "f356c90459c9e409a76990f333be21f1dfbe3a17795ee03fd47b352f9e309b68",
+      "file": "cli/src/Parsers/CodeExplorer.Parsers.CSharp/Libraries/KafkaFlowLibraryParser.cs",
+      "line": 144,
+      "column": 5,
+      "symbol": "ExtractAllConsumerMessageTypes",
+      "target": "1 linear scan(s) in loop",
+      "acknowledgedAt": "2026-11-27T19:14:14.497307+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-27 19:14:14"
+    },
+    {
+      "fingerprint": "e29a0532b10db3028beff2f4981ee859d55a26415aff60896a25f2f07cb71130",
+      "file": "cli/src/Parsers/CodeExplorer.Parsers.CSharp/Libraries/MassTransitLibraryParser.cs",
+      "line": 100,
+      "column": 5,
+      "symbol": "ExtractAllConsumerMessageTypes",
+      "target": "1 linear scan(s) in loop",
+      "acknowledgedAt": "2026-11-27T19:14:14.497307+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-27 19:14:14"
+    },
+    {
+      "fingerprint": "f5781d7126a0a82221c2de517db0013be44fd6f41b7dc99a84ba40696b73d4c2",
+      "file": "cli/src/Parsers/CodeExplorer.Parsers.CSharp/Libraries/EventBusLibraryParser.cs",
+      "line": 147,
+      "column": 5,
+      "symbol": "ExtractAllHandlerMessageTypes",
+      "target": "1 linear scan(s) in loop",
+      "acknowledgedAt": "2026-11-27T19:14:14.497307+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-27 19:14:14"
+    },
+    {
+      "fingerprint": "c9fcfea08c742716a8ba50c4fe07ddd30c991541ab75383bad03c7d1c4ac2c9a",
+      "file": "cli/src/Parsers/CodeExplorer.Parsers.CSharp/Libraries/MediatRLibraryParser.cs",
+      "line": 98,
+      "column": 5,
+      "symbol": "ExtractAllHandlerRequestTypes",
+      "target": "1 linear scan(s) in loop",
+      "acknowledgedAt": "2026-11-27T19:14:14.497307+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-27 19:14:14"
+    },
+    {
+      "fingerprint": "7b1bb3425434640d35cb14ecb49aca49cfb3d81937bef0e9686d18129e206a4c",
+      "file": "cli/src/Parsers/CodeExplorer.Parsers.CSharp/CSharpProjectParser.cs",
+      "line": 633,
+      "column": 5,
+      "symbol": "ExtractDependenciesFromDoc",
+      "target": "1 linear scan(s) in loop",
+      "acknowledgedAt": "2026-11-27T19:14:14.497307+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-27 19:14:14"
+    },
+    {
+      "fingerprint": "0072e932cf1dcb317580c4809ecf341d852c849b00f9f2c14edc14af53f175ba",
+      "file": "cli/src/Parsers/CodeExplorer.Parsers.CSharp/CSharpProjectParser.cs",
+      "line": 458,
+      "column": 5,
+      "symbol": "ExtractDirectoryLevelMetadata",
+      "target": "3 linear scan(s) in loop",
+      "acknowledgedAt": "2026-11-27T19:14:14.497307+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-27 19:14:14"
+    },
+    {
+      "fingerprint": "6548b4cdedc59044197d7964cd843160f981456d3c2bdac8a225494e96f05126",
+      "file": "cli/src/Parsers/CodeExplorer.Parsers.CSharp/Libraries/EventBusLibraryParser.cs",
+      "line": 243,
+      "column": 5,
+      "symbol": "ExtractEgressMessages",
+      "target": "1 linear scan(s) in loop",
+      "acknowledgedAt": "2026-11-27T19:14:14.497307+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-27 19:14:14"
+    },
+    {
+      "fingerprint": "01136b2e057a1a7d762de429f893985f14223c3d861eb31a5efd7d5ccf962b48",
+      "file": "cli/src/Parsers/CodeExplorer.Parsers.CSharp/Libraries/AspNetCoreLibraryParser.MinimalApis.cs",
+      "line": 277,
+      "column": 5,
+      "symbol": "ExtractEndpointIdentifier",
+      "target": "1 linear scan(s) in loop",
+      "acknowledgedAt": "2026-11-27T19:14:14.497307+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-27 19:14:14"
+    },
+    {
+      "fingerprint": "8acd194f91a13caf7d4ee48ca7a858cb658751e2cbbcc3c906594a23ee76d964",
+      "file": "cli/src/Parsers/CodeExplorer.Parsers.CSharp/Libraries/EfCoreLibraryParser.cs",
+      "line": 465,
+      "column": 5,
+      "symbol": "ExtractEntityTypeFromConfigurationClass",
+      "target": "1 linear scan(s) in loop",
+      "acknowledgedAt": "2026-11-27T19:14:14.497307+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-27 19:14:14"
+    },
+    {
+      "fingerprint": "1fe20b7c2459fc7b046b9b555901d304cd420e26b4acbe0255c4da4983194dac",
+      "file": "cli/src/Core/CodeExplorer.Core/Parser/TreeSitter/BaseParserVisitor.cs",
+      "line": 128,
+      "column": 5,
+      "symbol": "ExtractFullStringText",
+      "target": "1 linear scan(s) in loop",
+      "acknowledgedAt": "2026-11-27T19:14:14.497307+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-27 19:14:14"
+    },
+    {
+      "fingerprint": "4e1eaedcd7d6e85ae494468ce5e54ebff3faa8e72c4a6358b373f2157f7081a8",
+      "file": "cli/src/Core/CodeExplorer.Indexing/Analysis/Layers/Layer5_Global/PolicyAuthorizationEnricher.cs",
+      "line": 486,
+      "column": 5,
+      "symbol": "ExtractGuardNames",
+      "target": "2 linear scan(s) in loop",
+      "acknowledgedAt": "2026-11-27T19:14:14.497307+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-27 19:14:14"
+    },
+    {
+      "fingerprint": "567eaa1f6e668119066f6028734953d39df5d74bcb2522aea59cc13768d42de7",
+      "file": "cli/src/Parsers/CodeExplorer.Parsers.CSharp/Libraries/EventBusLibraryParser.cs",
+      "line": 185,
+      "column": 5,
+      "symbol": "ExtractHandlerMethodMessageType",
+      "target": "1 linear scan(s) in loop",
+      "acknowledgedAt": "2026-11-27T19:14:14.497307+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-27 19:14:14"
+    },
+    {
+      "fingerprint": "60e7ad28efa1f9d354c3500ec77cf1f9713be3b1d742128f0013ccfce5d145ca",
+      "file": "cli/src/Core/CodeExplorer.Core/Analysis/Layers/Layer4_Semantic/Extensions/Declarative/DeclarativeOutboundAndSecurityHelper.cs",
+      "line": 578,
+      "column": 5,
+      "symbol": "ExtractHttpMethodFromAnnotation",
+      "target": "2 linear scan(s) in loop",
+      "acknowledgedAt": "2026-11-27T19:14:14.497307+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-27 19:14:14"
+    },
+    {
+      "fingerprint": "0bd8a3dd51b185cd36cfd02cddbcd98f6a371a7badbd7a5d2d1cba1125e2540c",
+      "file": "cli/src/Parsers/CodeExplorer.Parsers.Java/JavaDeclarationExtractor.cs",
+      "line": 15,
+      "column": 5,
+      "symbol": "ExtractInternal",
+      "target": "2 linear scan(s) in loop",
+      "acknowledgedAt": "2026-11-27T19:14:14.497307+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-27 19:14:14"
+    },
+    {
+      "fingerprint": "561972568a5890a8b49ea26136881bd33c53526f02df89ab4155507cc66b0ae9",
+      "file": "cli/src/Parsers/CodeExplorer.Parsers.Rust/RustDeclarationExtractor.cs",
+      "line": 15,
+      "column": 5,
+      "symbol": "ExtractInternal",
+      "target": "1 linear scan(s) in loop",
+      "acknowledgedAt": "2026-11-27T19:14:14.497307+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-27 19:14:14"
+    },
+    {
+      "fingerprint": "79b7dfea700e3b77b5c3fbe9811f2f8828df304b55e495bd5c1bd47c8c58a9a1",
+      "file": "cli/src/Parsers/CodeExplorer.Parsers.CSharp/CSharpDeclarationExtractor.cs",
+      "line": 15,
+      "column": 5,
+      "symbol": "ExtractInternal",
+      "target": "1 linear scan(s) in loop",
+      "acknowledgedAt": "2026-11-27T19:14:14.497307+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-27 19:14:14"
+    },
+    {
+      "fingerprint": "107db6c58e32bcf1e0d7926f30643dcc956688ba920e9a9c8b8ebd41ff9b7227",
+      "file": "cli/src/Parsers/CodeExplorer.Parsers.TypeScript/TypeScriptDeclarationExtractor.cs",
+      "line": 15,
+      "column": 5,
+      "symbol": "ExtractInternal",
+      "target": "1 linear scan(s) in loop",
+      "acknowledgedAt": "2026-11-27T19:14:14.497307+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-27 19:14:14"
+    },
+    {
+      "fingerprint": "a972e08b2aa2bcccd258ec4934a92c04f7bfe1b16519537daaa0ce37dec38c54",
+      "file": "cli/src/Parsers/CodeExplorer.Parsers.CSharp/CSharpProjectParser.cs",
+      "line": 414,
+      "column": 5,
+      "symbol": "ExtractInternalsVisibleToFromDoc",
+      "target": "1 linear scan(s) in loop",
+      "acknowledgedAt": "2026-11-27T19:14:14.497307+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-27 19:14:14"
+    },
+    {
+      "fingerprint": "900151f191662a4459620ee263cad41cfa6a384125eb05df1bcc0b257bd4b226",
+      "file": "cli/src/Parsers/CodeExplorer.Parsers.CSharp/Libraries/HttpClientLibraryParser.UriResolution.cs",
+      "line": 20,
+      "column": 5,
+      "symbol": "ExtractInterpolatedStringUri",
+      "target": "2 linear scan(s) in loop",
+      "acknowledgedAt": "2026-11-27T19:14:14.497307+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-27 19:14:14"
+    },
+    {
+      "fingerprint": "26a1109dcf4b1c616bb7dd001aef6a810d1a846864d9257d22a6758b90fa0c01",
+      "file": "cli/src/Core/CodeExplorer.Core/Analysis/Layers/Layer4_Semantic/Extensions/Declarative/DeclarativeSemanticExtension.Rules.cs",
+      "line": 251,
+      "column": 5,
+      "symbol": "ExtractMessagingTopics",
+      "target": "3 linear scan(s) in loop",
+      "acknowledgedAt": "2026-11-27T19:14:14.497307+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-27 19:14:14"
+    },
+    {
+      "fingerprint": "e5ca33ddb25eaaa348c983ea835b55c50207756885e62bc707eff0507c11b95a",
+      "file": "cli/src/Parsers/CodeExplorer.Parsers.Go/GoFileVisitor.cs",
+      "line": 867,
+      "column": 5,
+      "symbol": "ExtractMethodsFromNode",
+      "target": "1 linear scan(s) in loop",
+      "acknowledgedAt": "2026-11-27T19:14:14.497307+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-27 19:14:14"
+    },
+    {
+      "fingerprint": "b4f8677607f5bdcfb91b9f1df15609cb12d73020ce2db28d9f71a08310673972",
+      "file": "cli/src/Core/CodeExplorer.Indexing/Analysis/Layers/Layer4_Semantic/Layer4SemanticAnalyzer.cs",
+      "line": 454,
+      "column": 5,
+      "symbol": "ExtractModuleInitStubsFromTrees",
+      "target": "1 linear scan(s) in loop",
+      "acknowledgedAt": "2026-11-27T19:14:14.497307+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-27 19:14:14"
+    },
+    {
+      "fingerprint": "52e38f93586fca1c8527218ad082ca0f1d0f4f4b009c4d91ec87e2477ec6e9b9",
+      "file": "cli/src/Core/CodeExplorer.Core/Analysis/Layers/Layer4_Semantic/Extensions/Declarative/DeclarativeSemanticExtension.Rules.cs",
+      "line": 756,
+      "column": 5,
+      "symbol": "ExtractNamedOrFirstStringFromAnnotation",
+      "target": "4 linear scan(s) in loop",
+      "acknowledgedAt": "2026-11-27T19:14:14.497307+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-27 19:14:14"
+    },
+    {
+      "fingerprint": "c2a1956e4f4bf0d5c5a4496050031e751dda0c5edad608eab31b27751bbfc71d",
+      "file": "cli/src/Core/CodeExplorer.Core/Analysis/Layers/Layer4_Semantic/Extensions/Declarative/DeclarativeSemanticExtension.Rules.cs",
+      "line": 179,
+      "column": 5,
+      "symbol": "ExtractOrmTableName",
+      "target": "1 linear scan(s) in loop",
+      "acknowledgedAt": "2026-11-27T19:14:14.497307+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-27 19:14:14"
+    },
+    {
+      "fingerprint": "fb4ca3046856ab814815e4e8a897686c04ecec41f43b95267e4245d0591e1149",
+      "file": "cli/src/Core/CodeExplorer.Core/Analysis/Layers/Layer4_Semantic/Extensions/Declarative/DeclarativeOutboundAndSecurityHelper.cs",
+      "line": 226,
+      "column": 5,
+      "symbol": "ExtractOutboundHttpTarget",
+      "target": "2 linear scan(s) in loop",
+      "acknowledgedAt": "2026-11-27T19:14:14.497307+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-27 19:14:14"
+    },
+    {
+      "fingerprint": "56ad2a5832ad964c6ed8ae254ad8c1f8aabe2aa7ec3cf9b59f9bfb3c979bf739",
+      "file": "cli/src/Parsers/CodeExplorer.Parsers.CSharp/Libraries/AspNetCoreLibraryParser.MinimalApis.cs",
+      "line": 126,
+      "column": 5,
+      "symbol": "ExtractPayloadSchemas",
+      "target": "1 linear scan(s) in loop",
+      "acknowledgedAt": "2026-11-27T19:14:14.497307+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-27 19:14:14"
+    },
+    {
+      "fingerprint": "0efe394cf7af8ca3e3db49e5f96074f1599ab8f71269bdfd73de66f4cc06f710",
+      "file": "cli/src/Parsers/CodeExplorer.Parsers.Go/GoFileVisitor.Bindings.cs",
+      "line": 442,
+      "column": 5,
+      "symbol": "ExtractPrimaryGoTypeName",
+      "target": "1 linear scan(s) in loop",
+      "acknowledgedAt": "2026-11-27T19:14:14.497307+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-27 19:14:14"
+    },
+    {
+      "fingerprint": "f4894950f24f6f5ce43742f48e70314acae9d578a6c5b12d315a648bc313fd5a",
+      "file": "cli/src/Parsers/CodeExplorer.Parsers.TypeScript/TypeScriptFileVisitor.cs",
+      "line": 482,
+      "column": 5,
+      "symbol": "ExtractPrimaryTypeNameFromTypeArguments",
+      "target": "1 linear scan(s) in loop",
+      "acknowledgedAt": "2026-11-27T19:14:14.497307+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-27 19:14:14"
+    },
+    {
+      "fingerprint": "8562df319606576d7973ef263b815a8dd57ca703feb3e635536c1660822852fc",
+      "file": "cli/src/Parsers/CodeExplorer.Parsers.CSharp/Libraries/AspNetCoreLibraryParser.cs",
+      "line": 482,
+      "column": 5,
+      "symbol": "ExtractRoutePrefixFromClassNode",
+      "target": "1 linear scan(s) in loop",
+      "acknowledgedAt": "2026-11-27T19:14:14.497307+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-27 19:14:14"
+    },
+    {
+      "fingerprint": "954073b6be6490e0847f57ca76944b4f14e7505e4b571706111b9be0c3e3d44d",
+      "file": "cli/src/Parsers/CodeExplorer.Parsers.Java/Libraries/SpringRuntimeLibraryParser.cs",
+      "line": 106,
+      "column": 5,
+      "symbol": "ExtractScheduleArgument",
+      "target": "2 linear scan(s) in loop",
+      "acknowledgedAt": "2026-11-27T19:14:14.497307+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-27 19:14:14"
+    },
+    {
+      "fingerprint": "c2d76492ea8cee413a7f7bc49cb271acd369573facf41716554af788cf25b62d",
+      "file": "cli/src/Core/CodeExplorer.Analysis/Mcp/McpContextPackBuilder.cs",
+      "line": 177,
+      "column": 5,
+      "symbol": "ExtractSearchConcepts",
+      "target": "1 linear scan(s) in loop",
+      "acknowledgedAt": "2026-11-27T19:14:14.497307+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-27 19:14:14"
+    },
+    {
+      "fingerprint": "639a2914ab530cfab24d7d9c37fea86ba524bc40f91bae1f88bfe47a3d8ac8ed",
+      "file": "cli/src/Parsers/CodeExplorer.Parsers.Python/Libraries/FastApiLibraryParser.cs",
+      "line": 668,
+      "column": 5,
+      "symbol": "ExtractSecurityScopes",
+      "target": "3 linear scan(s) in loop",
+      "acknowledgedAt": "2026-11-27T19:14:14.497307+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-27 19:14:14"
+    },
+    {
+      "fingerprint": "7225a4713ceda0fd84e992c198a2655fff0d5876ccdc93394601d946a000ea4a",
+      "file": "cli/src/Core/CodeExplorer.Core/Analysis/Layers/Layer4_Semantic/Extensions/Declarative/DeclarativeSemanticExtension.Rules.cs",
+      "line": 54,
+      "column": 5,
+      "symbol": "ExtractSqlText",
+      "target": "2 linear scan(s) in loop",
+      "acknowledgedAt": "2026-11-27T19:14:14.497307+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-27 19:14:14"
+    },
+    {
+      "fingerprint": "3b923ea6e29dd5bbc239041bcdd1b76ae14be621fa51519b7ad49646e103120b",
+      "file": "cli/src/Parsers/CodeExplorer.Parsers.TypeScript/Libraries/BigQueryLibraryParser.cs",
+      "line": 193,
+      "column": 5,
+      "symbol": "ExtractStringFromNode",
+      "target": "1 linear scan(s) in loop",
+      "acknowledgedAt": "2026-11-27T19:14:14.497307+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-27 19:14:14"
+    },
+    {
+      "fingerprint": "91d3c94de669da752301866ff26d221d0895acc0f3f016e8382f8a357ef0185c",
+      "file": "cli/src/Parsers/CodeExplorer.Parsers.TypeScript/Libraries/ClickHouseLibraryParser.cs",
+      "line": 184,
+      "column": 5,
+      "symbol": "ExtractStringFromNode",
+      "target": "1 linear scan(s) in loop",
+      "acknowledgedAt": "2026-11-27T19:14:14.497307+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-27 19:14:14"
+    },
+    {
+      "fingerprint": "eb5d0f5eba34816b697ea559a34eeddca8b81492c4547102041fea60a52ca83b",
+      "file": "cli/src/Parsers/CodeExplorer.Parsers.Terraform/TerraformProjectParser.cs",
+      "line": 334,
+      "column": 5,
+      "symbol": "ExtractTerraformBlockDependencies",
+      "target": "2 linear scan(s) in loop",
+      "acknowledgedAt": "2026-11-27T19:14:14.497307+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-27 19:14:14"
+    },
+    {
+      "fingerprint": "d80f9674359078e17238ddc45690e7321090bf2c20650e3d01a3754eba4659fe",
+      "file": "cli/src/Parsers/CodeExplorer.Parsers.TypeScript/Libraries/GcpLibraryParser.cs",
+      "line": 581,
+      "column": 5,
+      "symbol": "ExtractTopicFromExpression",
+      "target": "1 linear scan(s) in loop",
+      "acknowledgedAt": "2026-11-27T19:14:14.497307+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-27 19:14:14"
+    },
+    {
+      "fingerprint": "1a981a9b49bdbed1b09339d80d5feac02fc4cd4d8ad95ae49c9ad4df0ce2ea01",
+      "file": "cli/src/Parsers/CodeExplorer.Parsers.TypeScript/Libraries/AstHelper.cs",
+      "line": 489,
+      "column": 5,
+      "symbol": "FindClassFieldInitializerInAst",
+      "target": "5 linear scan(s) in loop",
+      "acknowledgedAt": "2026-11-27T19:14:14.497307+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-27 19:14:14"
+    },
+    {
+      "fingerprint": "e3ab3cb05cdb5cd1a2299ed8b83ec7c2227d37b503c8af5909cc504fa6910ad6",
+      "file": "cli/src/Parsers/CodeExplorer.Parsers.CSharp/Libraries/EfCoreLibraryParser.cs",
+      "line": 203,
+      "column": 5,
+      "symbol": "FindConstantValueInClass",
+      "target": "1 linear scan(s) in loop",
+      "acknowledgedAt": "2026-11-27T19:14:14.497307+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-27 19:14:14"
+    },
+    {
+      "fingerprint": "2d6b3ab352ea6c610e4b4e809c5bba47403eb478c1b8601926ef6ea5233d5934",
+      "file": "cli/src/Core/CodeExplorer.Core/Common/WorkspaceLocator.cs",
+      "line": 119,
+      "column": 5,
+      "symbol": "FindExplicitOnly",
+      "target": "1 linear scan(s) in loop",
+      "acknowledgedAt": "2026-11-27T19:14:14.497307+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-27 19:14:14"
+    },
+    {
+      "fingerprint": "ded765a9b4b1f80e8fc1f3d1be0f89bdba50a87389c054dcedc84779436cc428",
+      "file": "cli/src/Parsers/CodeExplorer.Parsers.Python/Libraries/FastApiLibraryParser.cs",
+      "line": 414,
+      "column": 5,
+      "symbol": "FindRouterPrefix",
+      "target": "2 linear scan(s) in loop",
+      "acknowledgedAt": "2026-11-27T19:14:14.497307+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-27 19:14:14"
+    },
+    {
+      "fingerprint": "9eeabbf0d5e1c795eb3c4c108531130948bc1e8d47e7397d1f22ab9313192bd3",
+      "file": "cli/src/Parsers/CodeExplorer.Parsers.Python/Libraries/PythonAstHelper.cs",
+      "line": 94,
+      "column": 5,
+      "symbol": "FindSqlVariableInitializerInScope",
+      "target": "3 linear scan(s) in loop",
+      "acknowledgedAt": "2026-11-27T19:14:14.497307+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-27 19:14:14"
+    },
+    {
+      "fingerprint": "2e1eb99dd921fc6fc7c56ff7735faf4c1422a23ecea26645ffaba20235c25c09",
+      "file": "cli/src/Parsers/CodeExplorer.Parsers.TypeScript/Libraries/AstHelper.cs",
+      "line": 296,
+      "column": 5,
+      "symbol": "FindVariableInitializerInAst",
+      "target": "2 linear scan(s) in loop",
+      "acknowledgedAt": "2026-11-27T19:14:14.497307+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-27 19:14:14"
+    },
+    {
+      "fingerprint": "d798c42beecdc597f5df586faeaef40f8d38bc65e5c0301eece149845a59e0ac",
+      "file": "cli/src/Core/CodeExplorer.Core/Analysis/Layers/Layer4_Semantic/Extensions/Declarative/DeclarativeOutboundAndSecurityHelper.cs",
+      "line": 401,
+      "column": 5,
+      "symbol": "FindVariableInitializerInEnclosingScopes",
+      "target": "4 linear scan(s) in loop",
+      "acknowledgedAt": "2026-11-27T19:14:14.497307+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-27 19:14:14"
+    },
+    {
+      "fingerprint": "10bf771a932efe3cb4f1f0e1cca6751591e8f88906bc961238a07654f638519c",
+      "file": "cli/src/Parsers/CodeExplorer.Parsers.Python/Libraries/PythonAstHelper.cs",
+      "line": 351,
+      "column": 5,
+      "symbol": "FindVariableInitializerInScope",
+      "target": "1 linear scan(s) in loop",
+      "acknowledgedAt": "2026-11-27T19:14:14.497307+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-27 19:14:14"
+    },
+    {
+      "fingerprint": "256e3f740018ab1cb70ccc5442909e3124c4a20392b9fdb01b435391b38703c9",
+      "file": "cli/src/Parsers/CodeExplorer.Parsers.Go/Libraries/GoAstHelper.cs",
+      "line": 256,
+      "column": 5,
+      "symbol": "FindVariableInitializerNodeInScope",
+      "target": "3 linear scan(s) in loop",
+      "acknowledgedAt": "2026-11-27T19:14:14.497307+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-27 19:14:14"
+    },
+    {
+      "fingerprint": "60f91690b0316407476d07a470c0f0f9c4a7a61ecd819c24cc14e86a68145683",
+      "file": "cli/src/Core/CodeExplorer.Analysis/Analysis/Services/ArchitectureViewEngine.BoundedContexts.cs",
+      "line": 267,
+      "column": 5,
+      "symbol": "GetBoundedContextMapAsync",
+      "target": "2 linear scan(s) in loop",
+      "acknowledgedAt": "2026-11-27T19:14:14.497307+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-27 19:14:14"
+    },
+    {
+      "fingerprint": "26bd82d130f027ce4f644abfdf9a4b239e1a8e98a50c476a21b822b08ee99031",
+      "file": "cli/src/Parsers/CodeExplorer.Parsers.CSharp/Libraries/AspNetCoreLibraryParser.cs",
+      "line": 414,
+      "column": 5,
+      "symbol": "GetControllerRoutePrefix",
+      "target": "1 linear scan(s) in loop",
+      "acknowledgedAt": "2026-11-27T19:14:14.497307+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-27 19:14:14"
+    },
+    {
+      "fingerprint": "d4cbf3813aacbfe369e83afd1c993a916521eb484e29bc4d9cfa618310535475",
+      "file": "cli/src/Core/CodeExplorer.Analysis/Analysis/Services/ArchitectureViewEngine.DomainMap.cs",
+      "line": 304,
+      "column": 5,
+      "symbol": "GetDomainArchitectureAsync",
+      "target": "2 linear scan(s) in loop",
+      "acknowledgedAt": "2026-11-27T19:14:14.497307+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-27 19:14:14"
+    },
+    {
+      "fingerprint": "93e339fca46806649d3e59ac857dd94f7caa0fe72d88e1e8f1a6e120ca94a0f6",
+      "file": "cli/src/Core/CodeExplorer.Analysis/Analysis/Services/ArchitectureViewEngine.EdgeEvidence.cs",
+      "line": 26,
+      "column": 5,
+      "symbol": "GetEdgeEvidenceAsync",
+      "target": "2 linear scan(s) in loop",
+      "acknowledgedAt": "2026-11-27T19:14:14.497307+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-27 19:14:14"
+    },
+    {
+      "fingerprint": "d6afa5468479f83cdffec6cc6d380aff7ce7146817c081ab65eaeeb66bb97d12",
+      "file": "cli/src/Core/CodeExplorer.Core/Parser/NodeExtensions.cs",
+      "line": 21,
+      "column": 9,
+      "symbol": "GetFunctionNode",
+      "target": "1 linear scan(s) in loop",
+      "acknowledgedAt": "2026-11-27T19:14:14.497307+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-27 19:14:14"
+    },
+    {
+      "fingerprint": "5638b99e46856ca87f474c1df9ff27094ef65c8d388210a6a307a6014045cd5a",
+      "file": "cli/src/Core/CodeExplorer.Core/Parser/Shared/SharedFileParserRegistry.cs",
+      "line": 50,
+      "column": 5,
+      "symbol": "GetParsers",
+      "target": "1 linear scan(s) in loop",
+      "acknowledgedAt": "2026-11-27T19:14:14.497307+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-27 19:14:14"
+    },
+    {
+      "fingerprint": "523e020c55971ffb22e5a24a95e41d133a046067ec8df59f27f98d8cf4eebd87",
+      "file": "cli/src/Core/CodeExplorer.Analysis/Analysis/Services/ArchitectureViewEngine.OntologyServices.cs",
+      "line": 266,
+      "column": 5,
+      "symbol": "GetServicesOntologySummaryAsync",
+      "target": "1 linear scan(s) in loop",
+      "acknowledgedAt": "2026-11-27T19:14:14.497307+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-27 19:14:14"
+    },
+    {
+      "fingerprint": "fb854b04fb316bb4f59c245f47996aa7c11d5a51820aabab96c3663615f189dc",
+      "file": "cli/src/Parsers/CodeExplorer.Parsers.Python/Libraries/SqlModelLibraryParser.cs",
+      "line": 140,
+      "column": 5,
+      "symbol": "HasTableNameAssignment",
+      "target": "1 linear scan(s) in loop",
+      "acknowledgedAt": "2026-11-27T19:14:14.497307+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-27 19:14:14"
+    },
+    {
+      "fingerprint": "02e9326c758b89e6e59628c13c04c3e79a491bab7e0790e29524a6c766068ac7",
+      "file": "cli/src/Core/CodeExplorer.Indexing/Analysis/Layers/Layer4_Semantic/Layer4SemanticAnalyzer.Workloads.cs",
+      "line": 11,
+      "column": 5,
+      "symbol": "InitializeWorkloadsForProjects",
+      "target": "1 linear scan(s) in loop",
+      "acknowledgedAt": "2026-11-27T19:14:14.497307+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-27 19:14:14"
+    },
+    {
+      "fingerprint": "50413692f78bab02efa713191c2d669555474598f8ea726c6bfa584e83d01bae",
+      "file": "cli/src/Parsers/CodeExplorer.Parsers.TypeScript/TypeScriptProjectParser.Manifest.cs",
+      "line": 58,
+      "column": 5,
+      "symbol": "InspectWranglerLayoutFromLines",
+      "target": "1 linear scan(s) in loop",
+      "acknowledgedAt": "2026-11-27T19:14:14.497307+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-27 19:14:14"
+    },
+    {
+      "fingerprint": "3180a9283bf271d21dcb97aab83508033f414dbba6605ec325ede35cdecf1aa9",
+      "file": "cli/src/Parsers/CodeExplorer.Parsers.Python/Libraries/SqlAlchemyLibraryParser.cs",
+      "line": 103,
+      "column": 5,
+      "symbol": "IsDeclarativeModel",
+      "target": "1 linear scan(s) in loop",
+      "acknowledgedAt": "2026-11-27T19:14:14.497307+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-27 19:14:14"
+    },
+    {
+      "fingerprint": "5c9ce4fc4a2de0d3b95f99e97958580651b3fd3314062e0f7634278470cb0e2c",
+      "file": "cli/src/Parsers/CodeExplorer.Parsers.Python/Libraries/PeeweeLibraryParser.cs",
+      "line": 93,
+      "column": 5,
+      "symbol": "IsPeeweeModelClass",
+      "target": "1 linear scan(s) in loop",
+      "acknowledgedAt": "2026-11-27T19:14:14.497307+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-27 19:14:14"
+    },
+    {
+      "fingerprint": "19efa5ffa6797d05f015a28611bbcb273bfa25097b2215d0b52f69f2d3145ca1",
+      "file": "cli/src/Parsers/CodeExplorer.Parsers.Perl/PerlProjectParser.cs",
+      "line": 242,
+      "column": 5,
+      "symbol": "IsPerlContainerRoot",
+      "target": "1 linear scan(s) in loop",
+      "acknowledgedAt": "2026-11-27T19:14:14.497307+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-27 19:14:14"
+    },
+    {
+      "fingerprint": "72ddcbc9a54ce584a0b27b017305ac507736d7c5c7f30c2e51dfcd4d2c79a917",
+      "file": "cli/src/Parsers/CodeExplorer.Parsers.Php/PhpProjectParser.cs",
+      "line": 393,
+      "column": 5,
+      "symbol": "IsPhpApplicationOrContainerRoot",
+      "target": "1 linear scan(s) in loop",
+      "acknowledgedAt": "2026-11-27T19:14:14.497307+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-27 19:14:14"
+    },
+    {
+      "fingerprint": "4d58ad0975e583e7373b18371bb8f353dcadf15cb10938ae022e3b3cace7e816",
+      "file": "cli/src/Parsers/CodeExplorer.Parsers.CSharp/Libraries/MassTransitSagaLibraryParser.cs",
+      "line": 54,
+      "column": 5,
+      "symbol": "IsSagaStateMachineClass",
+      "target": "1 linear scan(s) in loop",
+      "acknowledgedAt": "2026-11-27T19:14:14.497307+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-27 19:14:14"
+    },
+    {
+      "fingerprint": "f223e93d4de91fd8cfd3288796322952267704dfad7c24ee70b661ccb0ca5b6f",
+      "file": "cli/src/Parsers/CodeExplorer.Parsers.Script/ScriptProjectParser.cs",
+      "line": 81,
+      "column": 5,
+      "symbol": "IsScriptContainerRoot",
+      "target": "2 linear scan(s) in loop",
+      "acknowledgedAt": "2026-11-27T19:14:14.497307+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-27 19:14:14"
+    },
+    {
+      "fingerprint": "6809de5591db64d7e8ae5e3706a96a85fd8792d59184d3eb20dff1e00741f7e3",
+      "file": "cli/src/Core/CodeExplorer.Indexing/Analysis/Layers/Layer3_Syntactic/Layer3SyntacticAnalyzer.Enrichment.cs",
+      "line": 236,
+      "column": 5,
+      "symbol": "IsSyntaxFunctionExported",
+      "target": "1 linear scan(s) in loop",
+      "acknowledgedAt": "2026-11-27T19:14:14.497307+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-27 19:14:14"
+    },
+    {
+      "fingerprint": "95a8943aac95d41b1567a056898b415b115d4e012e5cb4017ed5354a622b796b",
+      "file": "cli/src/Parsers/CodeExplorer.Parsers.TypeScript/Components/JavaScriptTestRunnerComponentParser.cs",
+      "line": 59,
+      "column": 5,
+      "symbol": "IsTestSource",
+      "target": "1 linear scan(s) in loop",
+      "acknowledgedAt": "2026-11-27T19:14:14.497307+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-27 19:14:14"
+    },
+    {
+      "fingerprint": "5812d5aefc34df38fe001c87e7de866ef179b03d76a393f605894be0e243a840",
+      "file": "cli/src/Core/CodeExplorer.Indexing/Analysis/Layers/Layer5_Global/PostIndexAnalyzer.cs",
+      "line": 459,
+      "column": 5,
+      "symbol": "LiftTransitiveSemanticRelations",
+      "target": "1 linear scan(s) in loop",
+      "acknowledgedAt": "2026-11-27T19:14:14.497307+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-27 19:14:14"
+    },
+    {
+      "fingerprint": "7f76d311eceb8e106039dc90cb8b5fb24d0466a3dad4624333f05993f9389559",
+      "file": "cli/src/Core/CodeExplorer.Core/Parser/Detectors/WorkspaceDetectorLoader.cs",
+      "line": 323,
+      "column": 5,
+      "symbol": "ParseAndValidateFile",
+      "target": "1 linear scan(s) in loop",
+      "acknowledgedAt": "2026-11-27T19:14:14.497307+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-27 19:14:14"
+    },
+    {
+      "fingerprint": "1c37c6c3835a83205501c58cc6931520b841dfe2e337be37762a7d356a3be5d2",
+      "file": "cli/src/Core/CodeExplorer.Indexing/Analysis/Layers/Layer5_Global/Layer5GlobalAnalyzer.cs",
+      "line": 24,
+      "column": 5,
+      "symbol": "ParseAsync",
+      "target": "2 linear scan(s) in loop",
+      "acknowledgedAt": "2026-11-27T19:14:14.497307+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-27 19:14:14"
+    },
+    {
+      "fingerprint": "69a1b5f32d07e5466d87c69bf3768bdc71e5fd44dfd03f0a3b3b328ea85855ad",
+      "file": "cli/src/Parsers/CodeExplorer.Parsers.Kotlin/KotlinFileParser.cs",
+      "line": 673,
+      "column": 5,
+      "symbol": "ParseClassesAndTypes",
+      "target": "8 linear scan(s) in loop",
+      "acknowledgedAt": "2026-11-27T19:14:14.497307+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-27 19:14:14"
+    },
+    {
+      "fingerprint": "4d3051a7f7fe5b019e7c5782bbc663472d83955a91f28cd9c9e6cf89d1342c32",
+      "file": "cli/src/Parsers/CodeExplorer.Parsers.Rust/RustProjectParser.cs",
+      "line": 548,
+      "column": 5,
+      "symbol": "ParseDependenciesAsync",
+      "target": "4 linear scan(s) in loop",
+      "acknowledgedAt": "2026-11-27T19:14:14.497307+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-27 19:14:14"
+    },
+    {
+      "fingerprint": "065a7eb52833194a04156dffb359392e75d3bcc4a183129105bed73ff7416978",
+      "file": "cli/src/Parsers/CodeExplorer.Parsers.Kotlin/KotlinFileParser.Endpoints.cs",
+      "line": 70,
+      "column": 5,
+      "symbol": "ParseFunctionsAndEndpoints",
+      "target": "3 linear scan(s) in loop",
+      "acknowledgedAt": "2026-11-27T19:14:14.497307+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-27 19:14:14"
+    },
+    {
+      "fingerprint": "49477d034d28175858b24e84c9ba08aa03356b5c3d4291c780c23f7e022422e0",
+      "file": "cli/src/Core/CodeExplorer.Analysis/Analysis/Services/ArchitectureViewEngine.DomainMap.cs",
+      "line": 270,
+      "column": 5,
+      "symbol": "ParseSecondaryRoles",
+      "target": "2 linear scan(s) in loop",
+      "acknowledgedAt": "2026-11-27T19:14:14.497307+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-27 19:14:14"
+    },
+    {
+      "fingerprint": "399901573be4c68619d989099320a7b9f24fda62c8b6627c5399e399d85a5355",
+      "file": "cli/src/Parsers/CodeExplorer.Parsers.ColdFusion/ColdFusionFileParser.cs",
+      "line": 296,
+      "column": 5,
+      "symbol": "ParseStoredProcedures",
+      "target": "1 linear scan(s) in loop",
+      "acknowledgedAt": "2026-11-27T19:14:14.497307+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-27 19:14:14"
+    },
+    {
+      "fingerprint": "d83af69f3e718dfae3a3d2148b8e768622e3e12ef7e6f2c758dc5b37bbcd6d5b",
+      "file": "cli/src/Parsers/CodeExplorer.Parsers.Java/SeamXmlParser.cs",
+      "line": 328,
+      "column": 5,
+      "symbol": "ParseUrlRewrite",
+      "target": "2 linear scan(s) in loop",
+      "acknowledgedAt": "2026-11-27T19:14:14.497307+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-27 19:14:14"
+    },
+    {
+      "fingerprint": "ea1bb469d8889ed7a985edc3d5abff25112c28a8d0f8964df3335370d223b992",
+      "file": "cli/src/Core/CodeExplorer.Analysis/Analysis/Services/ArchitectureViewEngine.Contracts.cs",
+      "line": 136,
+      "column": 5,
+      "symbol": "PopulateEgressContracts",
+      "target": "1 linear scan(s) in loop",
+      "acknowledgedAt": "2026-11-27T19:14:14.497307+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-27 19:14:14"
+    },
+    {
+      "fingerprint": "b899d9285a5bba918a97e7b6cc4b84851533ab7b6c927de5102c3280ed05cceb",
+      "file": "cli/src/Core/CodeExplorer.Analysis/Analysis/Services/ArchitectureViewEngine.Contracts.cs",
+      "line": 70,
+      "column": 5,
+      "symbol": "PopulateIngressContractsAsync",
+      "target": "2 linear scan(s) in loop",
+      "acknowledgedAt": "2026-11-27T19:14:14.497307+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-27 19:14:14"
+    },
+    {
+      "fingerprint": "76c859cbf022b6373703569d003b9c6d43050508481b25ebe71fb7165a296e70",
+      "file": "cli/src/Core/CodeExplorer.Indexing/Analysis/Layers/Layer5_Global/PostIndexAnalyzer.Databases.InMemory.Helpers.cs",
+      "line": 176,
+      "column": 5,
+      "symbol": "PropagateSchemaAndUploadNodesInMemoryAsync",
+      "target": "2 linear scan(s) in loop",
+      "acknowledgedAt": "2026-11-27T19:14:14.497307+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-27 19:14:14"
+    },
+    {
+      "fingerprint": "26171cde9ff16a9a5b219bc80fef7aa8f1751c96848739c6462716d6da512840",
+      "file": "cli/src/Core/CodeExplorer.Indexing/Analysis/Layers/Layer3_Syntactic/Layer3ProjectFileStreamer.cs",
+      "line": 189,
+      "column": 5,
+      "symbol": "PruneSkippedFilesAndEnqueueContains",
+      "target": "1 linear scan(s) in loop",
+      "acknowledgedAt": "2026-11-27T19:14:14.497307+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-27 19:14:14"
+    },
+    {
+      "fingerprint": "398606777410b4e50c052dbd39058cf575e31d1645220a6f74db722471f01d17",
+      "file": "cli/src/Core/CodeExplorer.Indexing/Analysis/Layers/Layer5_Global/PostIndexAnalyzer.Databases.Helpers.cs",
+      "line": 580,
+      "column": 5,
+      "symbol": "QueryNonTestAccessedTargetsAsync",
+      "target": "1 linear scan(s) in loop",
+      "acknowledgedAt": "2026-11-27T19:14:14.497307+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-27 19:14:14"
+    },
+    {
+      "fingerprint": "6f8ca5d045967b60799aea9e967f01f4bd8572136c04cff5a454425e92353c03",
+      "file": "cli/src/Core/CodeExplorer.Analysis/Analysis/Subgraph/WorkspaceSubgraphService.cs",
+      "line": 387,
+      "column": 5,
+      "symbol": "RankSelectedUnits",
+      "target": "1 linear scan(s) in loop",
+      "acknowledgedAt": "2026-11-27T19:14:14.497307+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-27 19:14:14"
+    },
+    {
+      "fingerprint": "eb0f2c407b6e10f64910880c22863a151b91be2b82e6bde0f98fdae86871d937",
+      "file": "cli/src/Core/CodeExplorer.Indexing/Analysis/Layers/Layer4_Semantic/Layer4SemanticAnalyzer.Workloads.cs",
+      "line": 912,
+      "column": 5,
+      "symbol": "RemoveFileChildNodesById",
+      "target": "1 linear scan(s) in loop",
+      "acknowledgedAt": "2026-11-27T20:46:05.3860451+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-27 20:46:05"
+    },
+    {
+      "fingerprint": "6aefe115939669c6cc3721bc0668f55d8c74426c941dc2d87d95e86dde3c61ff",
+      "file": "cli/src/UI/CodeExplorer/Commands/GateCommandHandler.cs",
+      "line": 505,
+      "column": 5,
+      "symbol": "RenderDetails",
+      "target": "2 linear scan(s) in loop",
+      "acknowledgedAt": "2026-11-27T19:14:14.497307+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-27 19:14:14"
+    },
+    {
+      "fingerprint": "02425e2585ba72260136369091f48ed0ea615dc98d29977c4881a1285f893abd",
+      "file": "cli/src/Core/CodeExplorer.Core/Analysis/Layers/Layer4_Semantic/Extensions/Declarative/DeclarativeSemanticExtension.Rules.cs",
+      "line": 329,
+      "column": 5,
+      "symbol": "ResolveConstantValueInClass",
+      "target": "2 linear scan(s) in loop",
+      "acknowledgedAt": "2026-11-27T19:14:14.497307+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-27 19:14:14"
+    },
+    {
+      "fingerprint": "b7bcd37f24420ba23d48198e44efd8873b33fa7c8bba8ac268a0707dad055efa",
+      "file": "cli/src/Core/CodeExplorer.Indexing/Analysis/Layers/Layer5_Global/PostIndexAnalyzer.DatabaseConsolidation.cs",
+      "line": 406,
+      "column": 5,
+      "symbol": "ResolveDatabaseConsolidations",
+      "target": "1 linear scan(s) in loop",
+      "acknowledgedAt": "2026-11-27T19:14:14.497307+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-27 19:14:14"
+    },
+    {
+      "fingerprint": "15dd82316079137de3fda8b16be79400f8b1a3d8d773f455f6d68fc5ad7645b3",
+      "file": "cli/src/Core/CodeExplorer.Indexing/Analysis/Layers/Layer5_Global/Layer5GlobalAnalyzer.HostBoundaries.cs",
+      "line": 5,
+      "column": 5,
+      "symbol": "ResolveInstantiatesReference",
+      "target": "1 linear scan(s) in loop",
+      "acknowledgedAt": "2026-11-27T19:14:14.497307+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-27 19:14:14"
+    },
+    {
+      "fingerprint": "5cf807cb713689d72f3af6374dd1fe01b40eb22d13f9c37fd43c30d027a277c3",
+      "file": "cli/src/Parsers/CodeExplorer.Parsers.TypeScript/Libraries/BigQueryLibraryParser.cs",
+      "line": 241,
+      "column": 5,
+      "symbol": "ResolveQueryPropertyFromVariable",
+      "target": "1 linear scan(s) in loop",
+      "acknowledgedAt": "2026-11-27T19:14:14.497307+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-27 19:14:14"
+    },
+    {
+      "fingerprint": "e4a944e14fbea77623ff5530879783150f0c9f0cdb70e5f7a8cca228b01fb451",
+      "file": "cli/src/Parsers/CodeExplorer.Parsers.TypeScript/Libraries/ClickHouseLibraryParser.cs",
+      "line": 232,
+      "column": 5,
+      "symbol": "ResolveQueryPropertyFromVariable",
+      "target": "1 linear scan(s) in loop",
+      "acknowledgedAt": "2026-11-27T19:14:14.497307+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-27 19:14:14"
+    },
+    {
+      "fingerprint": "84e8f9bb7f3508a30caa40b76a852a539c35e278336c3a6ee300faec5ed833d9",
+      "file": "cli/src/Parsers/CodeExplorer.Parsers.TypeScript/Libraries/RabbitMqLibraryParser.cs",
+      "line": 181,
+      "column": 5,
+      "symbol": "ResolveQueueVariableInScope",
+      "target": "1 linear scan(s) in loop",
+      "acknowledgedAt": "2026-11-27T19:14:14.497307+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-27 19:14:14"
+    },
+    {
+      "fingerprint": "3bef615e5c6c22c10525e43d92d017e79488befa181dce257a4e38572ad6c712",
+      "file": "cli/src/Parsers/CodeExplorer.Parsers.Go/Libraries/GoAstHelper.cs",
+      "line": 392,
+      "column": 5,
+      "symbol": "ResolveRoutePrefix",
+      "target": "3 linear scan(s) in loop",
+      "acknowledgedAt": "2026-11-27T19:14:14.497307+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-27 19:14:14"
+    },
+    {
+      "fingerprint": "7b06f373882606b45802d47c7931c17c17ca84bfc00cce60eca4a7d36c71a7d1",
+      "file": "cli/src/Parsers/CodeExplorer.Parsers.Python/Libraries/PythonAstHelper.cs",
+      "line": 191,
+      "column": 5,
+      "symbol": "ResolveStringOrVariable",
+      "target": "1 linear scan(s) in loop",
+      "acknowledgedAt": "2026-11-27T19:14:14.497307+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-27 19:14:14"
+    },
+    {
+      "fingerprint": "622cf3b3eb5a952cf67e6a5a2ec38935594ce1dea4a77f8bbe6dfb12590b02f1",
+      "file": "cli/src/Parsers/CodeExplorer.Parsers.Shared/Android/AndroidManifestParser.cs",
+      "line": 148,
+      "column": 5,
+      "symbol": "ResolveStringResource",
+      "target": "1 linear scan(s) in loop",
+      "acknowledgedAt": "2026-11-27T19:14:14.497307+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-27 19:14:14"
+    },
+    {
+      "fingerprint": "ebf3643ab669fcf383740eb71e4626dd53315df3be205a79ca16db0e244fea1d",
+      "file": "cli/src/Parsers/CodeExplorer.Parsers.TypeScript/Libraries/BigQueryLibraryParser.cs",
+      "line": 282,
+      "column": 5,
+      "symbol": "ResolveTableFromVariable",
+      "target": "1 linear scan(s) in loop",
+      "acknowledgedAt": "2026-11-27T19:14:14.497307+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-27 19:14:14"
+    },
+    {
+      "fingerprint": "1b4d068e62e54a44516075de4b09ab0a2b4280633ec048598751abfabd014e91",
+      "file": "cli/src/Parsers/CodeExplorer.Parsers.TypeScript/Libraries/GcpLibraryParser.cs",
+      "line": 483,
+      "column": 5,
+      "symbol": "ResolveTopicFromReceiverInScope",
+      "target": "1 linear scan(s) in loop",
+      "acknowledgedAt": "2026-11-27T19:14:14.497307+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-27 19:14:14"
+    },
+    {
+      "fingerprint": "5dff6b07a6d943d4709a62de8cb2c6f97c886554c0ba973592ac7525b1f53d3f",
+      "file": "cli/src/Parsers/CodeExplorer.Parsers.CSharp/Libraries/EventBusLibraryParser.cs",
+      "line": 330,
+      "column": 5,
+      "symbol": "ResolveVariableEventTypes",
+      "target": "6 linear scan(s) in loop",
+      "acknowledgedAt": "2026-11-27T19:14:14.497307+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-27 19:14:14"
+    },
+    {
+      "fingerprint": "e54d627530351c417e7ee3bc16e0ce99637c73a50d00c4034aef506022ad97e7",
+      "file": "cli/src/Core/CodeExplorer.Intent/CodeIntentAnalyzer.cs",
+      "line": 86,
+      "column": 5,
+      "symbol": "RunIncrementalIntentAnalysisAsync",
+      "target": "1 linear scan(s) in loop",
+      "acknowledgedAt": "2026-11-27T19:14:14.497307+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-27 19:14:14"
+    },
+    {
+      "fingerprint": "000796ed4e464d3e4c72f8074f3b60f7811673c838ef238af18a0cabd332860d",
+      "file": "cli/src/Core/CodeExplorer.Core/Analysis/Services/EndpointScoringEngine.cs",
+      "line": 207,
+      "column": 5,
+      "symbol": "ScoreProjectMatch",
+      "target": "1 linear scan(s) in loop",
+      "acknowledgedAt": "2026-11-27T19:14:14.497307+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-27 19:14:14"
+    },
+    {
+      "fingerprint": "ad5cd6d78d746d3aee92583442437fb17d7cc6d6ef101112c4171ab9148663a5",
+      "file": "cli/src/Core/CodeExplorer.Core/Parser/FileStreamReader.cs",
+      "line": 29,
+      "column": 5,
+      "symbol": "StreamAndAnalyzeFileAsync",
+      "target": "1 linear scan(s) in loop",
+      "acknowledgedAt": "2026-11-27T19:14:14.497307+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-27 19:14:14"
+    },
+    {
+      "fingerprint": "31376fc24da037e6d8eee80a38d1aef429d51927eb5b129fa9ac38c24e7e02d3",
+      "file": "cli/src/Parsers/CodeExplorer.Parsers.Rust/Libraries/AwsSdkRustLibraryParser.cs",
+      "line": 464,
+      "column": 5,
+      "symbol": "SynthesizeCloudResources",
+      "target": "1 linear scan(s) in loop",
+      "acknowledgedAt": "2026-11-27T19:14:14.497307+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-27 19:14:14"
+    },
+    {
+      "fingerprint": "94766ba3e6ba9b65d8670d7d1bc66bc03d8ca3d9ed2addad9befd45e091a82bd",
+      "file": "cli/src/Core/CodeExplorer.Intent/CodeIntentAnalyzer.Heuristics.cs",
+      "line": 39,
+      "column": 5,
+      "symbol": "SynthesizeDomainsTopologically",
+      "target": "2 linear scan(s) in loop",
+      "acknowledgedAt": "2026-11-27T19:14:14.497307+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-27 19:14:14"
+    },
+    {
+      "fingerprint": "e0298e4d2d7f34589beb8375906df55ec7092501a1a11e41e6ba631f2f2334ac",
+      "file": "cli/src/Core/CodeExplorer.Analysis/Analysis/Services/ArchitectureViewEngine.Serialization.cs",
+      "line": 447,
+      "column": 5,
+      "symbol": "ToMarkdownBoundedContexts",
+      "target": "2 linear scan(s) in loop",
+      "acknowledgedAt": "2026-11-27T19:14:14.497307+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-27 19:14:14"
+    },
+    {
+      "fingerprint": "294fff039b6b7d0238cb0649f290c04a95b16f4aac4b3b1fe95a04dcbfc37c1f",
+      "file": "cli/src/Parsers/CodeExplorer.Parsers.TypeScript/Libraries/GcpLibraryParser.cs",
+      "line": 408,
+      "column": 5,
+      "symbol": "TryFindEnclosingFunctionParameter",
+      "target": "1 linear scan(s) in loop",
+      "acknowledgedAt": "2026-11-27T19:14:14.497307+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-27 19:14:14"
+    },
+    {
+      "fingerprint": "4623cce49b9393af4bf87af3bc3a66ea802114f32953f9f6f3faa30de7245883",
+      "file": "cli/src/Parsers/CodeExplorer.Parsers.TypeScript/Libraries/AstHelper.cs",
+      "line": 263,
+      "column": 5,
+      "symbol": "TryGetObjectProperty",
+      "target": "1 linear scan(s) in loop",
+      "acknowledgedAt": "2026-11-27T19:14:14.497307+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-27 19:14:14"
+    },
+    {
+      "fingerprint": "fbf2ffca2775571ba1a0be34adc6a802cd986ce3cb0f5efbf4ffcf388b3d131d",
+      "file": "cli/src/Parsers/CodeExplorer.Parsers.TypeScript/TypeScriptProjectParser.cs",
+      "line": 429,
+      "column": 5,
+      "symbol": "TryParse",
+      "target": "2 linear scan(s) in loop",
+      "acknowledgedAt": "2026-11-27T19:14:14.497307+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-27 19:14:14"
+    },
+    {
+      "fingerprint": "21bfcdddf047120496711afd7f9a8d6efe2a33aee3fb779566edc879343d3a5a",
+      "file": "cli/src/Parsers/CodeExplorer.Parsers.Go/Libraries/GrpcGoLibraryParser.cs",
+      "line": 349,
+      "column": 5,
+      "symbol": "TryResolveClientFromScope",
+      "target": "1 linear scan(s) in loop",
+      "acknowledgedAt": "2026-11-27T19:14:14.497307+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-27 19:14:14"
+    },
+    {
+      "fingerprint": "0d586a43e0f699fe3c53be24a695528ecb90d95ed368c279c2ec92fc407762d9",
+      "file": "cli/src/Parsers/CodeExplorer.Parsers.TypeScript/Libraries/GcpLibraryParser.cs",
+      "line": 347,
+      "column": 5,
+      "symbol": "TryResolvePublishParameterIndex",
+      "target": "1 linear scan(s) in loop",
+      "acknowledgedAt": "2026-11-27T19:14:14.497307+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-27 19:14:14"
+    },
+    {
+      "fingerprint": "a40203693528fa3e8ed996385bed4109ee80739b5356364117a870db81478290",
+      "file": "cli/src/Server/CodeExplorer.Server/Mcp/McpGraphHandler.cs",
+      "line": 121,
+      "column": 5,
+      "symbol": "TryResolveWorkspaceFromClientRootsAsync",
+      "target": "1 linear scan(s) in loop",
+      "acknowledgedAt": "2026-11-27T19:14:14.497307+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-27 19:14:14"
+    },
+    {
+      "fingerprint": "ea536f83e301b4e87afa4cb48f4fd4b28442626da2e41b0e2aea4f5aec493ab4",
+      "file": "cli/src/Parsers/CodeExplorer.Parsers.Rust/RustFileVisitor.cs",
+      "line": 365,
+      "column": 5,
+      "symbol": "UnwrapTryAndAwait",
+      "target": "2 linear scan(s) in loop",
+      "acknowledgedAt": "2026-11-27T19:14:14.497307+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-27 19:14:14"
+    },
+    {
+      "fingerprint": "71d3acf66f23aca24ec8d160bdc619a334ef2d4a553defb376bde7a650c33b65",
+      "file": "cli/src/Parsers/CodeExplorer.Parsers.Rust/Libraries/RustAstHelper.cs",
+      "line": 17,
+      "column": 5,
+      "symbol": "UnwrapTryAndAwait",
+      "target": "2 linear scan(s) in loop",
+      "acknowledgedAt": "2026-11-27T19:14:14.497307+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-27 19:14:14"
+    },
+    {
+      "fingerprint": "9f870d1dc4997f3d6fa9e4e802b1b1a7c93b8feb911ec7eaf7753a0af72e5b26",
+      "file": "cli/src/Core/CodeExplorer.Indexing/Analysis/Layers/Layer5_Global/PostIndexAnalyzer.Databases.InMemory.Helpers.cs",
+      "line": 403,
+      "column": 5,
+      "symbol": "UploadCanonicalRelationshipsInMemoryAsync",
+      "target": "1 linear scan(s) in loop",
+      "acknowledgedAt": "2026-11-27T19:14:14.497307+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-27 19:14:14"
+    },
+    {
+      "fingerprint": "c972082144a76cd2c6460ec2821addd614eb22a66a797004503604c7535ab78b",
+      "file": "cli/src/Parsers/CodeExplorer.Parsers.CSharp/CSharpFileVisitor.cs",
+      "line": 231,
+      "column": 5,
+      "symbol": "VisitVariableDeclaration",
+      "target": "1 linear scan(s) in loop",
+      "acknowledgedAt": "2026-11-27T19:14:14.497307+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-27 19:14:14"
+    },
+    {
+      "fingerprint": "86e1d6980f1ce42661f3fe1aa679925b5786e3d382acb8593bdac064246d024b",
+      "file": "cli/src/Core/CodeExplorer.Indexing/Analysis/Layers/Layer3_Syntactic/CallSiteReferenceEnricher.cs",
+      "line": 23,
+      "column": 9,
+      "symbol": "WalkAndEnrich",
+      "target": "1 linear scan(s) in loop",
+      "acknowledgedAt": "2026-11-27T19:14:14.497307+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-27 19:14:14"
+    },
+    {
+      "fingerprint": "8dc5b75d7b056d6d4ef6109c3ac3a91677730a1c2032fe0609be63dcf5ddad21",
+      "file": "cli/src/Core/CodeExplorer.Indexing/Analysis/Layers/Layer4_Semantic/Analyzers/ResourceSemanticAnalyzer.Resources.cs",
+      "line": 167,
+      "column": 21,
+      "symbol": "WalkAst",
+      "target": "2 linear scan(s) in loop",
+      "acknowledgedAt": "2026-11-27T19:14:14.497307+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-27 19:14:14"
+    },
+    {
+      "fingerprint": "e0c41e7439aed8ce09a384fcfbb7600f935f20a282977507b624edcfc1f037b3",
+      "file": "cli/src/Parsers/CodeExplorer.Parsers.CSharp/Components/DotNetTestComponentParser.cs",
+      "line": 56,
+      "column": 9,
+      "symbol": "WalkNode",
+      "target": "1 linear scan(s) in loop",
+      "acknowledgedAt": "2026-11-27T19:14:14.497307+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-27 19:14:14"
+    },
+    {
+      "fingerprint": "c9abaed88aec236f19a3fdf83c4a5ce877a225e74212d6b789599e087ce8c112",
+      "file": "vscode-extension/src/webview/layout/concentricEquispacedLayout.ts",
+      "line": 23,
+      "column": 8,
+      "symbol": "computeConcentricEquispacedLayout",
+      "target": "5 linear scan(s) in loop",
+      "acknowledgedAt": "2026-11-27T19:14:14.497307+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-27 19:14:14"
+    },
+    {
+      "fingerprint": "59248892590083edc2628b53cfbaf354fce3c98061df37d2fd2b6d47260afe55",
+      "file": "vscode-extension/src/webview/layout/concentricLayout.ts",
+      "line": 675,
+      "column": 8,
+      "symbol": "computeConcentricLayout",
+      "target": "1 linear scan(s) in loop",
+      "acknowledgedAt": "2026-11-27T19:14:14.497307+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-27 19:14:14"
+    },
+    {
+      "fingerprint": "b43cf3fe4363e85d84b49f7c18d1b0cf83486b52687a88a67fc8893995c27495",
+      "file": "vscode-extension/src/webview/domain/nodeGrouping.ts",
+      "line": 93,
+      "column": 8,
+      "symbol": "computeGroupedGraph",
+      "target": "2 linear scan(s) in loop",
+      "acknowledgedAt": "2026-11-27T19:14:14.497307+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-27 19:14:14"
+    },
+    {
+      "fingerprint": "02e1faa27de5e8865df2ce1b1926ab0808ce0ee056fa0d5eb83e8e88b448dc26",
+      "file": "vscode-extension/src/webview/layout/swimlanesLayout.ts",
+      "line": 85,
+      "column": 8,
+      "symbol": "computeSwimlanesLayout",
+      "target": "1 linear scan(s) in loop",
+      "acknowledgedAt": "2026-11-27T19:14:14.497307+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-27 19:14:14"
+    },
+    {
+      "fingerprint": "f2daa29541911245fc5a6191e4693b35d7b4d070732c2da470d7bc43a98a5352",
+      "file": "vscode-extension/src/webview/components/UniversalGraphMap.tsx",
+      "line": 544,
+      "column": 8,
+      "symbol": "computeUniversalVisibleGraph",
+      "target": "2 linear scan(s) in loop",
+      "acknowledgedAt": "2026-11-27T19:14:14.497307+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-27 19:14:14"
+    },
+    {
+      "fingerprint": "24aad41efcea488d17cb3da19ac407b71ba0f920863924549967b9445eb7042a",
+      "file": "vscode-extension/src/webview/domain/components/CypherEditor.tsx",
+      "line": 27,
+      "column": 8,
+      "symbol": "highlightCypher",
+      "target": "1 linear scan(s) in loop",
+      "acknowledgedAt": "2026-11-27T19:14:14.497307+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-27 19:14:14"
+    },
+    {
+      "fingerprint": "0532612d1cd2d205f80dcffd38cb98d97c07bfa9794e090df9b52bdc02b399b1",
+      "file": "vscode-extension/src/engine/downloader.ts",
+      "line": 134,
+      "column": 8,
+      "symbol": "probeEngineVersion",
+      "target": "1 linear scan(s) in loop",
+      "acknowledgedAt": "2026-11-27T19:14:14.497307+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-27 19:14:14"
+    }
+  ]
+}

@@ -111,6 +111,21 @@ public record FunctionNode(
     [JsonPropertyName("loop_await_count"), OntologyProperty("Total number of await suspension points executed inside loop scopes of this function.")]
     public int? LoopAwaitCount { get; set; }
 
+    [JsonPropertyName("effective_loop_depth"), OntologyProperty("Maximum intra-procedural polynomial loop order inside the function, discounting constant-bounded loops and counting linear collection scans inside loops.")]
+    public int? EffectiveLoopDepth { get; set; }
+
+    [JsonPropertyName("loop_linear_scan_count"), OntologyProperty("Total number of linear collection scan calls (e.g. FirstOrDefault, Any, Where, List.Contains) executed inside non-bounded loops of this function.")]
+    public int? LoopLinearScanCount { get; set; }
+
+    [JsonPropertyName("has_unpartitioned_loop"), OntologyProperty("Indicates whether the function directly iterates over an unpartitioned lookup dictionary or workspace-wide collection.")]
+    public bool? HasUnpartitionedLoop { get; set; }
+
+    [JsonPropertyName("caller_loop_depth"), OntologyProperty("Maximum non-recursive loop nesting depth accumulated along incoming CALLS paths in the condensation DAG.")]
+    public int? CallerLoopDepth { get; set; }
+
+    [JsonPropertyName("transitive_loop_depth"), OntologyProperty("Inter-procedural polynomial complexity order (caller_loop_depth + effective_loop_depth) across non-recursive CALLS chains.")]
+    public int? TransitiveLoopDepth { get; set; }
+
     [JsonIgnore]
     public override NodeKind Kind => NodeKind.Function;
 }

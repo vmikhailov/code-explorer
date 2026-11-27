@@ -71,6 +71,8 @@ public partial class ResourceReconciliationService
 {
     private readonly ConcurrentDictionary<string, CanonicalResource> _resourcesById = new(StringComparer.OrdinalIgnoreCase);
     private readonly ConcurrentDictionary<string, string> _aliasToResourceId = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, List<CanonicalResource>> _resourcesByEngine = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<DatabaseType, List<CanonicalResource>> _resourcesByDbType = [];
     private readonly List<DatabaseUsageRecord> _usages = [];
     private readonly object _lock = new();
 
@@ -216,6 +218,7 @@ public partial class ResourceReconciliationService
                 foreach (var placeholder in genericPlaceholders)
                 {
                     _resourcesById.TryRemove(placeholder.Id, out _);
+                    UnindexResourceLocked(placeholder);
                     foreach (var a in placeholder.Aliases)
                     {
                         if (!IsDisallowedDatabaseAlias(a))
@@ -252,7 +255,58 @@ public partial class ResourceReconciliationService
             );
 
             _resourcesById[id] = resource;
+            IndexResourceLocked(resource);
             return resource;
+        }
+    }
+
+    private void IndexResourceLocked(CanonicalResource resource)
+    {
+        if (!string.IsNullOrEmpty(resource.Name) && !IsDisallowedDatabaseAlias(resource.Name))
+        {
+            _aliasToResourceId.TryAdd(resource.Name, resource.Id);
+            if (resource.Name.Contains('.'))
+            {
+                var schPart = resource.Name.Split('.', 2)[1];
+                if (!string.IsNullOrEmpty(schPart) && !IsDisallowedDatabaseAlias(schPart))
+                {
+                    _aliasToResourceId.TryAdd(schPart, resource.Id);
+                }
+            }
+        }
+
+        if (!string.IsNullOrWhiteSpace(resource.Engine))
+        {
+            var normEng = NormalizeEngineName(resource.Engine);
+            if (!_resourcesByEngine.TryGetValue(normEng, out var engList))
+            {
+                engList = [];
+                _resourcesByEngine[normEng] = engList;
+            }
+            engList.Add(resource);
+        }
+
+        if (!_resourcesByDbType.TryGetValue(resource.DbType, out var typeList))
+        {
+            typeList = [];
+            _resourcesByDbType[resource.DbType] = typeList;
+        }
+        typeList.Add(resource);
+    }
+
+    private void UnindexResourceLocked(CanonicalResource placeholder)
+    {
+        if (!string.IsNullOrWhiteSpace(placeholder.Engine))
+        {
+            var normEng = NormalizeEngineName(placeholder.Engine);
+            if (_resourcesByEngine.TryGetValue(normEng, out var engList))
+            {
+                engList.Remove(placeholder);
+            }
+        }
+        if (_resourcesByDbType.TryGetValue(placeholder.DbType, out var typeList))
+        {
+            typeList.Remove(placeholder);
         }
     }
 
@@ -410,31 +464,11 @@ public partial class ResourceReconciliationService
                 }
             }
 
-            // Direct scan by alias or name (engine matching is evaluated dynamically below)
-            foreach (var res in _resourcesById.Values)
+            if (_aliasToResourceId.TryGetValue(aliasOrName, out var exactAliasId) &&
+                _resourcesById.TryGetValue(exactAliasId, out var exactAliasRes) &&
+                (expectedDbTypeEnum == null || exactAliasRes.DbType == expectedDbTypeEnum.Value))
             {
-                if (res.Aliases.Contains(norm) ||
-                    string.Equals(res.Name, aliasOrName, StringComparison.OrdinalIgnoreCase))
-                {
-                    if (expectedDbTypeEnum != null && res.DbType != expectedDbTypeEnum.Value)
-                        continue;
-                    return res;
-                }
-
-                foreach (var variant in GetPluralSingularVariants(norm))
-                {
-                    var schPart = res.Name.Contains('.') ? res.Name.Split('.', 2)[1] : res.Name;
-                    if (res.Aliases.Contains(variant) ||
-                        string.Equals(res.Name, variant, StringComparison.OrdinalIgnoreCase) ||
-                        string.Equals(schPart, variant, StringComparison.OrdinalIgnoreCase))
-                    {
-                        if (expectedDbTypeEnum != null && res.DbType != expectedDbTypeEnum.Value)
-                            continue;
-                        if (expectedEngine != null && !string.Equals(NormalizeEngineName(res.Engine), NormalizeEngineName(expectedEngine), StringComparison.OrdinalIgnoreCase))
-                            continue;
-                        return res;
-                    }
-                }
+                return exactAliasRes;
             }
         }
 
@@ -454,18 +488,35 @@ public partial class ResourceReconciliationService
 
         if (isGenericAlias && !string.IsNullOrWhiteSpace(targetEngine))
         {
-            var matchingEngine = _resourcesById.Values.Where(r => string.Equals(r.Engine, targetEngine, StringComparison.OrdinalIgnoreCase)).ToList();
-            if (matchingEngine.Count == 1) return matchingEngine[0];
-            return null; // targetEngine was specified but ambiguous (multiple databases) or not matched; do not guess
+            lock (_lock)
+            {
+                return _resourcesByEngine.TryGetValue(targetEngine, out var matchingEngine) && matchingEngine.Count == 1
+                    ? matchingEngine[0]
+                    : null;
+            }
         }
 
         // If no engine was specified (e.g. raw anonymous SQL), and only 1 resource matches dbType
         if (string.IsNullOrWhiteSpace(aliasOrName) && expectedDbTypeEnum != null)
         {
-            var matchingType = _resourcesById.Values.Where(r => r.DbType == expectedDbTypeEnum.Value).ToList();
-            var concrete = matchingType.Where(r => !IsGenericConfigKey(r.Engine) && !string.Equals(r.Name, "Database", StringComparison.OrdinalIgnoreCase)).ToList();
-            if (concrete.Count == 1) return concrete[0];
-            if (matchingType.Count == 1) return matchingType[0];
+            lock (_lock)
+            {
+                if (_resourcesByDbType.TryGetValue(expectedDbTypeEnum.Value, out var matchingType) && matchingType.Count > 0)
+                {
+                    if (matchingType.Count == 1) return matchingType[0];
+                    CanonicalResource? singleConcrete = null;
+                    for (var i = 0; i < matchingType.Count; i++)
+                    {
+                        var r = matchingType[i];
+                        if (!IsGenericConfigKey(r.Engine) && !string.Equals(r.Name, "Database", StringComparison.OrdinalIgnoreCase))
+                        {
+                            if (singleConcrete != null) return null;
+                            singleConcrete = r;
+                        }
+                    }
+                    return singleConcrete;
+                }
+            }
         }
 
         return null;

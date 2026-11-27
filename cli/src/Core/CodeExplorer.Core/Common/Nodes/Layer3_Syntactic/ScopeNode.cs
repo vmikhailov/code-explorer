@@ -93,6 +93,15 @@ public record ScopeNode(
     [JsonPropertyName("branch_count"), OntologyProperty("The number of branching predicates or decision points contributed by this scope.")]
     public int BranchCount { get; set; } = BranchCount;
 
+    [JsonPropertyName("linear_scan_count"), OntologyProperty("The number of disguised O(N) linear collection scans (e.g. FirstOrDefault, Any, Where, Find, List.Contains) inside this scope.")]
+    public int LinearScanCount { get; set; }
+
+    [JsonPropertyName("effective_loop_depth"), OntologyProperty("Effective polynomial loop nesting depth of this scope after discounting constant-bounded loops and adding disguised linear scans.")]
+    public int EffectiveLoopDepth { get; set; } = LoopDepth;
+
+    [JsonPropertyName("loop_source"), OntologyProperty("Classification of the iterated source for loop scopes (Bounded, Partitioned, Collection, Unpartitioned).")]
+    public LoopSourceKind? LoopSource { get; set; }
+
     [JsonPropertyName("is_async"), OntologyProperty("Indicates whether the scope uses asynchronous iteration or disposal (e.g. await using, for await).")]
     public bool IsAsync { get; set; } = IsAsync;
 

@@ -180,21 +180,7 @@ public class GateExecutionEngine
 
             if (graphNodes.Count > 0)
             {
-                // Prefer non-CallLiteral node as the primary source symbol when multiple nodes are returned
-                var nonLiteralNodes = graphNodes.Where(n => !IsLiteralEvidenceNode(n.PropName, n.Kind)).ToList();
-                var candidateSourcePool = nonLiteralNodes.Count > 0 ? nonLiteralNodes : graphNodes;
-
-                var srcNode = candidateSourcePool.FirstOrDefault(n => IsSourceNodeName(n.PropName));
-                if (srcNode.Properties.Kind == CypherValueKind.Null)
-                {
-                    srcNode = candidateSourcePool.FirstOrDefault(n =>
-                        ExtractStringProperty(n.Properties, "file_path", "path", "filePath") != null ||
-                        ExtractIntProperty(n.Properties, "start_line", "startLine", "line") > 0);
-                    if (srcNode.Properties.Kind == CypherValueKind.Null)
-                    {
-                        srcNode = candidateSourcePool[0];
-                    }
-                }
+                ResolveRowGraphRoles(graphNodes, out var srcNode, out var litNode, out var fileNode, out var tgtNode);
 
                 if (srcNode.Properties.Kind == CypherValueKind.Object)
                 {
@@ -206,7 +192,6 @@ public class GateExecutionEngine
                 }
 
                 // If a CallLiteral evidence node (e.g. 'lit') is also returned, use its exact call-site coordinates
-                var litNode = graphNodes.FirstOrDefault(n => n.PropName != srcNode.PropName && IsLiteralEvidenceNode(n.PropName, n.Kind));
                 if (litNode.Properties.Kind == CypherValueKind.Object)
                 {
                     file ??= ExtractStringProperty(litNode.Properties, "file_path", "path", "filePath");
@@ -222,8 +207,6 @@ public class GateExecutionEngine
                     }
                 }
 
-                // Identify target node (distinct from source node and CallLiteral/File context nodes unless no other target exists)
-                var fileNode = graphNodes.FirstOrDefault(n => n.PropName != srcNode.PropName && n.Kind == NodeKind.File);
                 if (file == null && fileNode.Properties.Kind == CypherValueKind.Object)
                 {
                     file = ExtractStringProperty(fileNode.Properties, "path", "file_path", "name");
@@ -232,17 +215,6 @@ public class GateExecutionEngine
                 if (file == null && srcNode.Properties.Kind == CypherValueKind.Object)
                 {
                     file = ExtractStringProperty(srcNode.Properties, "symbol", "name");
-                }
-
-                var targetCandidates = graphNodes
-                    .Where(n => n.PropName != srcNode.PropName
-                             && !IsLiteralEvidenceNode(n.PropName, n.Kind)
-                             && n.Kind != NodeKind.File)
-                    .ToList();
-                var tgtNode = targetCandidates.FirstOrDefault(n => IsTargetNodeName(n.PropName));
-                if (tgtNode.Properties.Kind == CypherValueKind.Null && targetCandidates.Count > 0)
-                {
-                    tgtNode = targetCandidates[0];
                 }
 
                 if (tgtNode.Properties.Kind == CypherValueKind.Object)
@@ -261,11 +233,7 @@ public class GateExecutionEngine
             var callSiteLocations = new List<(int Line, int Column)>();
             if (graphEdges.Count > 0 && explicitLine == 0)
             {
-                var relEdge = graphEdges.FirstOrDefault(e => IsRelationshipAlias(e.PropName));
-                if (relEdge.Properties.Kind == CypherValueKind.Null)
-                {
-                    relEdge = graphEdges[0];
-                }
+                var relEdge = SelectPrimaryRelationshipEdge(graphEdges);
 
                 if (relEdge.Properties.Kind == CypherValueKind.Object &&
                     DoesEdgeBelongToSourceLocation(relEdge.FromId, nodeId, file, graphNodes))
@@ -331,9 +299,126 @@ public class GateExecutionEngine
         return violations;
     }
 
+    private static void ResolveRowGraphRoles(
+        List<(string PropName, string? Id, NodeKind Kind, CypherValue Properties)> graphNodes,
+        out (string PropName, string? Id, NodeKind Kind, CypherValue Properties) srcNode,
+        out (string PropName, string? Id, NodeKind Kind, CypherValue Properties) litNode,
+        out (string PropName, string? Id, NodeKind Kind, CypherValue Properties) fileNode,
+        out (string PropName, string? Id, NodeKind Kind, CypherValue Properties) tgtNode)
+    {
+        srcNode = default;
+        litNode = default;
+        fileNode = default;
+        tgtNode = default;
+
+        var hasNonLiteral = false;
+        for (var i = 0; i < graphNodes.Count; i++)
+        {
+            if (!IsLiteralEvidenceNode(graphNodes[i].PropName, graphNodes[i].Kind))
+            {
+                hasNonLiteral = true;
+                break;
+            }
+        }
+
+        (string PropName, string? Id, NodeKind Kind, CypherValue Properties) fallbackWithLocation = default;
+        (string PropName, string? Id, NodeKind Kind, CypherValue Properties) fallbackFirst = default;
+
+        for (var i = 0; i < graphNodes.Count; i++)
+        {
+            var n = graphNodes[i];
+            if (hasNonLiteral && IsLiteralEvidenceNode(n.PropName, n.Kind))
+            {
+                continue;
+            }
+
+            if (fallbackFirst.Properties.Kind == CypherValueKind.Null)
+            {
+                fallbackFirst = n;
+            }
+
+            if (srcNode.Properties.Kind == CypherValueKind.Null && IsSourceNodeName(n.PropName))
+            {
+                srcNode = n;
+                break;
+            }
+
+            if (fallbackWithLocation.Properties.Kind == CypherValueKind.Null &&
+                (ExtractStringProperty(n.Properties, PropFilePathSnake, PropPath, PropFilePathCamel) != null ||
+                 ExtractIntProperty(n.Properties, PropStartLineSnake, PropStartLineCamel, PropLine) > 0))
+            {
+                fallbackWithLocation = n;
+            }
+        }
+
+        if (srcNode.Properties.Kind == CypherValueKind.Null)
+        {
+            srcNode = fallbackWithLocation.Properties.Kind != CypherValueKind.Null ? fallbackWithLocation : fallbackFirst;
+        }
+
+        (string PropName, string? Id, NodeKind Kind, CypherValue Properties) firstTargetCandidate = default;
+        for (var i = 0; i < graphNodes.Count; i++)
+        {
+            var n = graphNodes[i];
+            if (n.PropName == srcNode.PropName)
+            {
+                continue;
+            }
+
+            if (IsLiteralEvidenceNode(n.PropName, n.Kind))
+            {
+                if (litNode.Properties.Kind == CypherValueKind.Null)
+                {
+                    litNode = n;
+                }
+                continue;
+            }
+
+            if (n.Kind == NodeKind.File)
+            {
+                if (fileNode.Properties.Kind == CypherValueKind.Null)
+                {
+                    fileNode = n;
+                }
+                continue;
+            }
+
+            if (firstTargetCandidate.Properties.Kind == CypherValueKind.Null)
+            {
+                firstTargetCandidate = n;
+            }
+
+            if (tgtNode.Properties.Kind == CypherValueKind.Null && IsTargetNodeName(n.PropName))
+            {
+                tgtNode = n;
+            }
+        }
+
+        if (tgtNode.Properties.Kind == CypherValueKind.Null)
+        {
+            tgtNode = firstTargetCandidate;
+        }
+    }
+
+    private static (string PropName, string? FromId, string? ToId, string? RelType, CypherValue Properties) SelectPrimaryRelationshipEdge(
+        List<(string PropName, string? FromId, string? ToId, string? RelType, CypherValue Properties)> graphEdges)
+    {
+        for (var i = 0; i < graphEdges.Count; i++)
+        {
+            if (IsRelationshipAlias(graphEdges[i].PropName))
+            {
+                return graphEdges[i];
+            }
+        }
+        return graphEdges[0];
+    }
+
     private const string PropFilePathSnake = "file_path";
     private const string PropPath = "path";
     private const string PropFilePathCamel = "filePath";
+    private const string PropStartLineSnake = "start_line";
+    private const string PropStartLineCamel = "startLine";
+    private const string PropLine = "line";
 
     private static bool DoesEdgeBelongToSourceLocation(
         string? edgeFromId,
@@ -346,7 +431,15 @@ public class GateExecutionEngine
             return true;
         }
 
-        var originNode = graphNodes.FirstOrDefault(n => string.Equals(n.Id, edgeFromId, StringComparison.Ordinal));
+        (string PropName, string? Id, NodeKind Kind, CypherValue Properties) originNode = default;
+        for (var i = 0; i < graphNodes.Count; i++)
+        {
+            if (string.Equals(graphNodes[i].Id, edgeFromId, StringComparison.Ordinal))
+            {
+                originNode = graphNodes[i];
+                break;
+            }
+        }
         if (originNode.Properties.Kind == CypherValueKind.Object && !string.IsNullOrEmpty(sourceFile))
         {
             var originFile = ExtractStringProperty(originNode.Properties, PropFilePathSnake, PropPath, PropFilePathCamel);

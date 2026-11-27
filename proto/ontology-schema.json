@@ -4103,6 +4103,36 @@
           "sourceName": "LoopAwaitCount",
           "type": "integer",
           "description": "Total number of await suspension points executed inside loop scopes of this function."
+        },
+        {
+          "name": "effective_loop_depth",
+          "sourceName": "EffectiveLoopDepth",
+          "type": "integer",
+          "description": "Maximum intra-procedural polynomial loop order inside the function, discounting constant-bounded loops and counting linear collection scans inside loops."
+        },
+        {
+          "name": "loop_linear_scan_count",
+          "sourceName": "LoopLinearScanCount",
+          "type": "integer",
+          "description": "Total number of linear collection scan calls (e.g. FirstOrDefault, Any, Where, List.Contains) executed inside non-bounded loops of this function."
+        },
+        {
+          "name": "has_unpartitioned_loop",
+          "sourceName": "HasUnpartitionedLoop",
+          "type": "boolean",
+          "description": "Indicates whether the function directly iterates over an unpartitioned lookup dictionary or workspace-wide collection."
+        },
+        {
+          "name": "caller_loop_depth",
+          "sourceName": "CallerLoopDepth",
+          "type": "integer",
+          "description": "Maximum non-recursive loop nesting depth accumulated along incoming CALLS paths in the condensation DAG."
+        },
+        {
+          "name": "transitive_loop_depth",
+          "sourceName": "TransitiveLoopDepth",
+          "type": "integer",
+          "description": "Inter-procedural polynomial complexity order (caller_loop_depth + effective_loop_depth) across non-recursive CALLS chains."
         }
       ],
       "outEdges": [
@@ -4998,6 +5028,24 @@
           "sourceName": "BranchCount",
           "type": "integer",
           "description": "The number of branching predicates or decision points contributed by this scope."
+        },
+        {
+          "name": "linear_scan_count",
+          "sourceName": "LinearScanCount",
+          "type": "integer",
+          "description": "The number of disguised O(N) linear collection scans (e.g. FirstOrDefault, Any, Where, Find, List.Contains) inside this scope."
+        },
+        {
+          "name": "effective_loop_depth",
+          "sourceName": "EffectiveLoopDepth",
+          "type": "integer",
+          "description": "Effective polynomial loop nesting depth of this scope after discounting constant-bounded loops and adding disguised linear scans."
+        },
+        {
+          "name": "loop_source",
+          "sourceName": "LoopSource",
+          "type": "enum (LoopSourceKind)",
+          "description": "Classification of the iterated source for loop scopes (Bounded, Partitioned, Collection, Unpartitioned)."
         },
         {
           "name": "is_async",

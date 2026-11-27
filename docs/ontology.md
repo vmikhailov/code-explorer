@@ -858,6 +858,11 @@ graph TD
 | `MaxNestingDepth` | `int?` | Maximum structural control-flow nesting depth inside the function. |
 | `MaxLoopDepth` | `int?` | Maximum loop nesting depth inside the function (0 = no loops, 1 = O(N), 2 = O(N^2)). |
 | `LoopAwaitCount` | `int?` | Total number of await suspension points executed inside loop scopes of this function. |
+| `EffectiveLoopDepth` | `int?` | Maximum intra-procedural polynomial loop order inside the function, discounting constant-bounded loops and counting linear collection scans inside loops. |
+| `LoopLinearScanCount` | `int?` | Total number of linear collection scan calls (e.g. FirstOrDefault, Any, Where, List.Contains) executed inside non-bounded loops of this function. |
+| `HasUnpartitionedLoop` | `bool?` | Indicates whether the function directly iterates over an unpartitioned lookup dictionary or workspace-wide collection. |
+| `CallerLoopDepth` | `int?` | Maximum non-recursive loop nesting depth accumulated along incoming CALLS paths in the condensation DAG. |
+| `TransitiveLoopDepth` | `int?` | Inter-procedural polynomial complexity order (caller_loop_depth + effective_loop_depth) across non-recursive CALLS chains. |
 
 ---
 
@@ -998,6 +1003,9 @@ graph TD
 | `LoopDepth` | `int` | The nesting depth of enclosing loops at this scope (0 = outside loops, 1 = O(N), 2 = O(N^2)). |
 | `AwaitCount` | `int` | The number of await or asynchronous suspension points inside this scope. |
 | `BranchCount` | `int` | The number of branching predicates or decision points contributed by this scope. |
+| `LinearScanCount` | `int` | The number of disguised O(N) linear collection scans (e.g. FirstOrDefault, Any, Where, Find, List.Contains) inside this scope. |
+| `EffectiveLoopDepth` | `int` | Effective polynomial loop nesting depth of this scope after discounting constant-bounded loops and adding disguised linear scans. |
+| `LoopSource` | `LoopSourceKind?` | Classification of the iterated source for loop scopes (Bounded, Partitioned, Collection, Unpartitioned). |
 | `IsAsync` | `bool` | Indicates whether the scope uses asynchronous iteration or disposal (e.g. await using, for await). |
 | `IsEmpty` | `bool` | Indicates whether the scope body contains no executable statements. |
 | `HasComment` | `bool` | Indicates whether an empty scope block contains an explanatory comment. |

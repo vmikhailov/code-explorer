@@ -259,10 +259,71 @@ public static partial class BuiltInGateCatalog
               AND NOT coalesce(p2.is_test, false)
             RETURN p1, r1, p2, r2
             """,
-        Ratchet = new GateRatchetSettings
+            Ratchet = new GateRatchetSettings
         {
             Enabled = true,
             Baseline = "baselines/SIG-C-B-004.json"
+        },
+        Source = "BuiltIn"
+    };
+
+    public static readonly SemanticGate NoLinearScansInLoopsGate = new()
+    {
+        Id = "SIG-M-R-003",
+        Category = GateCategory.Architectural,
+        Platform = "agnostic",
+        Scope = InvariantScope.Method,
+        Dimension = InvariantDimension.Resources,
+        Name = "Disallow Linear Collection Scans Inside Loops",
+        Severity = GateSeverity.Error,
+        Description = "Methods must not execute O(N) linear collection scans (e.g. FirstOrDefault, Any, Where, SingleOrDefault, Find, RemoveAll, or List.Contains) inside non-bounded loops, which turns O(N) iterations into hidden O(N^2) bottlenecks.",
+        Remediation = "Pre-index the searched collection into a HashSet or Dictionary outside the loop and perform O(1) Contains / TryGetValue lookups inside the loop.",
+        Target = "{f.loop_linear_scan_count} linear scan(s) in loop",
+        Message = "Method '{f.name}' executes {f.loop_linear_scan_count} linear collection scan(s) inside a loop (effective_loop_depth = {f.effective_loop_depth}). Pre-index into a HashSet/Dictionary outside the loop.",
+        Query = """
+            MATCH (f:Function)
+            WHERE NOT coalesce(f.is_test, false)
+              AND f.name <> '<module_init>'
+              AND coalesce(f.loop_linear_scan_count, 0) > 0
+            RETURN f
+            """,
+        Ratchet = new GateRatchetSettings
+        {
+            Enabled = true,
+            Baseline = "baselines/SIG-M-R-003.json"
+        },
+        Source = "BuiltIn"
+    };
+
+    public static readonly SemanticGate InterProceduralPolynomialCeilingGate = new()
+    {
+        Id = "SIG-M-R-004",
+        Category = GateCategory.Architectural,
+        Platform = "agnostic",
+        Scope = InvariantScope.Method,
+        Dimension = InvariantDimension.Resources,
+        Name = "Inter-Procedural Polynomial Complexity Ceiling",
+        Severity = GateSeverity.Error,
+        Description = "Functions invoked inside caller loops must not iterate directly over unpartitioned lookup dictionaries or workspace-wide collections (has_unpartitioned_loop = true) or execute nested linear collection scans (loop_linear_scan_count > 0).",
+        Remediation = "Build workspace/lookup indices once before the outer loop, or partition data by key (Dictionary/TryGetValue) instead of scanning full collections inside helper methods called from loops.",
+        Message = "Call '{caller.name}' -> '{callee.name}' amplifies loop complexity across call boundaries (transitive_loop_depth = {callee.transitive_loop_depth}, has_unpartitioned_loop = {callee.has_unpartitioned_loop}, loop_linear_scan_count = {callee.loop_linear_scan_count}).",
+        Query = """
+            MATCH (caller:Function)-[r:CALLS]->(callee:Function)
+            WHERE NOT coalesce(caller.is_test, false)
+              AND NOT coalesce(callee.is_test, false)
+              AND caller.id <> callee.id
+              AND coalesce(callee.caller_loop_depth, 0) >= 1
+              AND (coalesce(r.loop_depth, 0) >= 1 OR coalesce(caller.caller_loop_depth, 0) >= 1)
+              AND (
+                coalesce(callee.has_unpartitioned_loop, false) = true
+                OR coalesce(callee.loop_linear_scan_count, 0) > 0
+              )
+            RETURN caller, r, callee
+            """,
+        Ratchet = new GateRatchetSettings
+        {
+            Enabled = true,
+            Baseline = "baselines/SIG-M-R-004.json"
         },
         Source = "BuiltIn"
     };

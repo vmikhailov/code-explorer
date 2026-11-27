@@ -1,0 +1,28 @@
+id: SIG-M-R-004
+category: Architectural
+platform: agnostic
+scope: Method
+dimension: Resources
+name: "Inter-Procedural Polynomial Complexity Ceiling"
+severity: Error
+description: "Functions invoked inside caller loops must not iterate directly over unpartitioned lookup dictionaries or workspace-wide collections (has_unpartitioned_loop = true) or execute nested linear collection scans (loop_linear_scan_count > 0)."
+remediation: "Build workspace/lookup indices once before the outer loop, or partition data by key (Dictionary/TryGetValue) instead of scanning full collections inside helper methods called from loops."
+message: "Call '{caller.name}' -> '{callee.name}' amplifies loop complexity across call boundaries (transitive_loop_depth = {callee.transitive_loop_depth}, has_unpartitioned_loop = {callee.has_unpartitioned_loop}, loop_linear_scan_count = {callee.loop_linear_scan_count})."
+thresholds:
+  warning: 1
+  error: 1
+query: |
+  MATCH (caller:Function)-[r:CALLS]->(callee:Function)
+  WHERE NOT coalesce(caller.is_test, false)
+    AND NOT coalesce(callee.is_test, false)
+    AND caller.id <> callee.id
+    AND coalesce(callee.caller_loop_depth, 0) >= 1
+    AND (coalesce(r.loop_depth, 0) >= 1 OR coalesce(caller.caller_loop_depth, 0) >= 1)
+    AND (
+      coalesce(callee.has_unpartitioned_loop, false) = true
+      OR coalesce(callee.loop_linear_scan_count, 0) > 0
+    )
+  RETURN caller, r, callee
+ratchet:
+  enabled: true
+  baseline: baselines/SIG-M-R-004.json

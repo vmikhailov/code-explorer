@@ -5,6 +5,15 @@ All notable changes to the CodeExplorer project (CLI, MCP Server, and VS Code Ex
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.108.0] - 2026-11-27
+
+### Added
+- **Intra- & Inter-Procedural Polynomial Complexity Metrics (`ScopeNode`, `FunctionNode`, `LoopSourceKind`, `Layer3LoopComplexityClassifier`, `Layer5ComplexityPropagator`)**: Added syntactic loop-source classification (`Bounded`, `Partitioned`, `Collection`, `Unpartitioned`), disguised $O(N)$ linear-scan counting inside loops (`linear_scan_count`, `loop_linear_scan_count`, `effective_loop_depth`, `has_unpartitioned_loop`), and Tarjan-SCC-condensed inter-procedural loop amplification propagation (`caller_loop_depth`, `transitive_loop_depth`) with full recursion (`DFS`) immunity across `Scope` and `Function` ontology nodes.
+- **Polynomial Complexity Semantic Invariant Gates (`SIG-M-R-003`, `SIG-M-R-004`)**: Added two built-in agnostic architectural gates — `SIG-M-R-003` (*Disallow Linear Collection Scans Inside Loops*) and `SIG-M-R-004` (*Inter-Procedural Polynomial Complexity Ceiling*) — to prevent hidden $O(N^2)$ collection scans inside loops and cross-function loop amplification over unpartitioned workspace/lookup collections.
+
+### Fixed
+- **Eliminated Hidden Quadratic Hotspots Across Indexing, Post-Index, Gate Engine & Architecture Views (`PostIndexAnalyzer`, `Layer5RuntimeCallBinder`, `Layer5GoSymbolHelper`, `Layer3IncludePathResolver`, `ResourceReconciliationService`, `RouteDictionaryRegistry`, `AstScopeResolver`, `GateExecutionEngine`, `ArchitectureViewEngine`, `Layer4SemanticAnalyzer`)**: Replaced `List.Remove` in loops (`PostIndexAnalyzer.PruneUnverifiedConfigDbEdges`) with single-pass `HashSet` + `RemoveAll`, indexed referencing services by library ID and projects by ID/name/path across database consolidation and `RunInMemoryAsync`, eliminated the non-Go `KnownFiles` fallback scan in `AddGoPackageDirectoryCandidates` and `AppendIncludePathCandidates`, indexed `ServiceCall` edges by `(From, To)` pair and pre-filtered callable host targets in `Layer5RuntimeCallBinder`, added `_resourcesByEngine` / `_resourcesByDbType` indices in `ResourceReconciliationService.ResolveResource`, pre-indexed `archGraph.Nodes` and evidence scopes in `ArchitectureViewEngine`, and removed per-row list allocations and LINQ scans in `GateExecutionEngine.ParseViolations` and `AstScopeResolver`.
+
 ## [1.107.3] - 2026-11-27
 
 ### Changed

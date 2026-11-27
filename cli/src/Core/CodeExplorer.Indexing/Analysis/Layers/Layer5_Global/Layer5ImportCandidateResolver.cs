@@ -129,7 +129,6 @@ internal static class Layer5ImportCandidateResolver
             Layer3IncludePathResolver.AppendIncludePathCandidates(
                 callerFile,
                 importPath,
-                symbols.KnownFiles,
                 results,
                 rawCand => AddFileCandidates(Layer5AnalysisParser.NormalizeRelativePath(rawCand), results, symbols),
                 symbols.FilesByFileName);

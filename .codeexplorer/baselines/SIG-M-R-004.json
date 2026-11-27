@@ -1,0 +1,1876 @@
+{
+  "gateId": "SIG-M-R-004",
+  "allowedViolations": 187,
+  "entries": [
+    {
+      "fingerprint": "8b865dd10ad06d3e8d98282e565d86633d78a1292e04ef9bc5c94b2d930fc931",
+      "file": "cli/src/Core/CodeExplorer.Core/Analysis/Layers/Layer3_Syntactic/AstValueResolver.cs",
+      "line": 555,
+      "column": 40,
+      "symbol": "TryResolveCall",
+      "target": "GetFunctionNode",
+      "acknowledgedAt": "2026-11-27T19:14:15.2494516+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-27 19:14:15"
+    },
+    {
+      "fingerprint": "1bf70e56406fa5ae65527144338f1649864480098712d22ca29f3706405c418c",
+      "file": "cli/src/Core/CodeExplorer.Core/Analysis/Layers/Layer4_Semantic/Extensions/Declarative/CompiledCallChainTrie.cs",
+      "line": 232,
+      "column": 39,
+      "symbol": "EvaluateCallNode",
+      "target": "ExtractSqlText",
+      "acknowledgedAt": "2026-11-27T19:14:15.2494516+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-27 19:14:15"
+    },
+    {
+      "fingerprint": "920b3087b9fb27bb2f0ef2e00150718163602281d25b71f4166d06c2768249f6",
+      "file": "cli/src/Core/CodeExplorer.Core/Analysis/Layers/Layer4_Semantic/Extensions/Declarative/CompiledDeclarativeRuleIndex.cs",
+      "line": 386,
+      "column": 35,
+      "symbol": "EvaluateCallNodeViaSuperpowerCombinators",
+      "target": "ExtractSqlText",
+      "acknowledgedAt": "2026-11-27T19:14:15.2494516+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-27 19:14:15"
+    },
+    {
+      "fingerprint": "3fd885ecd9a947741e1a255ce08cd0c8357f5652d030437da5e69fa312435f14",
+      "file": "cli/src/Core/CodeExplorer.Core/Analysis/Layers/Layer4_Semantic/Extensions/Declarative/CompiledDeclarativeRuleIndex.cs",
+      "line": 455,
+      "column": 31,
+      "symbol": "EvaluateDeclarationAndAnnotationReferences",
+      "target": "ExtractSqlText",
+      "acknowledgedAt": "2026-11-27T19:14:15.2494516+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-27 19:14:15"
+    },
+    {
+      "fingerprint": "a03dba67bce1b0e1ecd052347c004bb7248c2caa598f8beec50377e7bb60aaf9",
+      "file": "cli/src/Core/CodeExplorer.Core/Analysis/Layers/Layer4_Semantic/Extensions/Declarative/CompiledDeclarativeRuleIndex.cs",
+      "line": 468,
+      "column": 33,
+      "symbol": "EvaluateDeclarationAndAnnotationReferences",
+      "target": "ExtractOrmTableName",
+      "acknowledgedAt": "2026-11-27T19:14:15.2494516+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-27 19:14:15"
+    },
+    {
+      "fingerprint": "79497c14febc67a83d095315107705c2513e1b7e5d59623598404f3adb3f688f",
+      "file": "cli/src/Core/CodeExplorer.Core/Analysis/Layers/Layer4_Semantic/Extensions/Declarative/DeclarativeOutboundAndSecurityHelper.cs",
+      "line": 153,
+      "column": 28,
+      "symbol": "EnrichSecurityFromAnnotations",
+      "target": "ExtractNamedOrFirstStringFromAnnotation",
+      "acknowledgedAt": "2026-11-27T19:14:15.2494516+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-27 19:14:15"
+    },
+    {
+      "fingerprint": "b311e86aabb20018b53b785f2e490cb621d9184359bb8644850107a1579c146f",
+      "file": "cli/src/Core/CodeExplorer.Core/Analysis/Layers/Layer4_Semantic/Extensions/Declarative/DeclarativeOutboundAndSecurityHelper.cs",
+      "line": 161,
+      "column": 28,
+      "symbol": "EnrichSecurityFromAnnotations",
+      "target": "ExtractNamedOrFirstStringFromAnnotation",
+      "acknowledgedAt": "2026-11-27T19:14:15.2494516+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-27 19:14:15"
+    },
+    {
+      "fingerprint": "123631cbd2dec4c0c2be461998eb85bf2963db5b63ec55567f2ceed008f59c30",
+      "file": "cli/src/Core/CodeExplorer.Core/Analysis/Layers/Layer4_Semantic/Extensions/Declarative/DeclarativeOutboundAndSecurityHelper.cs",
+      "line": 331,
+      "column": 40,
+      "symbol": "ExtractOutboundHttpTarget",
+      "target": "FindVariableInitializerInEnclosingScopes",
+      "acknowledgedAt": "2026-11-27T19:14:15.2494516+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-27 19:14:15"
+    },
+    {
+      "fingerprint": "f393b4ad3e5a8997aa23f37cca78043a749971ed972585122f437b63d0191a6d",
+      "file": "cli/src/Core/CodeExplorer.Core/Analysis/Layers/Layer4_Semantic/Extensions/Declarative/DeclarativeOutboundAndSecurityHelper.cs",
+      "line": 355,
+      "column": 44,
+      "symbol": "ExtractOutboundHttpTarget",
+      "target": "FindVariableInitializerInEnclosingScopes",
+      "acknowledgedAt": "2026-11-27T19:14:15.2494516+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-27 19:14:15"
+    },
+    {
+      "fingerprint": "652b2d5b3815acf3430f0b4b1cb929334ccc29e1a114e4dd3af00eb554299fc0",
+      "file": "cli/src/Core/CodeExplorer.Core/Analysis/Layers/Layer4_Semantic/Extensions/Declarative/DeclarativeSemanticExtension.Rules.cs",
+      "line": 30,
+      "column": 46,
+      "symbol": "MatchesSqlSink",
+      "target": "ExtractSqlText",
+      "acknowledgedAt": "2026-11-27T19:14:15.2494516+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-27 19:14:15"
+    },
+    {
+      "fingerprint": "76cae09dd3973e53363938a930eb33f1788105fdd23dfa1644cf207647d730a8",
+      "file": "cli/src/Core/CodeExplorer.Core/Analysis/Layers/Layer4_Semantic/Extensions/Declarative/DeclarativeSemanticExtension.Rules.cs",
+      "line": 173,
+      "column": 25,
+      "symbol": "MatchesOrmTableAnnotation",
+      "target": "ExtractOrmTableName",
+      "acknowledgedAt": "2026-11-27T19:14:15.2494516+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-27 19:14:15"
+    },
+    {
+      "fingerprint": "ee478e96c674b02443946522f67ac91b4675754be070f048721ff6095d77b215",
+      "file": "cli/src/Core/CodeExplorer.Core/Analysis/Layers/Layer4_Semantic/Extensions/Declarative/DeclarativeSemanticExtension.Rules.cs",
+      "line": 151,
+      "column": 28,
+      "symbol": "MatchesOrmTableAnnotation",
+      "target": "ExtractNamedOrFirstStringFromAnnotation",
+      "acknowledgedAt": "2026-11-27T19:14:15.2494516+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-27 19:14:15"
+    },
+    {
+      "fingerprint": "9f5c028ac0f9c98dd8b6a3594d8e3ed57da316a4e1d540869c27616a2c6e48d1",
+      "file": "cli/src/Core/CodeExplorer.Core/Analysis/Layers/Layer4_Semantic/Extensions/Declarative/DeclarativeSemanticExtension.Rules.cs",
+      "line": 163,
+      "column": 47,
+      "symbol": "MatchesOrmTableAnnotation",
+      "target": "ExtractNamedOrFirstStringFromAnnotation",
+      "acknowledgedAt": "2026-11-27T19:14:15.2494516+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-27 19:14:15"
+    },
+    {
+      "fingerprint": "c071d0c9afbb1ef5aadece81c2a5c9fa7f97557a32185f697d30ab69797059d3",
+      "file": "cli/src/Core/CodeExplorer.Core/Analysis/Layers/Layer4_Semantic/Extensions/Declarative/DeclarativeSemanticExtension.Rules.cs",
+      "line": 181,
+      "column": 20,
+      "symbol": "ExtractOrmTableName",
+      "target": "ExtractNamedOrFirstStringFromAnnotation",
+      "acknowledgedAt": "2026-11-27T19:14:15.2494516+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-27 19:14:15"
+    },
+    {
+      "fingerprint": "d9d3de40792430162a2d4ef9300ad6169db80424a528b356e5d8e55841f4edbd",
+      "file": "cli/src/Core/CodeExplorer.Core/Analysis/Layers/Layer4_Semantic/Extensions/Declarative/DeclarativeSemanticExtension.Rules.cs",
+      "line": 322,
+      "column": 38,
+      "symbol": "ResolveConstantInScope",
+      "target": "ResolveConstantValueInClass",
+      "acknowledgedAt": "2026-11-27T19:14:15.2494516+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-27 19:14:15"
+    },
+    {
+      "fingerprint": "88a0f642fc47218ca4ac7650eb450bacb872ded16e3bc1d1c5ec8445f84b0052",
+      "file": "cli/src/Core/CodeExplorer.Core/Analysis/Layers/Layer4_Semantic/Extensions/Declarative/DeclarativeSemanticExtension.Rules.cs",
+      "line": 805,
+      "column": 9,
+      "symbol": "ExtractHttpMethodFromAnnotation",
+      "target": "ExtractHttpMethodFromAnnotation",
+      "acknowledgedAt": "2026-11-27T19:14:15.2494516+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-27 19:14:15"
+    },
+    {
+      "fingerprint": "57a5f393b0673edf100bf545ec5ebcb558ddcce2faeaad4ebb39757d68799aa2",
+      "file": "cli/src/Core/CodeExplorer.Core/Analysis/Layers/Layer4_Semantic/Extensions/Declarative/DeclarativeSemanticExtension.cs",
+      "line": 335,
+      "column": 31,
+      "symbol": "ExtractIdentifier",
+      "target": "ExtractSqlText",
+      "acknowledgedAt": "2026-11-27T19:14:15.2494516+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-27 19:14:15"
+    },
+    {
+      "fingerprint": "afd199f77c85bf075027fc51fca731728a54d13b2e6ef408d5818ba9f4bfeddc",
+      "file": "cli/src/Core/CodeExplorer.Core/Analysis/Layers/Layer4_Semantic/Extensions/Declarative/DeclarativeSemanticExtension.cs",
+      "line": 369,
+      "column": 24,
+      "symbol": "ExtractIdentifier",
+      "target": "ExtractOrmTableName",
+      "acknowledgedAt": "2026-11-27T19:14:15.2494516+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-27 19:14:15"
+    },
+    {
+      "fingerprint": "329e6c356bfb63629a9e3f94f2a224636fc7ae3678dbcb4e65d2a64e1a2aac17",
+      "file": "cli/src/Core/CodeExplorer.Core/Analysis/Layers/Layer4_Semantic/Extensions/Declarative/DeclarativeSemanticExtension.cs",
+      "line": 387,
+      "column": 30,
+      "symbol": "ExtractIdentifier",
+      "target": "ExtractMessagingTopics",
+      "acknowledgedAt": "2026-11-27T19:14:15.2494516+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-27 19:14:15"
+    },
+    {
+      "fingerprint": "fb490ec6a57e063cd7c66cedf7cb4660a88b5a8b39245a64857ead9ea4d214f6",
+      "file": "cli/src/Core/CodeExplorer.Core/Analysis/Layers/Layer4_Semantic/Extensions/Declarative/DeclarativeSemanticExtension.cs",
+      "line": 468,
+      "column": 45,
+      "symbol": "EnrichSymbol",
+      "target": "ExtractOrmTableName",
+      "acknowledgedAt": "2026-11-27T19:14:15.2494516+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-27 19:14:15"
+    },
+    {
+      "fingerprint": "3db2915e56def5aadc95b962fec7ae6cfa4777388dfef32209f51e07a93edbc2",
+      "file": "cli/src/Core/CodeExplorer.Core/Analysis/Layers/Layer4_Semantic/Extensions/Declarative/DeclarativeSemanticExtension.cs",
+      "line": 500,
+      "column": 30,
+      "symbol": "EnrichSymbol",
+      "target": "ExtractMessagingTopics",
+      "acknowledgedAt": "2026-11-27T19:14:15.2494516+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-27 19:14:15"
+    },
+    {
+      "fingerprint": "d00a4909ff332b40f302781bdc352e06ccd09686013d178d9b5b75cd3056d4e0",
+      "file": "cli/src/Core/CodeExplorer.Core/Analysis/Layers/Layer4_Semantic/Extensions/Declarative/DeclarativeSemanticExtension.cs",
+      "line": 509,
+      "column": 30,
+      "symbol": "EnrichSymbol",
+      "target": "ExtractMessagingTopics",
+      "acknowledgedAt": "2026-11-27T19:14:15.2494516+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-27 19:14:15"
+    },
+    {
+      "fingerprint": "3f70052b2ff2b454d646d866ff9ce4563b4d3cb7bedb1ff472c6a9618ac970f5",
+      "file": "cli/src/Core/CodeExplorer.Core/Analysis/Layers/Layer4_Semantic/Extensions/Declarative/DeclarativeSemanticExtension.cs",
+      "line": 611,
+      "column": 26,
+      "symbol": "ExtractAnnotationRoute",
+      "target": "ExtractNamedOrFirstStringFromAnnotation",
+      "acknowledgedAt": "2026-11-27T19:14:15.2494516+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-27 19:14:15"
+    },
+    {
+      "fingerprint": "bda4a5a300788cfb769e6d77eed73d4a8e7daabbeb89c480e876c68063af2ca2",
+      "file": "cli/src/Core/CodeExplorer.Core/Analysis/Layers/Layer4_Semantic/Extensions/Declarative/DeclarativeSemanticExtension.cs",
+      "line": 616,
+      "column": 26,
+      "symbol": "ExtractAnnotationRoute",
+      "target": "ExtractNamedOrFirstStringFromAnnotation",
+      "acknowledgedAt": "2026-11-27T19:14:15.2494516+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-27 19:14:15"
+    },
+    {
+      "fingerprint": "73e1cb945844fa5ecc960322de9aefb7a75b8fab3844346af537f2d67691eaa9",
+      "file": "cli/src/Core/CodeExplorer.Core/Analysis/Layers/Layer4_Semantic/Extensions/Declarative/DeclarativeSemanticExtension.cs",
+      "line": 634,
+      "column": 34,
+      "symbol": "ExtractAnnotationRoute",
+      "target": "ExtractNamedOrFirstStringFromAnnotation",
+      "acknowledgedAt": "2026-11-27T19:14:15.2494516+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-27 19:14:15"
+    },
+    {
+      "fingerprint": "33d24fe6ae6f82b74146de063e4eaf68f03c4de94a41a8c8489942679d5ff65e",
+      "file": "cli/src/Core/CodeExplorer.Core/Analysis/Layers/Layer4_Semantic/Extensions/Declarative/DeclarativeSemanticExtension.cs",
+      "line": 660,
+      "column": 33,
+      "symbol": "ExtractAnnotationRoute",
+      "target": "ExtractNamedOrFirstStringFromAnnotation",
+      "acknowledgedAt": "2026-11-27T19:14:15.2494516+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-27 19:14:15"
+    },
+    {
+      "fingerprint": "b00ce223533dc5e74a2f362d026ec1d08efe6f3fb2bf75c30f7df6177186381b",
+      "file": "cli/src/Core/CodeExplorer.Core/Analysis/Layers/Layer4_Semantic/Extensions/Declarative/DeclarativeSemanticExtension.cs",
+      "line": 715,
+      "column": 9,
+      "symbol": "ExtractOutboundHttpTarget",
+      "target": "ExtractOutboundHttpTarget",
+      "acknowledgedAt": "2026-11-27T19:14:15.2494516+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-27 19:14:15"
+    },
+    {
+      "fingerprint": "d62a04108d7387aee658a3ad518051df5c45640622d23cfaebaa4aec084bfe3d",
+      "file": "cli/src/Core/CodeExplorer.Core/Analysis/Layers/Layer4_Semantic/Extensions/Declarative/DeclarativeUniversalRuleEvaluator.cs",
+      "line": 82,
+      "column": 26,
+      "symbol": "CollectMessagingRuleReferences",
+      "target": "ExtractMessagingTopics",
+      "acknowledgedAt": "2026-11-27T19:14:15.2494516+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-27 19:14:15"
+    },
+    {
+      "fingerprint": "c17719a8e9b10a80fa507f3865b19db09a890fc8eaefa97c9cd98a3bede14f20",
+      "file": "cli/src/Core/CodeExplorer.Core/Analysis/Layers/Layer4_Semantic/Extensions/Declarative/DeclarativeUniversalRuleEvaluator.cs",
+      "line": 96,
+      "column": 26,
+      "symbol": "CollectMessagingRuleReferences",
+      "target": "ExtractMessagingTopics",
+      "acknowledgedAt": "2026-11-27T19:14:15.2494516+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-27 19:14:15"
+    },
+    {
+      "fingerprint": "ea1b96c609a07a2189df7770e0d32dc7925acef377930e6b7c7f006e864dc8d0",
+      "file": "cli/src/Core/CodeExplorer.Core/Analysis/Layers/Layer4_Semantic/Extensions/Declarative/DeclarativeUniversalRuleEvaluator.cs",
+      "line": 104,
+      "column": 26,
+      "symbol": "CollectMessagingRuleReferences",
+      "target": "ExtractMessagingTopics",
+      "acknowledgedAt": "2026-11-27T19:14:15.2494516+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-27 19:14:15"
+    },
+    {
+      "fingerprint": "2ed7e91d43cc06d9fdbced95040fd50d4e90f61928d6f2f1bda3fdc4d80b1528",
+      "file": "cli/src/Core/CodeExplorer.Core/Analysis/Services/EndpointScoringEngine.cs",
+      "line": 122,
+      "column": 29,
+      "symbol": "MatchCall",
+      "target": "ScoreProjectMatch",
+      "acknowledgedAt": "2026-11-27T19:14:15.2494516+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-27 19:14:15"
+    },
+    {
+      "fingerprint": "203220b85615067673affb59ea18e9c3096b71e5ad8f0f4914d80089ea183b3a",
+      "file": "cli/src/Core/CodeExplorer.Core/Parser/Detectors/WorkspaceDetectorLoader.cs",
+      "line": 150,
+      "column": 33,
+      "symbol": "LoadForWorkspace",
+      "target": "LoadInternal",
+      "acknowledgedAt": "2026-11-27T19:14:15.2494516+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-27 19:14:15"
+    },
+    {
+      "fingerprint": "b76aee14bc53c27cc76521884c71eeff4a79f225b8424fbcc74fa46ed6c2890b",
+      "file": "cli/src/Core/CodeExplorer.Core/Parser/Detectors/WorkspaceDetectorLoader.cs",
+      "line": 253,
+      "column": 23,
+      "symbol": "LoadInternal",
+      "target": "ParseAndValidateFile",
+      "acknowledgedAt": "2026-11-27T19:14:15.2494516+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-27 19:14:15"
+    },
+    {
+      "fingerprint": "cdbf102c04ff9b0605c2fa0d67b6178072484150fe10a94fb7d62e5286c78c17",
+      "file": "cli/src/Core/CodeExplorer.Core/Parser/Detectors/WorkspaceDetectorLoader.cs",
+      "line": 266,
+      "column": 23,
+      "symbol": "LoadInternal",
+      "target": "ParseAndValidateFile",
+      "acknowledgedAt": "2026-11-27T19:14:15.2494516+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-27 19:14:15"
+    },
+    {
+      "fingerprint": "8d195dfa3cbd96a15461abf0a9e496c0e1451a672617fa3bc2e8dcbce2d9ad3d",
+      "file": "cli/src/Core/CodeExplorer.Core/Parser/TreeSitter/BaseParserVisitor.cs",
+      "line": 197,
+      "column": 64,
+      "symbol": "TryExtractSqlQueryIdentifier",
+      "target": "ExtractFullStringText",
+      "acknowledgedAt": "2026-11-27T19:14:15.2494516+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-27 19:14:15"
+    },
+    {
+      "fingerprint": "63a4825d45aedeb1beb01cf733377a74db1b7928b0d59f8843f58303fbb25df8",
+      "file": "cli/src/Core/CodeExplorer.Storage/Database/SqliteGraphClient.Taxonomy.cs",
+      "line": 66,
+      "column": 13,
+      "symbol": "RecordNodesInTaxonomy",
+      "target": "RecordSingleNodeProperties",
+      "acknowledgedAt": "2026-11-27T19:14:15.2494516+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-27 19:14:15"
+    },
+    {
+      "fingerprint": "0b6ad8269b7c606853706a2d1e0fff461f2d04d23e6fc7601b5a6ff7a060a70b",
+      "file": "cli/src/Parsers/CodeExplorer.Parsers.Shared/Android/AndroidManifestParser.cs",
+      "line": 58,
+      "column": 28,
+      "symbol": "ParseContent",
+      "target": "ResolveStringResource",
+      "acknowledgedAt": "2026-11-27T19:14:15.2494516+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-27 19:14:15"
+    },
+    {
+      "fingerprint": "e21173bb4aee3ed093ba165ca6f24f0d50adbfe593d17e3a7cef4b3fa45932f9",
+      "file": "cli/src/Parsers/CodeExplorer.Parsers.Perl/PerlProjectParser.cs",
+      "line": 368,
+      "column": 17,
+      "symbol": "HasAncestorPerlProject",
+      "target": "IsPerlContainerRoot",
+      "acknowledgedAt": "2026-11-27T19:14:15.2494516+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-27 19:14:15"
+    },
+    {
+      "fingerprint": "3ed8154204691a7552f9a2705778c07953fafb9282d621fdce89afae22c95de9",
+      "file": "cli/src/Parsers/CodeExplorer.Parsers.Php/PhpProjectParser.cs",
+      "line": 250,
+      "column": 27,
+      "symbol": "IsProjectDirectory",
+      "target": "IsPhpApplicationOrContainerRoot",
+      "acknowledgedAt": "2026-11-27T19:14:15.2494516+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-27 19:14:15"
+    },
+    {
+      "fingerprint": "d01eb63032809078ac004461ea9a6e668440863f7d36c5a038c17caa7e755721",
+      "file": "cli/src/Parsers/CodeExplorer.Parsers.Php/PhpProjectParser.cs",
+      "line": 552,
+      "column": 17,
+      "symbol": "HasAncestorPhpProject",
+      "target": "IsPhpApplicationOrContainerRoot",
+      "acknowledgedAt": "2026-11-27T19:14:15.2494516+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-27 19:14:15"
+    },
+    {
+      "fingerprint": "f0f211f2d8f11ff2c3145739e2f00b59c75a8558f755cebecaa40a43c37c2c13",
+      "file": "cli/src/Parsers/CodeExplorer.Parsers.Rust/RustProjectParser.cs",
+      "line": 106,
+      "column": 20,
+      "symbol": "TryParse",
+      "target": "ParseDependenciesAsync",
+      "acknowledgedAt": "2026-11-27T19:14:15.2494516+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-27 19:14:15"
+    },
+    {
+      "fingerprint": "15e895c89e0efbfa7be64f4129b6d752f55413f9283634077d262593bfd4cba3",
+      "file": "cli/src/Parsers/CodeExplorer.Parsers.Rust/RustProjectParser.cs",
+      "line": 384,
+      "column": 36,
+      "symbol": "GetAdditionalProjects",
+      "target": "ComputeSourceReachability",
+      "acknowledgedAt": "2026-11-27T19:14:15.2494516+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-27 19:14:15"
+    },
+    {
+      "fingerprint": "32a549ece06807eb4c7c1815268ecaf28f31180d8c600ea90602ede4f64a4290",
+      "file": "cli/src/Parsers/CodeExplorer.Parsers.Rust/Libraries/AwsSdkRustLibraryParser.cs",
+      "line": 98,
+      "column": 29,
+      "symbol": "IsAwsSdkCall",
+      "target": "UnwrapTryAndAwait",
+      "acknowledgedAt": "2026-11-27T19:14:15.2494516+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-27 19:14:15"
+    },
+    {
+      "fingerprint": "bf5eefd09df2d606eb7fdf4cc4d294f39515d5882138d7eeb80f4fd5ec50a874",
+      "file": "cli/src/Parsers/CodeExplorer.Parsers.Rust/Libraries/RustAstHelper.cs",
+      "line": 94,
+      "column": 25,
+      "symbol": "ExtractStringLiteral",
+      "target": "UnwrapTryAndAwait",
+      "acknowledgedAt": "2026-11-27T19:14:15.2494516+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-27 19:14:15"
+    },
+    {
+      "fingerprint": "7161d1fabe8049336881acf533a4136c3259262eff48540fe0370bb838ffec0b",
+      "file": "cli/src/Parsers/CodeExplorer.Parsers.Rust/Libraries/RustAstHelper.cs",
+      "line": 143,
+      "column": 26,
+      "symbol": "GetMethodCallInfo",
+      "target": "UnwrapTryAndAwait",
+      "acknowledgedAt": "2026-11-27T19:14:15.2494516+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-27 19:14:15"
+    },
+    {
+      "fingerprint": "2e11dd485dbe6ea4ae70bd684b3442b9f6558ae0e7ef37dd0a8326418fe58437",
+      "file": "cli/src/Parsers/CodeExplorer.Parsers.Rust/Libraries/RustAstHelper.cs",
+      "line": 171,
+      "column": 16,
+      "symbol": "GetMethodCallInfo",
+      "target": "UnwrapTryAndAwait",
+      "acknowledgedAt": "2026-11-27T19:14:15.2494516+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-27 19:14:15"
+    },
+    {
+      "fingerprint": "ae83246bda3c197018ed7425a1acebb815167902de457dd92a1a24282e1ac344",
+      "file": "cli/src/Parsers/CodeExplorer.Parsers.Rust/Libraries/RustAstHelper.cs",
+      "line": 207,
+      "column": 26,
+      "symbol": "GetCallArguments",
+      "target": "UnwrapTryAndAwait",
+      "acknowledgedAt": "2026-11-27T19:14:15.2494516+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-27 19:14:15"
+    },
+    {
+      "fingerprint": "4225e462a693432d717d671bf128c0c2614256263f73d676a3520e78272adda1",
+      "file": "cli/src/Parsers/CodeExplorer.Parsers.Terraform/TerraformProjectParser.cs",
+      "line": 285,
+      "column": 21,
+      "symbol": "ExtractBlockDependencies",
+      "target": "ExtractTerraformBlockDependencies",
+      "acknowledgedAt": "2026-11-27T19:14:15.2494516+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-27 19:14:15"
+    },
+    {
+      "fingerprint": "14abd83dffbf3dae9d23e053a569c333804b52ebc913ad4c417086d1412d9fc3",
+      "file": "cli/src/Parsers/CodeExplorer.Parsers.Terraform/TerraformSemanticEnricher.cs",
+      "line": 291,
+      "column": 9,
+      "symbol": "EnrichTerragruntInputs",
+      "target": "EnrichTerragruntIncludes",
+      "acknowledgedAt": "2026-11-27T19:14:15.2494516+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-27 19:14:15"
+    },
+    {
+      "fingerprint": "fb82c917796e9b55171d187a137cab5241164ab583806364a42f38cf8b64341f",
+      "file": "cli/src/Parsers/CodeExplorer.Parsers.CSharp/CSharpProjectParser.Manifest.cs",
+      "line": 13,
+      "column": 16,
+      "symbol": "ExtractManifestProperties",
+      "target": "ExtractManifestPropertiesFromContent",
+      "acknowledgedAt": "2026-11-27T19:14:15.2494516+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-27 19:14:15"
+    },
+    {
+      "fingerprint": "d027db99a219beeeef957d91ca7531bb8de1e61212a1da647273040628e263cc",
+      "file": "cli/src/Parsers/CodeExplorer.Parsers.CSharp/CSharpProjectParser.cs",
+      "line": 308,
+      "column": 27,
+      "symbol": "TryParse",
+      "target": "ExtractDirectoryLevelMetadata",
+      "acknowledgedAt": "2026-11-27T19:14:15.2494516+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-27 19:14:15"
+    },
+    {
+      "fingerprint": "372f4c72dfdda32406be01d14d149902893451596e46a6f28e5a412ae338fd88",
+      "file": "cli/src/Parsers/CodeExplorer.Parsers.CSharp/CSharpProjectParser.cs",
+      "line": 349,
+      "column": 9,
+      "symbol": "InspectDirectoryManifestMetadata",
+      "target": "ExtractDirectoryLevelMetadata",
+      "acknowledgedAt": "2026-11-27T19:14:15.2494516+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-27 19:14:15"
+    },
+    {
+      "fingerprint": "b41d0761a9a4cb58eec76c78c55ef1727a104554aa083b9fc017bc8ee3640790",
+      "file": "cli/src/Parsers/CodeExplorer.Parsers.CSharp/CSharpProjectParser.cs",
+      "line": 380,
+      "column": 21,
+      "symbol": "ParseSingleCsprojDescriptor",
+      "target": "ExtractManifestPropertiesFromContent",
+      "acknowledgedAt": "2026-11-27T19:14:15.2494516+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-27 19:14:15"
+    },
+    {
+      "fingerprint": "c0332c177bfdc903c60510958be5fa50c66ab7f450a9e98a168f7227ef76d38d",
+      "file": "cli/src/Parsers/CodeExplorer.Parsers.CSharp/CSharpProjectParser.cs",
+      "line": 400,
+      "column": 46,
+      "symbol": "ParseSingleCsprojDescriptor",
+      "target": "ExtractInternalsVisibleToFromDoc",
+      "acknowledgedAt": "2026-11-27T19:14:15.2494516+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-27 19:14:15"
+    },
+    {
+      "fingerprint": "7af2f0f9d881204ff58a91837de2505e6e3620536ad3424ca3ec5d685274e637",
+      "file": "cli/src/Parsers/CodeExplorer.Parsers.CSharp/CSharpProjectParser.cs",
+      "line": 382,
+      "column": 20,
+      "symbol": "ParseSingleCsprojDescriptor",
+      "target": "ExtractDependenciesFromDoc",
+      "acknowledgedAt": "2026-11-27T19:14:15.2494516+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-27 19:14:15"
+    },
+    {
+      "fingerprint": "67232643f9ad4c9cd5274564b8076cd4545ab0e23ec9564cd0808b80e3105f87",
+      "file": "cli/src/Parsers/CodeExplorer.Parsers.CSharp/Libraries/AspNetCoreLibraryParser.MinimalApis.cs",
+      "line": 52,
+      "column": 24,
+      "symbol": "EnrichMinimalApiEndpoint",
+      "target": "GetFunctionNode",
+      "acknowledgedAt": "2026-11-27T19:14:15.2494516+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-27 19:14:15"
+    },
+    {
+      "fingerprint": "d00d8af86fa6ca0b155b13714ebb222f40012c9f905a8c75bb5070198638f4c8",
+      "file": "cli/src/Parsers/CodeExplorer.Parsers.CSharp/Libraries/AspNetCoreLibraryParser.MinimalApis.cs",
+      "line": 371,
+      "column": 24,
+      "symbol": "ExtractGroupRouteFromChain",
+      "target": "GetFunctionNode",
+      "acknowledgedAt": "2026-11-27T19:14:15.2494516+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-27 19:14:15"
+    },
+    {
+      "fingerprint": "d5dfe6a0bc7c04935b4789a3a1e8017125214003b9b43ead8975e14cfec537ee",
+      "file": "cli/src/Parsers/CodeExplorer.Parsers.CSharp/Libraries/AspNetCoreLibraryParser.cs",
+      "line": 441,
+      "column": 22,
+      "symbol": "GetControllerRoutePrefix",
+      "target": "ExtractRoutePrefixFromClassNode",
+      "acknowledgedAt": "2026-11-27T19:14:15.2494516+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-27 19:14:15"
+    },
+    {
+      "fingerprint": "e961235a2b482c11d1cb8439d0ab70e44b72167a9792259da57c00bb3f4fe830",
+      "file": "cli/src/Parsers/CodeExplorer.Parsers.CSharp/Libraries/AspNetCoreLibraryParser.cs",
+      "line": 459,
+      "column": 42,
+      "symbol": "GetControllerRoutePrefix",
+      "target": "ExtractRoutePrefixFromClassNode",
+      "acknowledgedAt": "2026-11-27T19:14:15.2494516+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-27 19:14:15"
+    },
+    {
+      "fingerprint": "ed518a3f309cd29e0745ca03568dc4124b8b124cc90b27f408a8f052afaa6584",
+      "file": "cli/src/Parsers/CodeExplorer.Parsers.CSharp/Libraries/EfCoreLibraryParser.cs",
+      "line": 435,
+      "column": 34,
+      "symbol": "FindEntityTypeForToTable",
+      "target": "ExtractEntityTypeFromConfigurationClass",
+      "acknowledgedAt": "2026-11-27T19:14:15.2494516+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-27 19:14:15"
+    },
+    {
+      "fingerprint": "1a3aac74a7a279bca94623525571bdf0e8abcbfa1c86f6416ab36d35ee7de6b9",
+      "file": "cli/src/Parsers/CodeExplorer.Parsers.CSharp/Libraries/EventBusLibraryParser.cs",
+      "line": 112,
+      "column": 16,
+      "symbol": "IsHandlerClass",
+      "target": "ExtractAllHandlerMessageTypes",
+      "acknowledgedAt": "2026-11-27T19:14:15.2494516+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-27 19:14:15"
+    },
+    {
+      "fingerprint": "8555d26f0b613a26d779f3d4b7cb5c83956e295ea2a962f0c498197fc39eb627",
+      "file": "cli/src/Parsers/CodeExplorer.Parsers.CSharp/Libraries/KafkaFlowLibraryParser.cs",
+      "line": 116,
+      "column": 16,
+      "symbol": "IsConsumerClass",
+      "target": "ExtractAllConsumerMessageTypes",
+      "acknowledgedAt": "2026-11-27T19:14:15.2494516+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-27 19:14:15"
+    },
+    {
+      "fingerprint": "499e9481395adb5921cd961688a15c0380a9def6827a943c9d720ca07f890101",
+      "file": "cli/src/Parsers/CodeExplorer.Parsers.ColdFusion/ColdFusionFileParser.cs",
+      "line": 259,
+      "column": 17,
+      "symbol": "ParseQueriesAndDatabases",
+      "target": "EnsureDatasourceHierarchy",
+      "acknowledgedAt": "2026-11-27T19:14:15.2494516+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-27 19:14:15"
+    },
+    {
+      "fingerprint": "7e532a059003e7e88d8623e0e725d09a6bc19afdeb0dff8d3b4424b4765aad58",
+      "file": "cli/src/Parsers/CodeExplorer.Parsers.ColdFusion/ColdFusionFileParser.cs",
+      "line": 281,
+      "column": 17,
+      "symbol": "ParseQueriesAndDatabases",
+      "target": "EnsureDatasourceHierarchy",
+      "acknowledgedAt": "2026-11-27T19:14:15.2494516+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-27 19:14:15"
+    },
+    {
+      "fingerprint": "484833f55406a4a7cd6d7e285045a7b12b8173d8d50697c3a5ecc068f3654111",
+      "file": "cli/src/Parsers/CodeExplorer.Parsers.Go/GoFileVisitor.Bindings.cs",
+      "line": 148,
+      "column": 31,
+      "symbol": "CollectGoStructFields",
+      "target": "ExtractPrimaryGoTypeName",
+      "acknowledgedAt": "2026-11-27T19:14:15.2494516+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-27 19:14:15"
+    },
+    {
+      "fingerprint": "fa8c01d366218a8b20762894c2ad09053ff415d05e933df89556bbd8d9eadac4",
+      "file": "cli/src/Parsers/CodeExplorer.Parsers.Go/GoFileVisitor.Bindings.cs",
+      "line": 228,
+      "column": 32,
+      "symbol": "CollectGoReceiverBinding",
+      "target": "ExtractPrimaryGoTypeName",
+      "acknowledgedAt": "2026-11-27T19:14:15.2494516+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-27 19:14:15"
+    },
+    {
+      "fingerprint": "ad082e73921bdfbb34c127fb4cdf8d72f6fb0f802096b9fed7f45b97325d41f3",
+      "file": "cli/src/Parsers/CodeExplorer.Parsers.Go/GoFileVisitor.Bindings.cs",
+      "line": 269,
+      "column": 31,
+      "symbol": "CollectGoParameterListBindings",
+      "target": "ExtractPrimaryGoTypeName",
+      "acknowledgedAt": "2026-11-27T19:14:15.2494516+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-27 19:14:15"
+    },
+    {
+      "fingerprint": "a6ab4c8c670ce6c76bcccd4d8bde80cbf479491d85394e9e1c99882bb2471cfa",
+      "file": "cli/src/Parsers/CodeExplorer.Parsers.Go/GoFileVisitor.Bindings.cs",
+      "line": 358,
+      "column": 38,
+      "symbol": "InferTypeFromGoExpr",
+      "target": "ExtractPrimaryGoTypeName",
+      "acknowledgedAt": "2026-11-27T19:14:15.2494516+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-27 19:14:15"
+    },
+    {
+      "fingerprint": "6a8e0242b8462f22db73a0cd18c21842a5e5d23a69cc9bb0c2924ac5b805e954",
+      "file": "cli/src/Parsers/CodeExplorer.Parsers.Go/GoFileVisitor.Bindings.cs",
+      "line": 366,
+      "column": 18,
+      "symbol": "InferTypeFromGoCall",
+      "target": "GetFunctionNode",
+      "acknowledgedAt": "2026-11-27T19:14:15.2494516+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-27 19:14:15"
+    },
+    {
+      "fingerprint": "34b2eaeb1aecfef06641b1ae41e6565e6e8b039358fb2bc4a8fcb6790818a6ed",
+      "file": "cli/src/Parsers/CodeExplorer.Parsers.Go/Libraries/GoAstHelper.cs",
+      "line": 482,
+      "column": 28,
+      "symbol": "ResolveRoutePrefix",
+      "target": "FindVariableInitializerNodeInScope",
+      "acknowledgedAt": "2026-11-27T19:14:15.2494516+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-27 19:14:15"
+    },
+    {
+      "fingerprint": "25468a7fc890f1d8d9e9d5fd3bb2943df7be4af0031b6bc72c88ddf11f9f75c6",
+      "file": "cli/src/Parsers/CodeExplorer.Parsers.Python/Libraries/FastApiLibraryParser.cs",
+      "line": 70,
+      "column": 17,
+      "symbol": "CollectFastApiReferences",
+      "target": "CollectParameterDependencies",
+      "acknowledgedAt": "2026-11-27T19:14:15.2494516+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-27 19:14:15"
+    },
+    {
+      "fingerprint": "248d9a6d0162525b2d46e64a3d11e73f298e0aa62d2529cfab0ac8a5934d4b7a",
+      "file": "cli/src/Parsers/CodeExplorer.Parsers.Python/Libraries/FastApiLibraryParser.cs",
+      "line": 252,
+      "column": 32,
+      "symbol": "ExtractRoute",
+      "target": "FindRouterPrefix",
+      "acknowledgedAt": "2026-11-27T19:14:15.2494516+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-27 19:14:15"
+    },
+    {
+      "fingerprint": "0aa6e488541762a90d96fb7bb59d878bd3ba81b02ee6c1e2b660e14fdbcaf55b",
+      "file": "cli/src/Parsers/CodeExplorer.Parsers.TypeScript/JavaScriptProjectParser.cs",
+      "line": 55,
+      "column": 14,
+      "symbol": "TryParse",
+      "target": "TryParse",
+      "acknowledgedAt": "2026-11-27T19:14:15.2494516+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-27 19:14:15"
+    },
+    {
+      "fingerprint": "c6ab36ffb01a7196582f4450c89a85a43e46c1f9dda931dd8667c815cab3e9f8",
+      "file": "cli/src/Parsers/CodeExplorer.Parsers.TypeScript/TypeScriptDeclarationExtractor.cs",
+      "line": 177,
+      "column": 24,
+      "symbol": "TryExtractSchemaOrQueueCallLiteral",
+      "target": "GetFunctionNode",
+      "acknowledgedAt": "2026-11-27T19:14:15.2494516+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-27 19:14:15"
+    },
+    {
+      "fingerprint": "5b55e77f4073ee0605716b5029e32092247e8ff73f6f74ecdc52c77dc01b0a57",
+      "file": "cli/src/Parsers/CodeExplorer.Parsers.TypeScript/TypeScriptDeclarationExtractor.cs",
+      "line": 194,
+      "column": 81,
+      "symbol": "TryExtractSchemaOrQueueCallLiteral",
+      "target": "GetFunctionNode",
+      "acknowledgedAt": "2026-11-27T19:14:15.2494516+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-27 19:14:15"
+    },
+    {
+      "fingerprint": "d316b6f990cf4e0fb482bfda07751b1a9e2f1342385976b945a608bbb8fdf663",
+      "file": "cli/src/Parsers/CodeExplorer.Parsers.TypeScript/TypeScriptFileVisitor.cs",
+      "line": 197,
+      "column": 22,
+      "symbol": "TryExtractPothosFieldName",
+      "target": "GetFunctionNode",
+      "acknowledgedAt": "2026-11-27T19:14:15.2494516+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-27 19:14:15"
+    },
+    {
+      "fingerprint": "773a79e6f78b6e1de0788354491b54e200b93aad56bb56685966285852f714f7",
+      "file": "cli/src/Parsers/CodeExplorer.Parsers.TypeScript/TypeScriptProjectParser.cs",
+      "line": 122,
+      "column": 61,
+      "symbol": "IsProjectDirectory",
+      "target": "HasOnlyAmbientDeclarationFiles",
+      "acknowledgedAt": "2026-11-27T19:14:15.2494516+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-27 19:14:15"
+    },
+    {
+      "fingerprint": "48bac64d30a31d0f11cfaeded767d5d5edd8f73f4b490286ad04997b7b18c0b8",
+      "file": "cli/src/Parsers/CodeExplorer.Parsers.TypeScript/TypeScriptProjectParser.cs",
+      "line": 462,
+      "column": 9,
+      "symbol": "TryParse",
+      "target": "InspectWranglerLayoutFromLines",
+      "acknowledgedAt": "2026-11-27T19:14:15.2494516+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-27 19:14:15"
+    },
+    {
+      "fingerprint": "665bbeb2640d57f4af95503d5776d27ea7fcdd74325c3e7cda94109d2d7931ff",
+      "file": "cli/src/Parsers/CodeExplorer.Parsers.TypeScript/Libraries/AngularCoreLibraryParser.cs",
+      "line": 196,
+      "column": 13,
+      "symbol": "ExtractDecoratorReferences",
+      "target": "TryGetObjectProperty",
+      "acknowledgedAt": "2026-11-27T19:14:15.2494516+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-27 19:14:15"
+    },
+    {
+      "fingerprint": "4b632f58fb4a0d7943c05e25587cea7669362df7590128bbb08fe82729fc87fc",
+      "file": "cli/src/Parsers/CodeExplorer.Parsers.TypeScript/Libraries/AngularCoreLibraryParser.cs",
+      "line": 209,
+      "column": 17,
+      "symbol": "ExtractDecoratorReferences",
+      "target": "TryGetObjectProperty",
+      "acknowledgedAt": "2026-11-27T19:14:15.2494516+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-27 19:14:15"
+    },
+    {
+      "fingerprint": "074fc490cec81d4dabcbf9a2572f391d8c4af6df2624f31f08dee26d5fd679bf",
+      "file": "cli/src/Parsers/CodeExplorer.Parsers.TypeScript/Libraries/AstHelper.Routes.cs",
+      "line": 467,
+      "column": 39,
+      "symbol": "TryDecomposeTemplateString",
+      "target": "FindClassFieldInitializerInAst",
+      "acknowledgedAt": "2026-11-27T19:14:15.2494516+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-27 19:14:15"
+    },
+    {
+      "fingerprint": "3598b5eae3495d27ba567aa32b108c563c9e81ce76c18836e0e048dc6b820b8a",
+      "file": "cli/src/Parsers/CodeExplorer.Parsers.TypeScript/Libraries/AstHelper.Routes.cs",
+      "line": 468,
+      "column": 70,
+      "symbol": "TryDecomposeTemplateString",
+      "target": "FindClassFieldInitializerInAst",
+      "acknowledgedAt": "2026-11-27T19:14:15.2494516+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-27 19:14:15"
+    },
+    {
+      "fingerprint": "4645991f93ea03e2ef3a6f66d59c8aa28a4e4f1bfb17d42a80525d4ae6396c23",
+      "file": "cli/src/Parsers/CodeExplorer.Parsers.TypeScript/Libraries/AstHelper.Routes.cs",
+      "line": 656,
+      "column": 32,
+      "symbol": "ResolveTemplateExpression",
+      "target": "FindClassFieldInitializerInAst",
+      "acknowledgedAt": "2026-11-27T19:14:15.2494516+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-27 19:14:15"
+    },
+    {
+      "fingerprint": "fd91eeda1051b6d998a0a9fbd2bf2d4c4a979f64fe48f301d19c07d99e81e4bb",
+      "file": "cli/src/Parsers/CodeExplorer.Parsers.TypeScript/Libraries/AstHelper.cs",
+      "line": 171,
+      "column": 17,
+      "symbol": "ResolveTopicOrQueue",
+      "target": "TryGetObjectProperty",
+      "acknowledgedAt": "2026-11-27T19:14:15.2494516+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-27 19:14:15"
+    },
+    {
+      "fingerprint": "983b1e06837733afea4e54d718ac9060629f9ab75f190000ff2e7da72c992e31",
+      "file": "cli/src/Parsers/CodeExplorer.Parsers.TypeScript/Libraries/AstHelper.cs",
+      "line": 172,
+      "column": 17,
+      "symbol": "ResolveTopicOrQueue",
+      "target": "TryGetObjectProperty",
+      "acknowledgedAt": "2026-11-27T19:14:15.2494516+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-27 19:14:15"
+    },
+    {
+      "fingerprint": "dcc2a59ef4968d76d5ed08085309303260cb9d85e74e5e115350fdd83ec49fe8",
+      "file": "cli/src/Parsers/CodeExplorer.Parsers.TypeScript/Libraries/AstHelper.cs",
+      "line": 173,
+      "column": 17,
+      "symbol": "ResolveTopicOrQueue",
+      "target": "TryGetObjectProperty",
+      "acknowledgedAt": "2026-11-27T19:14:15.2494516+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-27 19:14:15"
+    },
+    {
+      "fingerprint": "127fadf3d624b3af9273958655c9433bb5f8c0aeabd14297d6fbb4ed4d3d0fe6",
+      "file": "cli/src/Parsers/CodeExplorer.Parsers.TypeScript/Libraries/AstHelper.cs",
+      "line": 174,
+      "column": 17,
+      "symbol": "ResolveTopicOrQueue",
+      "target": "TryGetObjectProperty",
+      "acknowledgedAt": "2026-11-27T19:14:15.2494516+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-27 19:14:15"
+    },
+    {
+      "fingerprint": "e8c428ceb23d14e5e5a985ed35d486a72b70ece7e1331ecf126061d590b3d08b",
+      "file": "cli/src/Parsers/CodeExplorer.Parsers.TypeScript/Libraries/AstHelper.cs",
+      "line": 239,
+      "column": 20,
+      "symbol": "TryGetMemberAccess",
+      "target": "GetFunctionNode",
+      "acknowledgedAt": "2026-11-27T19:14:15.2494516+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-27 19:14:15"
+    },
+    {
+      "fingerprint": "ecd0311835f6a184f1937c45e56f297f71954dcf92c584b186420da3b3ecc305",
+      "file": "cli/src/Parsers/CodeExplorer.Parsers.TypeScript/Libraries/AstHelper.cs",
+      "line": 312,
+      "column": 36,
+      "symbol": "FindVariableInitializerInAst",
+      "target": "FindClassFieldInitializerInAst",
+      "acknowledgedAt": "2026-11-27T19:14:15.2494516+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-27 19:14:15"
+    },
+    {
+      "fingerprint": "41e78fc651eb6e020dfbf469456c69876a43be286890260949b8a89b4b9d0a7f",
+      "file": "cli/src/Parsers/CodeExplorer.Parsers.TypeScript/Libraries/BigQueryLibraryParser.cs",
+      "line": 266,
+      "column": 41,
+      "symbol": "ResolveQueryPropertyFromVariable",
+      "target": "TryGetObjectProperty",
+      "acknowledgedAt": "2026-11-27T19:14:15.2494516+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-27 19:14:15"
+    },
+    {
+      "fingerprint": "01b842dedc8a2445fd5299f086104bd7b5ccaf5f56c019bba03eab3d5a953d32",
+      "file": "cli/src/Parsers/CodeExplorer.Parsers.TypeScript/Libraries/BigQueryLibraryParser.cs",
+      "line": 268,
+      "column": 48,
+      "symbol": "ResolveQueryPropertyFromVariable",
+      "target": "ExtractStringFromNode",
+      "acknowledgedAt": "2026-11-27T19:14:15.2494516+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-27 19:14:15"
+    },
+    {
+      "fingerprint": "87c0155d54504b05af7192bd9ade5cb380f284b469bfd5c52d4be85c0126195a",
+      "file": "cli/src/Parsers/CodeExplorer.Parsers.TypeScript/Libraries/BullMqLibraryParser.cs",
+      "line": 227,
+      "column": 25,
+      "symbol": "EnrichSymbolCore",
+      "target": "TryGetObjectProperty",
+      "acknowledgedAt": "2026-11-27T19:14:15.2494516+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-27 19:14:15"
+    },
+    {
+      "fingerprint": "ed5aa3c6670900b46aa4b5d7eb134abf3ed4c43ebd4255f52747a2bc4a15b2a4",
+      "file": "cli/src/Parsers/CodeExplorer.Parsers.TypeScript/Libraries/BullMqLibraryParser.cs",
+      "line": 236,
+      "column": 25,
+      "symbol": "EnrichSymbolCore",
+      "target": "TryGetObjectProperty",
+      "acknowledgedAt": "2026-11-27T19:14:15.2494516+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-27 19:14:15"
+    },
+    {
+      "fingerprint": "c592209e1e48827fe4557e4b76d87af476f8c5420f2e2217b59602c693257fcf",
+      "file": "cli/src/Parsers/CodeExplorer.Parsers.TypeScript/Libraries/BullMqLibraryParser.cs",
+      "line": 353,
+      "column": 17,
+      "symbol": "ResolveBullMqQueueArgument",
+      "target": "TryGetObjectProperty",
+      "acknowledgedAt": "2026-11-27T19:14:15.2494516+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-27 19:14:15"
+    },
+    {
+      "fingerprint": "351ad9beed0632d77dbb5595d860188476bbbeb1a00b12f43978bb8ef05e0906",
+      "file": "cli/src/Parsers/CodeExplorer.Parsers.TypeScript/Libraries/BullMqLibraryParser.cs",
+      "line": 354,
+      "column": 17,
+      "symbol": "ResolveBullMqQueueArgument",
+      "target": "TryGetObjectProperty",
+      "acknowledgedAt": "2026-11-27T19:14:15.2494516+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-27 19:14:15"
+    },
+    {
+      "fingerprint": "cb3866b87e325ff2c31e715162ca3004ef5c687638c9fb528787fd86f64d70df",
+      "file": "cli/src/Parsers/CodeExplorer.Parsers.TypeScript/Libraries/BullMqLibraryParser.cs",
+      "line": 355,
+      "column": 17,
+      "symbol": "ResolveBullMqQueueArgument",
+      "target": "TryGetObjectProperty",
+      "acknowledgedAt": "2026-11-27T19:14:15.2494516+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-27 19:14:15"
+    },
+    {
+      "fingerprint": "e4d7a85d20f2858989df753c82c3e79174c9ddbc02a015f7c3c7fa8cc739a84a",
+      "file": "cli/src/Parsers/CodeExplorer.Parsers.TypeScript/Libraries/ClickHouseLibraryParser.cs",
+      "line": 257,
+      "column": 41,
+      "symbol": "ResolveQueryPropertyFromVariable",
+      "target": "TryGetObjectProperty",
+      "acknowledgedAt": "2026-11-27T19:14:15.2494516+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-27 19:14:15"
+    },
+    {
+      "fingerprint": "fd38237c1432b43b9e63169b922ea9424bebb492708c8ce9f7c91faf1a238e83",
+      "file": "cli/src/Parsers/CodeExplorer.Parsers.TypeScript/Libraries/ClickHouseLibraryParser.cs",
+      "line": 259,
+      "column": 48,
+      "symbol": "ResolveQueryPropertyFromVariable",
+      "target": "ExtractStringFromNode",
+      "acknowledgedAt": "2026-11-27T19:14:15.2494516+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-27 19:14:15"
+    },
+    {
+      "fingerprint": "beb1489774079f4f19a4387858b89c94f5fabaf66692b78d9f58284dd97d9f72",
+      "file": "cli/src/Parsers/CodeExplorer.Parsers.TypeScript/Libraries/GcpLibraryParser.cs",
+      "line": 353,
+      "column": 13,
+      "symbol": "TryResolvePublishParameterIndex",
+      "target": "TryFindEnclosingFunctionParameter",
+      "acknowledgedAt": "2026-11-27T19:14:15.2494516+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-27 19:14:15"
+    },
+    {
+      "fingerprint": "14c629b59f560344b07a49dcfa0ffb70f189e078b65c1e20f45b3d8066eac8c7",
+      "file": "cli/src/Parsers/CodeExplorer.Parsers.TypeScript/Libraries/GcpLibraryParser.cs",
+      "line": 384,
+      "column": 56,
+      "symbol": "TryResolvePublishParameterIndex",
+      "target": "TryFindEnclosingFunctionParameter",
+      "acknowledgedAt": "2026-11-27T19:14:15.2494516+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-27 19:14:15"
+    },
+    {
+      "fingerprint": "1beb5736f0a59bc187b31b08650231a989a731482b97fcd8b16b9f8a431c0270",
+      "file": "cli/src/Parsers/CodeExplorer.Parsers.TypeScript/Libraries/GcpLibraryParser.cs",
+      "line": 399,
+      "column": 40,
+      "symbol": "TryResolvePublishParameterIndex",
+      "target": "TryFindEnclosingFunctionParameter",
+      "acknowledgedAt": "2026-11-27T19:14:15.2494516+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-27 19:14:15"
+    },
+    {
+      "fingerprint": "d32e950e4b54b87fc238dd699ceef0ca32eb907a0ffb7bc7884aab75e97f5fc7",
+      "file": "cli/src/Parsers/CodeExplorer.Parsers.TypeScript/Libraries/GcpLibraryParser.cs",
+      "line": 542,
+      "column": 41,
+      "symbol": "ResolveTopicFromReceiverInScope",
+      "target": "ExtractTopicFromExpression",
+      "acknowledgedAt": "2026-11-27T19:14:15.2494516+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-27 19:14:15"
+    },
+    {
+      "fingerprint": "3fec6ba8159365a8d41751e0263da08fe42dbc226f469e0ac12019ffb9e9945a",
+      "file": "cli/src/Parsers/CodeExplorer.Parsers.TypeScript/Libraries/GcpLibraryParser.cs",
+      "line": 561,
+      "column": 37,
+      "symbol": "ResolveTopicFromReceiverInScope",
+      "target": "ExtractTopicFromExpression",
+      "acknowledgedAt": "2026-11-27T19:14:15.2494516+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-27 19:14:15"
+    },
+    {
+      "fingerprint": "d7ca79d24d25b337e0217ddadbdd895d33d3de20f6715193e98cd6494145d2f7",
+      "file": "cli/src/Parsers/CodeExplorer.Parsers.TypeScript/Libraries/GcpLibraryParser.cs",
+      "line": 573,
+      "column": 25,
+      "symbol": "ResolveTopicFromReceiverInScope",
+      "target": "ExtractTopicFromExpression",
+      "acknowledgedAt": "2026-11-27T19:14:15.2494516+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-27 19:14:15"
+    },
+    {
+      "fingerprint": "da50e6ed25cd2ec7ac0446a7458e46c5d68a96edcf8cfd91aad17fa322cde6ab",
+      "file": "cli/src/Parsers/CodeExplorer.Parsers.TypeScript/Libraries/GraphQLClientLibraryParser.cs",
+      "line": 218,
+      "column": 30,
+      "symbol": "CollectReferencesCore",
+      "target": "TryGetObjectProperty",
+      "acknowledgedAt": "2026-11-27T19:14:15.2494516+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-27 19:14:15"
+    },
+    {
+      "fingerprint": "91786d17036355ccadbb1d94cb48556943d93ee443ffffd246e1df00eb70a525",
+      "file": "cli/src/Parsers/CodeExplorer.Parsers.TypeScript/Libraries/GraphQLClientLibraryParser.cs",
+      "line": 234,
+      "column": 29,
+      "symbol": "CollectReferencesCore",
+      "target": "TryGetObjectProperty",
+      "acknowledgedAt": "2026-11-27T19:14:15.2494516+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-27 19:14:15"
+    },
+    {
+      "fingerprint": "fca30aa43f9766f8fa977d731335d1ec75a52e3db01528657c97f81d2febde19",
+      "file": "cli/src/Parsers/CodeExplorer.Parsers.TypeScript/Libraries/NestJsLibraryParser.cs",
+      "line": 61,
+      "column": 20,
+      "symbol": "IsNestFactoryCreate",
+      "target": "GetFunctionNode",
+      "acknowledgedAt": "2026-11-27T19:14:15.2494516+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-27 19:14:15"
+    },
+    {
+      "fingerprint": "e069439c45523e5833bfa66fc6f89723570a89948ebe00f749c1c8b89970c0df",
+      "file": "cli/src/Parsers/CodeExplorer.Parsers.TypeScript/Libraries/NestJsLibraryParser.cs",
+      "line": 598,
+      "column": 22,
+      "symbol": "ExtractModuleElementTypeName",
+      "target": "GetFunctionNode",
+      "acknowledgedAt": "2026-11-27T19:14:15.2494516+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-27 19:14:15"
+    },
+    {
+      "fingerprint": "1200f9bf122b737d0cf65758d3cd76052b4464d15ece9d9b87659480b97d5a18",
+      "file": "cli/src/Parsers/CodeExplorer.Parsers.TypeScript/Libraries/ReactLibraryParser.cs",
+      "line": 136,
+      "column": 24,
+      "symbol": "FindJsxOrComponentReferences",
+      "target": "GetFunctionNode",
+      "acknowledgedAt": "2026-11-27T19:14:15.2494516+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-27 19:14:15"
+    },
+    {
+      "fingerprint": "5f4b7425bad88b41f76599221d183e7e904f08ac28110d681207c8b6cd47160d",
+      "file": "cli/src/Parsers/CodeExplorer.Parsers.TypeScript/Libraries/SequelizeLibraryParser.cs",
+      "line": 192,
+      "column": 29,
+      "symbol": "ExtractTableNameFromDecorator",
+      "target": "TryGetObjectProperty",
+      "acknowledgedAt": "2026-11-27T19:14:15.2494516+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-27 19:14:15"
+    },
+    {
+      "fingerprint": "4667e6fabbb0cdd648871a5836e6f123c51f2cd31dd85c40f4fe2c72d4f54394",
+      "file": "cli/src/Parsers/CodeExplorer.Parsers.TypeScript/Libraries/SequelizeLibraryParser.cs",
+      "line": 201,
+      "column": 29,
+      "symbol": "ExtractTableNameFromDecorator",
+      "target": "TryGetObjectProperty",
+      "acknowledgedAt": "2026-11-27T19:14:15.2494516+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-27 19:14:15"
+    },
+    {
+      "fingerprint": "e62c5db7080b442a01de688fee51fa84147debed46a0a1b2e9bc5a777e6b536b",
+      "file": "cli/src/Parsers/CodeExplorer.Parsers.TypeScript/Libraries/SequelizeLibraryParser.cs",
+      "line": 229,
+      "column": 29,
+      "symbol": "ExtractSchemaFromDecorator",
+      "target": "TryGetObjectProperty",
+      "acknowledgedAt": "2026-11-27T19:14:15.2494516+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-27 19:14:15"
+    },
+    {
+      "fingerprint": "bcf1a837ab2727c09dfdb774538653c1aa5da867c580cfbe9e058dbdc581bd5a",
+      "file": "cli/src/Parsers/CodeExplorer.Parsers.TypeScript/Libraries/TypeOrmLibraryParser.cs",
+      "line": 219,
+      "column": 29,
+      "symbol": "ExtractTableNameFromDecorator",
+      "target": "TryGetObjectProperty",
+      "acknowledgedAt": "2026-11-27T19:14:15.2494516+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-27 19:14:15"
+    },
+    {
+      "fingerprint": "cb3f34c7db2c00b5f56d6f3e3ec286910a2214ba48ee38ba5af0a98576b27557",
+      "file": "cli/src/Parsers/CodeExplorer.Parsers.TypeScript/Libraries/TypeOrmLibraryParser.cs",
+      "line": 258,
+      "column": 29,
+      "symbol": "ExtractSchemaFromDecorator",
+      "target": "TryGetObjectProperty",
+      "acknowledgedAt": "2026-11-27T19:14:15.2494516+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-27 19:14:15"
+    },
+    {
+      "fingerprint": "768fd5e0bc86a425e8b361cfc3b6660e313325619dc9021c64cf8411b4f5ce53",
+      "file": "cli/src/Core/CodeExplorer.Indexing/Analysis/Layers/Layer1_Physical/Layer1PhysicalAnalyzer.cs",
+      "line": 775,
+      "column": 39,
+      "symbol": "TryStreamVscodeTasksAsync",
+      "target": "StreamAndAnalyzeFileAsync",
+      "acknowledgedAt": "2026-11-27T19:14:15.2494516+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-27 19:14:15"
+    },
+    {
+      "fingerprint": "d43344325207f02710eb8e49f4b57373229b07440c7e0fdac5b53a54b2bfcdf4",
+      "file": "cli/src/Core/CodeExplorer.Indexing/Analysis/Layers/Layer2_Boundaries/Layer2BoundariesAnalyzer.Lifecycle.cs",
+      "line": 307,
+      "column": 36,
+      "symbol": "PopulateProjectDatabaseDrivers",
+      "target": "DetectDriverForProjectInLayer2",
+      "acknowledgedAt": "2026-11-27T19:14:15.2494516+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-27 19:14:15"
+    },
+    {
+      "fingerprint": "2669e68f6a04d020411cf744defd4a337da3325e57f741fe3e289f22dbed0854",
+      "file": "cli/src/Core/CodeExplorer.Indexing/Analysis/Layers/Layer2_Boundaries/Layer2BoundariesAnalyzer.Scanning.cs",
+      "line": 121,
+      "column": 39,
+      "symbol": "ScanProjectsInDirectoriesAsync",
+      "target": "Create",
+      "acknowledgedAt": "2026-11-27T19:14:15.2494516+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-27 19:14:15"
+    },
+    {
+      "fingerprint": "c831a639e1836e7542e2c9d4f12adec8f9d9db674d9c94623cd734725740bb44",
+      "file": "cli/src/Core/CodeExplorer.Indexing/Analysis/Layers/Layer2_Boundaries/Layer2BoundariesAnalyzer.Scanning.cs",
+      "line": 202,
+      "column": 47,
+      "symbol": "ScanProjectsInDirectoriesAsync",
+      "target": "Create",
+      "acknowledgedAt": "2026-11-27T19:14:15.2494516+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-27 19:14:15"
+    },
+    {
+      "fingerprint": "e747c82c6493815fcde06cafd4fcf39b508510aeb77a7d75998b33ea9244ffdf",
+      "file": "cli/src/Core/CodeExplorer.Indexing/Analysis/Layers/Layer2_Boundaries/Layer2BoundariesAnalyzer.Scanning.cs",
+      "line": 395,
+      "column": 54,
+      "symbol": "ScanSiblingLibrariesAsync",
+      "target": "Create",
+      "acknowledgedAt": "2026-11-27T19:14:15.2494516+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-27 19:14:15"
+    },
+    {
+      "fingerprint": "a3face973de513c0e47459416075826fff8b8b461bd575b66bc7a58017f68e03",
+      "file": "cli/src/Core/CodeExplorer.Indexing/Analysis/Layers/Layer2_Boundaries/Layer2BoundariesAnalyzer.Scanning.cs",
+      "line": 508,
+      "column": 39,
+      "symbol": "ScanAdditionalProjectsAsync",
+      "target": "Create",
+      "acknowledgedAt": "2026-11-27T19:14:15.2494516+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-27 19:14:15"
+    },
+    {
+      "fingerprint": "568378b878f77a3d4a68e51725f6716bab280d8b070f0afb6c8cb19170ae3e2a",
+      "file": "cli/src/Core/CodeExplorer.Indexing/Analysis/Layers/Layer2_Boundaries/Layer2BoundariesAnalyzer.Scanning.cs",
+      "line": 757,
+      "column": 26,
+      "symbol": "ParseProjectDependenciesAsync",
+      "target": "ParseDependenciesAsync",
+      "acknowledgedAt": "2026-11-27T19:14:15.2494516+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-27 19:14:15"
+    },
+    {
+      "fingerprint": "0d71a157e3a355e54829b465b66f86bf13ad81a1417a9fef5dcb44a0a80a2656",
+      "file": "cli/src/Core/CodeExplorer.Indexing/Analysis/Layers/Layer2_Boundaries/Layer2BoundariesAnalyzer.TreeWalker.cs",
+      "line": 249,
+      "column": 71,
+      "symbol": "ResolveAbsorbingOwner",
+      "target": "HasChildGitRepositories",
+      "acknowledgedAt": "2026-11-27T19:14:15.2494516+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-27 19:14:15"
+    },
+    {
+      "fingerprint": "29c7864f95e23ebd5451dda70f35f9e5d38d26af7640397493a114ab6d58bc2b",
+      "file": "cli/src/Core/CodeExplorer.Indexing/Analysis/Layers/Layer2_Boundaries/Layer2BoundariesAnalyzer.TreeWalker.cs",
+      "line": 493,
+      "column": 109,
+      "symbol": "MatchProjectParsersInDirectory",
+      "target": "EnumerateCachedFilesInSubtree",
+      "acknowledgedAt": "2026-11-27T19:14:15.2494516+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-27 19:14:15"
+    },
+    {
+      "fingerprint": "7e1b117477b50238e041fcbc3b68b214e9fd89447e0ba9bc6585ee2621613c52",
+      "file": "cli/src/Core/CodeExplorer.Indexing/Analysis/Layers/Layer2_Boundaries/Layer2BoundariesAnalyzer.TreeWalker.cs",
+      "line": 441,
+      "column": 99,
+      "symbol": "MatchProjectParsersInDirectory",
+      "target": "HasChildGitRepositories",
+      "acknowledgedAt": "2026-11-27T19:14:15.2494516+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-27 19:14:15"
+    },
+    {
+      "fingerprint": "0e63a82cff9fedadc30f40b779b7731bc23976a785c499d811ad32cc227ab5b1",
+      "file": "cli/src/Core/CodeExplorer.Indexing/Analysis/Layers/Layer2_Boundaries/Layer2BoundariesAnalyzer.TreeWalker.cs",
+      "line": 431,
+      "column": 75,
+      "symbol": "MatchProjectParsersInDirectory",
+      "target": "HasChildConfiguredProjects",
+      "acknowledgedAt": "2026-11-27T19:14:15.2494516+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-27 19:14:15"
+    },
+    {
+      "fingerprint": "dd11896258091f9e232dcc50daebce0ea82a3e37dfd61ec2e2644ce31a5a9d34",
+      "file": "cli/src/Core/CodeExplorer.Indexing/Analysis/Layers/Layer2_Boundaries/Layer2BoundariesAnalyzer.TreeWalker.cs",
+      "line": 462,
+      "column": 17,
+      "symbol": "MatchProjectParsersInDirectory",
+      "target": "TryParse",
+      "acknowledgedAt": "2026-11-27T19:14:15.2494516+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-27 19:14:15"
+    },
+    {
+      "fingerprint": "c037a3369dfe7b08e207ca4bd370aa0075cb39c29bbfb913148ec0ea4d9e68ec",
+      "file": "cli/src/Core/CodeExplorer.Indexing/Analysis/Layers/Layer2_Boundaries/Layer2BoundariesAnalyzer.TreeWalker.cs",
+      "line": 540,
+      "column": 30,
+      "symbol": "ResolveConfiguredProjectParser",
+      "target": "EnumerateCachedFilesInSubtree",
+      "acknowledgedAt": "2026-11-27T19:14:15.2494516+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-27 19:14:15"
+    },
+    {
+      "fingerprint": "c6ec3eea1de1ee8aa1eb6c796331adcee391d6e45673a4fe43ea3f19c7e65bb9",
+      "file": "cli/src/Core/CodeExplorer.Indexing/Analysis/Layers/Layer2_Boundaries/Layer2BoundariesAnalyzer.TreeWalker.cs",
+      "line": 674,
+      "column": 31,
+      "symbol": "InstantiateMatchedProjectsInDirectoryAsync",
+      "target": "Create",
+      "acknowledgedAt": "2026-11-27T19:14:15.2494516+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-27 19:14:15"
+    },
+    {
+      "fingerprint": "a03056d8e7f7126711ce3586662030816e78361274686c1bad5be3124bad43b5",
+      "file": "cli/src/Core/CodeExplorer.Indexing/Analysis/Layers/Layer3_Syntactic/CallSiteReferenceEnricher.cs",
+      "line": 75,
+      "column": 9,
+      "symbol": "EnrichReferencesWithCallContextAndFlow",
+      "target": "WalkAndEnrich",
+      "acknowledgedAt": "2026-11-27T19:14:15.2494516+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-27 19:14:15"
+    },
+    {
+      "fingerprint": "4ac7d0571943cbc5ba22c2b9237d59cb47542973083b416a1a7ac34a9752f4a0",
+      "file": "cli/src/Core/CodeExplorer.Indexing/Analysis/Layers/Layer3_Syntactic/Layer3ProjectFileStreamer.cs",
+      "line": 136,
+      "column": 34,
+      "symbol": "EnsureSourceFileStreamedAsync",
+      "target": "StreamAndAnalyzeFileAsync",
+      "acknowledgedAt": "2026-11-27T19:14:15.2494516+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-27 19:14:15"
+    },
+    {
+      "fingerprint": "bc5d78abff140fef93cdb5578a4c0d6ea19ca56fc952c3b7de50f5148965726c",
+      "file": "cli/src/Core/CodeExplorer.Indexing/Analysis/Layers/Layer3_Syntactic/Layer3ScopeTreeEnricher.cs",
+      "line": 81,
+      "column": 13,
+      "symbol": "EnrichFunctionsWithScopesAndComplexity",
+      "target": "AnalyzeFunctionAstAndPopulateScopes",
+      "acknowledgedAt": "2026-11-27T19:14:15.2494516+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-27 19:14:15"
+    },
+    {
+      "fingerprint": "59d5bf8fcd005d6918551f5da6ff002bd95479c1c6ef7408ca2c766a0869b00c",
+      "file": "cli/src/Core/CodeExplorer.Indexing/Analysis/Layers/Layer3_Syntactic/Layer3SyntacticAnalyzer.cs",
+      "line": 132,
+      "column": 13,
+      "symbol": "InitializeStreamingStateAsync",
+      "target": "Register",
+      "acknowledgedAt": "2026-11-27T19:14:15.2494516+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-27 19:14:15"
+    },
+    {
+      "fingerprint": "5d5a94c4ed5333765f1f37c635b8a0be84a65ef958c83013f0c067259fa09bb2",
+      "file": "cli/src/Core/CodeExplorer.Indexing/Analysis/Layers/Layer3_Syntactic/Layer3SyntacticAnalyzer.cs",
+      "line": 139,
+      "column": 17,
+      "symbol": "InitializeStreamingStateAsync",
+      "target": "Register",
+      "acknowledgedAt": "2026-11-27T19:14:15.2494516+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-27 19:14:15"
+    },
+    {
+      "fingerprint": "33f6df5e786e6e5d98b46fac4805d974f8bd8dee8755edf0d929db4b88c4544e",
+      "file": "cli/src/Core/CodeExplorer.Indexing/Analysis/Layers/Layer3_Syntactic/Layer3SyntacticAnalyzer.cs",
+      "line": 202,
+      "column": 9,
+      "symbol": "FinalizeStreamingStateAsync",
+      "target": "PruneSkippedFilesAndEnqueueContains",
+      "acknowledgedAt": "2026-11-27T19:14:15.2494516+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-27 19:14:15"
+    },
+    {
+      "fingerprint": "d13d061c74c5c303af81ee848d761c63c296962f69c86f322bf09d4693d7f283",
+      "file": "cli/src/Core/CodeExplorer.Indexing/Analysis/Layers/Layer3_Syntactic/Layer3SyntacticAnalyzer.cs",
+      "line": 699,
+      "column": 9,
+      "symbol": "EnrichSyntacticParametersPrototypesAndExports",
+      "target": "EnrichMemberDeclarationsFromDocument",
+      "acknowledgedAt": "2026-11-27T19:14:15.2494516+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-27 19:14:15"
+    },
+    {
+      "fingerprint": "b1d552c982f386c89bcf9cb1118a517cc439781c30f7b991d1efe68cd5a2f9ff",
+      "file": "cli/src/Core/CodeExplorer.Indexing/Analysis/Layers/Layer3_Syntactic/Layer3SyntacticAnalyzer.cs",
+      "line": 767,
+      "column": 17,
+      "symbol": "EnrichSyntacticParametersPrototypesAndExports",
+      "target": "IsSyntaxFunctionExported",
+      "acknowledgedAt": "2026-11-27T19:14:15.2494516+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-27 19:14:15"
+    },
+    {
+      "fingerprint": "4383820b3a5c764174fe799179f7b2f0a3153f756d7285899460f17353ef61fa",
+      "file": "cli/src/Core/CodeExplorer.Indexing/Analysis/Layers/Layer4_Semantic/Layer4SemanticAnalyzer.Workloads.cs",
+      "line": 262,
+      "column": 39,
+      "symbol": "EnrichProjectsSemanticsAsync",
+      "target": "EnrichSingleProjectCoreAsync",
+      "acknowledgedAt": "2026-11-27T19:14:15.2494516+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-27 19:14:15"
+    },
+    {
+      "fingerprint": "0f8852694dda758f6e18e98f2ac2ec908acf41801e605e42c8b1625909b67755",
+      "file": "cli/src/Core/CodeExplorer.Indexing/Analysis/Layers/Layer4_Semantic/Layer4SemanticAnalyzer.Workloads.cs",
+      "line": 294,
+      "column": 9,
+      "symbol": "EnrichSingleProjectStreamingAsync",
+      "target": "EnrichSingleProjectCoreAsync",
+      "acknowledgedAt": "2026-11-27T19:14:15.2494516+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-27 19:14:15"
+    },
+    {
+      "fingerprint": "40b6cc8e3fca12b84f69b889fa07170e100db6a39c9b09964e8b722fdf61f28a",
+      "file": "cli/src/Core/CodeExplorer.Indexing/Analysis/Layers/Layer4_Semantic/Layer4SemanticAnalyzer.Workloads.cs",
+      "line": 509,
+      "column": 21,
+      "symbol": "EnrichSingleProjectCoreAsync",
+      "target": "RemoveFileChildNodesById",
+      "acknowledgedAt": "2026-11-27T20:46:06.2342328+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-27 20:46:06"
+    },
+    {
+      "fingerprint": "a4c6966c2f451ebfc8aafeebc425a503305ab7643c9094946a9c0f57cbbbed15",
+      "file": "cli/src/Core/CodeExplorer.Indexing/Analysis/Layers/Layer4_Semantic/Layer4SemanticAnalyzer.Workloads.cs",
+      "line": 557,
+      "column": 21,
+      "symbol": "EnrichSingleProjectCoreAsync",
+      "target": "RemoveFileChildNodesById",
+      "acknowledgedAt": "2026-11-27T20:46:06.2342328+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-27 20:46:06"
+    },
+    {
+      "fingerprint": "6e490f3d58db9debaffd0c4c05ce887f9347756c19b9fca037520eab2857c458",
+      "file": "cli/src/Core/CodeExplorer.Indexing/Analysis/Layers/Layer4_Semantic/Layer4SemanticAnalyzer.cs",
+      "line": 228,
+      "column": 9,
+      "symbol": "InitializeStreamingState",
+      "target": "InitializeWorkloadsForProjects",
+      "acknowledgedAt": "2026-11-27T19:14:15.2494516+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-27 19:14:15"
+    },
+    {
+      "fingerprint": "4cf427604b1d972728a793ba076c75474116a7eab2010dbf8828eb8caa885822",
+      "file": "cli/src/Core/CodeExplorer.Indexing/Analysis/Layers/Layer4_Semantic/Layer4SemanticAnalyzer.cs",
+      "line": 303,
+      "column": 9,
+      "symbol": "FinalizeStreamingStateAsync",
+      "target": "LinkEntryPointsToModuleInitFromStubs",
+      "acknowledgedAt": "2026-11-27T19:14:15.2494516+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-27 19:14:15"
+    },
+    {
+      "fingerprint": "b93675d92335aa8a1f20217865c1ed66c5d78f5b15579af0721e2b1a3b972c77",
+      "file": "cli/src/Core/CodeExplorer.Indexing/Analysis/Layers/Layer4_Semantic/Analyzers/ResourceSemanticAnalyzer.Resources.cs",
+      "line": 340,
+      "column": 21,
+      "symbol": "DetectDeclaredSchemas",
+      "target": "WalkAst",
+      "acknowledgedAt": "2026-11-27T19:14:15.2494516+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-27 19:14:15"
+    },
+    {
+      "fingerprint": "ba847f24af0f07aabfb6ce001c707103050798b674227fbad01de03b3a2199a7",
+      "file": "cli/src/Core/CodeExplorer.Indexing/Analysis/Layers/Layer4_Semantic/Analyzers/ResourceSemanticAnalyzer.cs",
+      "line": 597,
+      "column": 44,
+      "symbol": "EnrichAsync",
+      "target": "EmitGroundingEdges",
+      "acknowledgedAt": "2026-11-27T19:14:15.2494516+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-27 19:14:15"
+    },
+    {
+      "fingerprint": "c6e9def110c46ddc58dd554757a2979c574c16f07988d3a3b806f188a7a675df",
+      "file": "cli/src/Core/CodeExplorer.Indexing/Analysis/Layers/Layer4_Semantic/Analyzers/ResourceSemanticAnalyzer.cs",
+      "line": 662,
+      "column": 41,
+      "symbol": "EnrichAsync",
+      "target": "EmitGroundingEdges",
+      "acknowledgedAt": "2026-11-27T19:14:15.2494516+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-27 19:14:15"
+    },
+    {
+      "fingerprint": "a8c4e935510138960f81eaca7a18efd194fe70c8bfca62c2588c9adfa68a19e3",
+      "file": "cli/src/Core/CodeExplorer.Indexing/Analysis/Layers/Layer5_Global/Layer5GlobalAnalyzer.Databases.cs",
+      "line": 456,
+      "column": 9,
+      "symbol": "BuildSymbolLookups",
+      "target": "DeduplicateStringLists",
+      "acknowledgedAt": "2026-11-27T19:14:15.2494516+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-27 19:14:15"
+    },
+    {
+      "fingerprint": "fd8a5d54b3ae86cd55b856702aa591520a093ab0d6a4b47612eaf7d3995eb279",
+      "file": "cli/src/Core/CodeExplorer.Indexing/Analysis/Layers/Layer5_Global/Layer5GlobalAnalyzer.Databases.cs",
+      "line": 457,
+      "column": 9,
+      "symbol": "BuildSymbolLookups",
+      "target": "DeduplicateStringLists",
+      "acknowledgedAt": "2026-11-27T19:14:15.2494516+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-27 19:14:15"
+    },
+    {
+      "fingerprint": "c8b69d9d8dcf159b5adf3d395904e0f28b748aeffab26d11261f60fb90e16937",
+      "file": "cli/src/Core/CodeExplorer.Indexing/Analysis/Layers/Layer5_Global/Layer5GlobalAnalyzer.Databases.cs",
+      "line": 458,
+      "column": 9,
+      "symbol": "BuildSymbolLookups",
+      "target": "DeduplicateStringLists",
+      "acknowledgedAt": "2026-11-27T19:14:15.2494516+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-27 19:14:15"
+    },
+    {
+      "fingerprint": "1ed949cd0c1d7f87831b207e1819ac1d63cf3fca384adeba7e4cf6bd803ac426",
+      "file": "cli/src/Core/CodeExplorer.Indexing/Analysis/Layers/Layer5_Global/Layer5GlobalAnalyzer.Databases.cs",
+      "line": 461,
+      "column": 13,
+      "symbol": "BuildSymbolLookups",
+      "target": "DeduplicateStringLists",
+      "acknowledgedAt": "2026-11-27T19:14:15.2494516+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-27 19:14:15"
+    },
+    {
+      "fingerprint": "180c8e9b602a0d236dd464979d33dc4be60b3a40e37c95328ff5206eec0d9fe5",
+      "file": "cli/src/Core/CodeExplorer.Indexing/Analysis/Layers/Layer5_Global/Layer5GlobalAnalyzer.Helpers.cs",
+      "line": 122,
+      "column": 21,
+      "symbol": "DoesProjectMatchServiceDomain",
+      "target": "ScoreProjectMatch",
+      "acknowledgedAt": "2026-11-27T19:14:15.2494516+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-27 19:14:15"
+    },
+    {
+      "fingerprint": "2e4e6917fe38b59906818291b11e5df16834ae0be81ec770cd9e492162ed448c",
+      "file": "cli/src/Core/CodeExplorer.Indexing/Analysis/Layers/Layer5_Global/Layer5GlobalAnalyzer.Helpers.cs",
+      "line": 138,
+      "column": 54,
+      "symbol": "DoesProjectMatchServiceDomain",
+      "target": "ScoreProjectMatch",
+      "acknowledgedAt": "2026-11-27T19:14:15.2494516+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-27 19:14:15"
+    },
+    {
+      "fingerprint": "0197af0b564cca06085372d8de18c8b86833d673ae21dcc0911d8ee38abd5279",
+      "file": "cli/src/Core/CodeExplorer.Indexing/Analysis/Layers/Layer5_Global/Layer5GlobalAnalyzer.ParallelRefs.cs",
+      "line": 102,
+      "column": 21,
+      "symbol": "ResolveStatelessReference",
+      "target": "ResolveInstantiatesReference",
+      "acknowledgedAt": "2026-11-27T19:14:15.2494516+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-27 19:14:15"
+    },
+    {
+      "fingerprint": "3178f22558bf010a6a85fd1ccbcd9753a19c68d59e7a9b2621dcf2737addf4e5",
+      "file": "cli/src/Core/CodeExplorer.Indexing/Analysis/Layers/Layer5_Global/Layer5RuntimeCallBinder.cs",
+      "line": 131,
+      "column": 36,
+      "symbol": "HasSufficientRouteOrHostSpecificity",
+      "target": "CountMeaningfulStaticSegments",
+      "acknowledgedAt": "2026-11-27T19:14:15.2494516+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-27 19:14:15"
+    },
+    {
+      "fingerprint": "0b4e9bd07af2405b0b15b72544823f457d8321eae8e694b72b8c29d02e8dc357",
+      "file": "cli/src/Core/CodeExplorer.Indexing/Analysis/Layers/Layer5_Global/PolicyAuthorizationEnricher.cs",
+      "line": 229,
+      "column": 24,
+      "symbol": "EnrichEndpointPolicy",
+      "target": "GetOrCreatePolicy",
+      "acknowledgedAt": "2026-11-27T19:14:15.2494516+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-27 19:14:15"
+    },
+    {
+      "fingerprint": "5f33abd8d85107b91236898487d2c669cc4e1e0b92c934f3d4846254cd4bc45c",
+      "file": "cli/src/Core/CodeExplorer.Indexing/Analysis/Layers/Layer5_Global/PolicyAuthorizationEnricher.cs",
+      "line": 238,
+      "column": 25,
+      "symbol": "EnrichEndpointPolicy",
+      "target": "GetOrCreatePolicy",
+      "acknowledgedAt": "2026-11-27T19:14:15.2494516+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-27 19:14:15"
+    },
+    {
+      "fingerprint": "e46b355b5c78501076298bcf8cacb4c7127836111491594ef6d44fe8725126ef",
+      "file": "cli/src/Core/CodeExplorer.Indexing/Analysis/Layers/Layer5_Global/PolicyAuthorizationEnricher.cs",
+      "line": 247,
+      "column": 25,
+      "symbol": "EnrichEndpointPolicy",
+      "target": "GetOrCreatePolicy",
+      "acknowledgedAt": "2026-11-27T19:14:15.2494516+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-27 19:14:15"
+    },
+    {
+      "fingerprint": "9521d887d8afceaebc5e2cbd084ffca7801eaddb4e11df4d6146ad40e03471f1",
+      "file": "cli/src/Core/CodeExplorer.Indexing/Analysis/Layers/Layer5_Global/PolicyAuthorizationEnricher.cs",
+      "line": 278,
+      "column": 24,
+      "symbol": "EnrichMessagePolicy",
+      "target": "GetOrCreatePolicy",
+      "acknowledgedAt": "2026-11-27T19:14:15.2494516+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-27 19:14:15"
+    },
+    {
+      "fingerprint": "02869090695628336b05aa1935d58d7b48b4a5694339f53fc7e0769b91b9d6d5",
+      "file": "cli/src/Core/CodeExplorer.Indexing/Analysis/Layers/Layer5_Global/PolicyAuthorizationEnricher.cs",
+      "line": 310,
+      "column": 26,
+      "symbol": "AttachPoliciesFromAttributesAndCalls",
+      "target": "ExtractGuardNames",
+      "acknowledgedAt": "2026-11-27T19:14:15.2494516+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-27 19:14:15"
+    },
+    {
+      "fingerprint": "95158030870e8e92a3d7c63ecb5c2b796a33fec59f6f95189f189505a93adb80",
+      "file": "cli/src/Core/CodeExplorer.Indexing/Analysis/Layers/Layer5_Global/PolicyAuthorizationEnricher.cs",
+      "line": 313,
+      "column": 25,
+      "symbol": "AttachPoliciesFromAttributesAndCalls",
+      "target": "GetOrCreatePolicy",
+      "acknowledgedAt": "2026-11-27T19:14:15.2494516+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-27 19:14:15"
+    },
+    {
+      "fingerprint": "ce64c6da70c5b2026978cc845715464fc60b0dfe0349a8cea09775dbb7b91a5c",
+      "file": "cli/src/Core/CodeExplorer.Indexing/Analysis/Layers/Layer5_Global/PolicyAuthorizationEnricher.cs",
+      "line": 324,
+      "column": 29,
+      "symbol": "AttachPoliciesFromAttributesAndCalls",
+      "target": "GetOrCreatePolicy",
+      "acknowledgedAt": "2026-11-27T19:14:15.2494516+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-27 19:14:15"
+    },
+    {
+      "fingerprint": "8402bbf291d62f280526ee554649f2e6a5ce88798bc12c37ff051f3a94df13d5",
+      "file": "cli/src/Core/CodeExplorer.Indexing/Analysis/Layers/Layer5_Global/PolicyAuthorizationEnricher.cs",
+      "line": 338,
+      "column": 21,
+      "symbol": "AttachPoliciesFromAttributesAndCalls",
+      "target": "GetOrCreatePolicy",
+      "acknowledgedAt": "2026-11-27T19:14:15.2494516+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-27 19:14:15"
+    },
+    {
+      "fingerprint": "b38b96872d70f0f9d7aed9dec06459f203f6039f61a00cb361ca18c5738c124f",
+      "file": "cli/src/Core/CodeExplorer.Indexing/Analysis/Layers/Layer5_Global/PolicyAuthorizationEnricher.cs",
+      "line": 347,
+      "column": 21,
+      "symbol": "AttachPoliciesFromAttributesAndCalls",
+      "target": "GetOrCreatePolicy",
+      "acknowledgedAt": "2026-11-27T19:14:15.2494516+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-27 19:14:15"
+    },
+    {
+      "fingerprint": "bb6188b478ae4820d8282524a97cd93b73425598758d58e091e72eceb133e911",
+      "file": "cli/src/Core/CodeExplorer.Indexing/Analysis/Layers/Layer5_Global/PolicyAuthorizationEnricher.cs",
+      "line": 360,
+      "column": 21,
+      "symbol": "AttachPoliciesFromAttributesAndCalls",
+      "target": "GetOrCreatePolicy",
+      "acknowledgedAt": "2026-11-27T19:14:15.2494516+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-27 19:14:15"
+    },
+    {
+      "fingerprint": "105ce2407c9e545c99007e34826e2f85aa48aa9bbb995003d59173818035ef7a",
+      "file": "cli/src/Core/CodeExplorer.Indexing/Analysis/Layers/Layer5_Global/PolicyAuthorizationEnricher.cs",
+      "line": 367,
+      "column": 21,
+      "symbol": "AttachPoliciesFromAttributesAndCalls",
+      "target": "GetOrCreatePolicy",
+      "acknowledgedAt": "2026-11-27T19:14:15.2494516+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-27 19:14:15"
+    },
+    {
+      "fingerprint": "eef5f28038a9273268eaf8f7e3aa8b6836e01068650457b9030157ec58cf6e18",
+      "file": "cli/src/Core/CodeExplorer.Indexing/Analysis/Layers/Layer5_Global/PolicyAuthorizationEnricher.cs",
+      "line": 378,
+      "column": 29,
+      "symbol": "AttachPoliciesFromAttributesAndCalls",
+      "target": "GetOrCreatePolicy",
+      "acknowledgedAt": "2026-11-27T19:14:15.2494516+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-27 19:14:15"
+    },
+    {
+      "fingerprint": "6996d546703c567908c63bb9ccd36acc70eb94f0734202ec5eed9ae3cc8972b5",
+      "file": "cli/src/Core/CodeExplorer.Indexing/Analysis/Layers/Layer5_Global/PolicyAuthorizationEnricher.cs",
+      "line": 386,
+      "column": 29,
+      "symbol": "AttachPoliciesFromAttributesAndCalls",
+      "target": "GetOrCreatePolicy",
+      "acknowledgedAt": "2026-11-27T19:14:15.2494516+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-27 19:14:15"
+    },
+    {
+      "fingerprint": "c11af569288ecfd61dd76eb48416be5b4b304db1c02a8a412d11325d122850f1",
+      "file": "cli/src/Core/CodeExplorer.Indexing/Analysis/Layers/Layer5_Global/PostIndexAnalyzer.Databases.InMemory.Consolidation.cs",
+      "line": 527,
+      "column": 30,
+      "symbol": "ConsolidateServiceDatabasesAsync",
+      "target": "ResolveDatabaseConsolidations",
+      "acknowledgedAt": "2026-11-27T19:14:15.2494516+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-27 19:14:15"
+    },
+    {
+      "fingerprint": "04df3b0b63951d5568d0c4e961ed720116a8ceb160d944d2da270228bc0b6f18",
+      "file": "cli/src/Core/CodeExplorer.Indexing/Analysis/Layers/Layer5_Global/PostIndexAnalyzer.Databases.cs",
+      "line": 282,
+      "column": 30,
+      "symbol": "CanonicalizeDatabasesAsync",
+      "target": "ResolveDatabaseConsolidations",
+      "acknowledgedAt": "2026-11-27T19:14:15.2494516+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-27 19:14:15"
+    },
+    {
+      "fingerprint": "91680e71176ec8582723687d013696f266e733d6967baedc05d0834cffeba973",
+      "file": "cli/src/Core/CodeExplorer.Indexing/Analysis/Layers/Layer5_Global/SemanticArgumentPropagator.cs",
+      "line": 178,
+      "column": 39,
+      "symbol": "PropagateAndGroundAsync",
+      "target": "AssembleEffectiveTargetValues",
+      "acknowledgedAt": "2026-11-27T19:14:15.2494516+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-27 19:14:15"
+    },
+    {
+      "fingerprint": "6b4a5f36b6cae500e01c4f28a6bd5bce163e71cd3aec675633b354ddaf4f4f81",
+      "file": "cli/src/Core/CodeExplorer.Indexing/Analysis/Pipeline/IncrementalScanPlanner.cs",
+      "line": 151,
+      "column": 34,
+      "symbol": "PlanAsync",
+      "target": "StreamAndAnalyzeFileAsync",
+      "acknowledgedAt": "2026-11-27T19:14:15.2494516+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-27 19:14:15"
+    },
+    {
+      "fingerprint": "9a13c3a312dcc10dbb8cc2903e75700d70adf155812e0232427b2255659c4a93",
+      "file": "cli/src/Core/CodeExplorer.Indexing/Analysis/Pipeline/IncrementalScanPlanner.cs",
+      "line": 261,
+      "column": 30,
+      "symbol": "EvaluateModifiedFileAsync",
+      "target": "StreamAndAnalyzeFileAsync",
+      "acknowledgedAt": "2026-11-27T19:14:15.2494516+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-27 19:14:15"
+    },
+    {
+      "fingerprint": "5acdb293c52f34badb26761a22ac4342bce5b38bcc959013e9b478cd8213fb33",
+      "file": "cli/src/Core/CodeExplorer.Indexing/Analysis/Pipeline/ProjectStreamingPipeline.cs",
+      "line": 207,
+      "column": 30,
+      "symbol": "RunFusedLayers3And4Async",
+      "target": "FinalizeStreamingStateAsync",
+      "acknowledgedAt": "2026-11-27T19:14:15.2494516+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-27 19:14:15"
+    },
+    {
+      "fingerprint": "4006715e52881db950547e4de9e87773f42e0eb37129bd98682da86dc54bc116",
+      "file": "cli/src/Core/CodeExplorer.Indexing/Analysis/Pipeline/WorkspaceIndexer.cs",
+      "line": 117,
+      "column": 40,
+      "symbol": "IndexAsync",
+      "target": "GetNodesBreakdownAsync",
+      "acknowledgedAt": "2026-11-27T19:14:15.2494516+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-27 19:14:15"
+    },
+    {
+      "fingerprint": "916b608cf9a300a1f80515bac63a38b6d1ce013613a0e9864884fe606aa018a4",
+      "file": "cli/src/Core/CodeExplorer.Analysis/Analysis/ProjectMap/ProjectMapBuilder.ClassMap.cs",
+      "line": 234,
+      "column": 25,
+      "symbol": "TryBuildClassMap",
+      "target": "CollectClassCandidates",
+      "acknowledgedAt": "2026-11-27T19:14:15.2494516+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-27 19:14:15"
+    },
+    {
+      "fingerprint": "b50434ba9c10a46e830654bb6757c6a0e9f2a5e3556cf6bb6d2fd99a09105c22",
+      "file": "cli/src/Core/CodeExplorer.Analysis/Analysis/ProjectMap/ProjectMapBuilder.cs",
+      "line": 60,
+      "column": 31,
+      "symbol": "Build",
+      "target": "TryBuildClassMap",
+      "acknowledgedAt": "2026-11-27T19:14:15.2494516+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-27 19:14:15"
+    },
+    {
+      "fingerprint": "2c071e716b0521987ac2b7ec111733e50cb157f91473dd753c9ba841ad31ca1b",
+      "file": "cli/src/Core/CodeExplorer.Analysis/Analysis/ProjectMap/ProjectMapBuilder.cs",
+      "line": 107,
+      "column": 9,
+      "symbol": "Build",
+      "target": "ApplyEntryPoints",
+      "acknowledgedAt": "2026-11-27T19:14:15.2494516+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-27 19:14:15"
+    },
+    {
+      "fingerprint": "979167c635e857f3f7a0d02c5371b1f73bcbc6070f7c1d2a1c9190c85e001db1",
+      "file": "cli/src/Core/CodeExplorer.Analysis/Analysis/Services/ArchitectureQueryService.cs",
+      "line": 70,
+      "column": 16,
+      "symbol": "GetBoundedContextMapAsync",
+      "target": "GetBoundedContextMapAsync",
+      "acknowledgedAt": "2026-11-27T19:14:15.2494516+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-27 19:14:15"
+    },
+    {
+      "fingerprint": "11afef2a26168d984c9a3e6e3f35fca725be28dd56eebf0a33332c29fea9d1d7",
+      "file": "cli/src/Core/CodeExplorer.Analysis/Analysis/Services/ArchitectureViewEngine.BoundedContexts.cs",
+      "line": 551,
+      "column": 15,
+      "symbol": "BuildAstBoundedContextMapAsync",
+      "target": "SynthesizeDomainsTopologically",
+      "acknowledgedAt": "2026-11-27T19:14:15.2494516+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-27 19:14:15"
+    },
+    {
+      "fingerprint": "cb8515db39c0a33b355b3e89bc167d4deb9fa3c702a471cb3842fb34b1435141",
+      "file": "cli/src/Core/CodeExplorer.Analysis/Analysis/Services/ArchitectureViewEngine.BoundedContexts.cs",
+      "line": 730,
+      "column": 25,
+      "symbol": "GetBoundedContextGraphAsync",
+      "target": "GetBoundedContextMapAsync",
+      "acknowledgedAt": "2026-11-27T19:14:15.2494516+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-27 19:14:15"
+    },
+    {
+      "fingerprint": "da78843af98edf17777165b865687e3323f99ee274559e700c25c073f118fc31",
+      "file": "cli/src/Core/CodeExplorer.Analysis/Analysis/Services/ArchitectureViewEngine.DomainMap.cs",
+      "line": 549,
+      "column": 37,
+      "symbol": "GetDomainArchitectureAsync",
+      "target": "ParseSecondaryRoles",
+      "acknowledgedAt": "2026-11-27T19:14:15.2494516+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-27 19:14:15"
+    },
+    {
+      "fingerprint": "b34c795f076710c4f43829ae9f8c3ee1e39faebe78783c71a08c553ac5c0a36c",
+      "file": "cli/src/Core/CodeExplorer.Analysis/Analysis/Services/ArchitectureViewEngine.DomainMap.cs",
+      "line": 756,
+      "column": 34,
+      "symbol": "CategorizeProjectsIntoDomains",
+      "target": "ParseSecondaryRoles",
+      "acknowledgedAt": "2026-11-27T19:14:15.2494516+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-27 19:14:15"
+    },
+    {
+      "fingerprint": "f0c3122564d56ed9adf1fcdd3caa45f85db8bf3461520b6aa39d8badc594decc",
+      "file": "cli/src/Core/CodeExplorer.Analysis/Analysis/Services/ArchitectureViewEngine.DomainMap.cs",
+      "line": 837,
+      "column": 31,
+      "symbol": "GetDomainArchitectureGraphAsync",
+      "target": "GetDomainArchitectureAsync",
+      "acknowledgedAt": "2026-11-27T19:14:15.2494516+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-27 19:14:15"
+    },
+    {
+      "fingerprint": "3a69c5b99a805603778f0aea1fdc6bbba3c80da252023333c831b92c282ba5f6",
+      "file": "cli/src/Core/CodeExplorer.Analysis/Analysis/Services/ArchitectureViewEngine.OntologyServices.cs",
+      "line": 855,
+      "column": 45,
+      "symbol": "ResolveInternalServiceNode",
+      "target": "BuildInternalProjectStems",
+      "acknowledgedAt": "2026-11-27T20:46:06.2342328+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-27 20:46:06"
+    },
+    {
+      "fingerprint": "d96295883dd67a5b4f6841ab253184bc1981a3ed6f269cf5440e68f9a0415017",
+      "file": "cli/src/Core/CodeExplorer.Analysis/Analysis/Services/ArchitectureViewEngine.ProjectDependencies.cs",
+      "line": 129,
+      "column": 22,
+      "symbol": "GetProjectDependenciesViewAsync",
+      "target": "FindStronglyConnectedCycles",
+      "acknowledgedAt": "2026-11-27T19:14:15.2494516+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-27 19:14:15"
+    },
+    {
+      "fingerprint": "015c1f7dbe359a3a60141107ae32bb853d0a56acf5e228d8f2a5b4455a11d2c0",
+      "file": "cli/src/Core/CodeExplorer.Analysis/Analysis/Services/ArchitectureViewEngine.ProjectDependencies.cs",
+      "line": 158,
+      "column": 9,
+      "symbol": "GetProjectDependenciesViewAsync",
+      "target": "AssignProjectDependencyOrbitTiers",
+      "acknowledgedAt": "2026-11-27T19:14:15.2494516+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-27 19:14:15"
+    },
+    {
+      "fingerprint": "d44fc1d650d84b1d2ac2455d1208f2f5a9aea8f16470d61b44b5363f51591583",
+      "file": "cli/src/Core/CodeExplorer.Analysis/Analysis/Services/ArchitectureViewEngine.Topology.cs",
+      "line": 33,
+      "column": 31,
+      "symbol": "BuildBaseArchitectureTopologyAsync",
+      "target": "DiscoverSystemContextCandidatesAsync",
+      "acknowledgedAt": "2026-11-27T19:14:15.2494516+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-27 19:14:15"
+    },
+    {
+      "fingerprint": "9885cfc09da90835ebc09a0e08d80afaef207ebd0aa9bb1dd74f6b3aa47663aa",
+      "file": "vscode-extension/src/engine/binaryManager.ts",
+      "line": 444,
+      "column": 24,
+      "symbol": "resolveOrUpdateEngineCore",
+      "target": "probeEngineVersion",
+      "acknowledgedAt": "2026-11-27T19:14:15.2494516+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-27 19:14:15"
+    }
+  ]
+}

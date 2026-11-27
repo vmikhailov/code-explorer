@@ -3,6 +3,66 @@
   "allowedViolations": 97,
   "entries": [
     {
+      "fingerprint": "b686eb2a71ad3d92a773f9cf9e8f8920bbff935a022d6a1e1d0cd9d681cee09b",
+      "file": "cli/src/Core/CodeExplorer.Core/Analysis/Layers/Layer3_Syntactic/RouteDictionaryRegistry.cs",
+      "line": 683,
+      "column": 0,
+      "symbol": "",
+      "target": "catch",
+      "acknowledgedAt": "2026-10-21T01:04:51.3390381+00:00",
+      "reason": "Baseline snapshot captured at 2026-10-21 01:04:51"
+    },
+    {
+      "fingerprint": "ae7fe2fb24e8588f7b2c6928c640adc8598224f58f39b85c22088f56448ed5d0",
+      "file": "cli/src/Parsers/CodeExplorer.Parsers.Shared/Android/GradleBuildScriptParser.cs",
+      "line": 61,
+      "column": 0,
+      "symbol": "Exception",
+      "target": "catch",
+      "acknowledgedAt": "2026-10-30T01:40:04.38911+00:00",
+      "reason": "Baseline snapshot captured at 2026-10-30 01:40:04"
+    },
+    {
+      "fingerprint": "52a1172ffa4b83aca777e3cdbeee8bbbdb7c6f6606dc8864c5c49f7373a96457",
+      "file": "cli/src/Parsers/CodeExplorer.Parsers.Shared/Android/GradleBuildScriptParser.cs",
+      "line": 197,
+      "column": 0,
+      "symbol": "Exception",
+      "target": "catch",
+      "acknowledgedAt": "2026-10-30T01:40:04.38911+00:00",
+      "reason": "Baseline snapshot captured at 2026-10-30 01:40:04"
+    },
+    {
+      "fingerprint": "12c897dec618396db91ed0d4abb80dcb35c0069996435c4eb86c87b15e891fe2",
+      "file": "cli/src/Parsers/CodeExplorer.Parsers.Kotlin/KotlinProjectParser.cs",
+      "line": 73,
+      "column": 0,
+      "symbol": "Exception",
+      "target": "catch",
+      "acknowledgedAt": "2026-10-21T01:04:51.3390381+00:00",
+      "reason": "Baseline snapshot captured at 2026-10-21 01:04:51"
+    },
+    {
+      "fingerprint": "54d35667e10b3b03ce848cfa5724cfb641d15dd279041e5f49b8ffb33f255714",
+      "file": "cli/src/Parsers/CodeExplorer.Parsers.Kotlin/KotlinProjectParser.cs",
+      "line": 259,
+      "column": 0,
+      "symbol": "Exception",
+      "target": "catch",
+      "acknowledgedAt": "2026-10-21T01:04:51.3390381+00:00",
+      "reason": "Baseline snapshot captured at 2026-10-21 01:04:51"
+    },
+    {
+      "fingerprint": "04c56f8a10c84788c26655578b739f768ad8aab60fc380ad4c268e118b18a6ed",
+      "file": "cli/src/Parsers/CodeExplorer.Parsers.TypeScript/Libraries/ExpressLibraryParser.cs",
+      "line": 467,
+      "column": 0,
+      "symbol": "Exception",
+      "target": "catch",
+      "acknowledgedAt": "2026-10-21T01:04:51.3390381+00:00",
+      "reason": "Baseline snapshot captured at 2026-10-21 01:04:51"
+    },
+    {
       "fingerprint": "6ca429fe74ee2459d97e64608c6212f8ce177809e4c2af4cc36991aa5fc4f7cf",
       "file": "cli/src/Core/CodeExplorer.Analysis/Analysis/Services/ArchitectureViewEngine.OntologyQueries.cs",
       "line": 77,
@@ -121,66 +181,6 @@
       "target": "catch",
       "acknowledgedAt": "2026-10-30T00:37:45.890653+00:00",
       "reason": "Baseline snapshot captured at 2026-10-30 00:37:45"
-    },
-    {
-      "fingerprint": "b686eb2a71ad3d92a773f9cf9e8f8920bbff935a022d6a1e1d0cd9d681cee09b",
-      "file": "cli/src/Core/CodeExplorer.Core/Analysis/Layers/Layer3_Syntactic/RouteDictionaryRegistry.cs",
-      "line": 683,
-      "column": 0,
-      "symbol": "",
-      "target": "catch",
-      "acknowledgedAt": "2026-10-21T01:04:51.3390381+00:00",
-      "reason": "Baseline snapshot captured at 2026-10-21 01:04:51"
-    },
-    {
-      "fingerprint": "12c897dec618396db91ed0d4abb80dcb35c0069996435c4eb86c87b15e891fe2",
-      "file": "cli/src/Parsers/CodeExplorer.Parsers.Kotlin/KotlinProjectParser.cs",
-      "line": 73,
-      "column": 0,
-      "symbol": "Exception",
-      "target": "catch",
-      "acknowledgedAt": "2026-10-21T01:04:51.3390381+00:00",
-      "reason": "Baseline snapshot captured at 2026-10-21 01:04:51"
-    },
-    {
-      "fingerprint": "54d35667e10b3b03ce848cfa5724cfb641d15dd279041e5f49b8ffb33f255714",
-      "file": "cli/src/Parsers/CodeExplorer.Parsers.Kotlin/KotlinProjectParser.cs",
-      "line": 259,
-      "column": 0,
-      "symbol": "Exception",
-      "target": "catch",
-      "acknowledgedAt": "2026-10-21T01:04:51.3390381+00:00",
-      "reason": "Baseline snapshot captured at 2026-10-21 01:04:51"
-    },
-    {
-      "fingerprint": "ae7fe2fb24e8588f7b2c6928c640adc8598224f58f39b85c22088f56448ed5d0",
-      "file": "cli/src/Parsers/CodeExplorer.Parsers.Shared/Android/GradleBuildScriptParser.cs",
-      "line": 61,
-      "column": 0,
-      "symbol": "Exception",
-      "target": "catch",
-      "acknowledgedAt": "2026-10-30T01:40:04.38911+00:00",
-      "reason": "Baseline snapshot captured at 2026-10-30 01:40:04"
-    },
-    {
-      "fingerprint": "52a1172ffa4b83aca777e3cdbeee8bbbdb7c6f6606dc8864c5c49f7373a96457",
-      "file": "cli/src/Parsers/CodeExplorer.Parsers.Shared/Android/GradleBuildScriptParser.cs",
-      "line": 197,
-      "column": 0,
-      "symbol": "Exception",
-      "target": "catch",
-      "acknowledgedAt": "2026-10-30T01:40:04.38911+00:00",
-      "reason": "Baseline snapshot captured at 2026-10-30 01:40:04"
-    },
-    {
-      "fingerprint": "04c56f8a10c84788c26655578b739f768ad8aab60fc380ad4c268e118b18a6ed",
-      "file": "cli/src/Parsers/CodeExplorer.Parsers.TypeScript/Libraries/ExpressLibraryParser.cs",
-      "line": 467,
-      "column": 0,
-      "symbol": "Exception",
-      "target": "catch",
-      "acknowledgedAt": "2026-10-21T01:04:51.3390381+00:00",
-      "reason": "Baseline snapshot captured at 2026-10-21 01:04:51"
     },
     {
       "fingerprint": "e12f9763936a88900d4c039564c0fb3e72c82bcd0b657aba7cd40a46072a0baf",
