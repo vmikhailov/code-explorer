@@ -31,6 +31,21 @@ public partial class RustProjectParser : IProjectParser
         }
     }
 
+    public void InspectDirectoryFilePaths(string directoryPath, string[] filePaths, CodeExplorer.Core.Common.Nodes.WorkspaceNode workspace)
+    {
+        for (var i = 0; i < filePaths.Length; i++)
+        {
+            var fp = filePaths[i];
+            if (fp.EndsWith(".wasm", StringComparison.OrdinalIgnoreCase) ||
+                fp.EndsWith(".dylib", StringComparison.OrdinalIgnoreCase) ||
+                fp.EndsWith(".so", StringComparison.OrdinalIgnoreCase))
+            {
+                CodeExplorer.Core.Common.Nodes.AnalysisSignalStore.Signals(workspace).HasNativeAddon = true;
+                break;
+            }
+        }
+    }
+
     public IReadOnlyList<PackageDescriptor> Packages => RustFileParser.DefaultPackages;
 
     private static readonly ConcurrentDictionary<string, CargoManifest?> _manifestCache = new(StringComparer.OrdinalIgnoreCase);

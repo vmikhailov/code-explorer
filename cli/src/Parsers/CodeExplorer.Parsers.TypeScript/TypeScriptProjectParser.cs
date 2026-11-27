@@ -52,6 +52,26 @@ public partial class TypeScriptProjectParser : IProjectParser
         }
     }
 
+    public void InspectDirectoryFilePaths(string directoryPath, string[] filePaths, CodeExplorer.Core.Common.Nodes.WorkspaceNode workspace)
+    {
+        for (var i = 0; i < filePaths.Length; i++)
+        {
+            var fp = filePaths[i];
+            if (fp.EndsWith(".node", StringComparison.OrdinalIgnoreCase))
+            {
+                var sig = CodeExplorer.Core.Common.Nodes.AnalysisSignalStore.Signals(workspace);
+                sig.HasNativeNode = true;
+                sig.HasNativeAddon = true;
+            }
+            else if (fp.EndsWith(".wasm", StringComparison.OrdinalIgnoreCase) ||
+                     fp.EndsWith(".dylib", StringComparison.OrdinalIgnoreCase) ||
+                     fp.EndsWith(".so", StringComparison.OrdinalIgnoreCase))
+            {
+                CodeExplorer.Core.Common.Nodes.AnalysisSignalStore.Signals(workspace).HasNativeAddon = true;
+            }
+        }
+    }
+
     public bool IsConfigurationFile(string fileName)
     {
         var lower = fileName.ToLowerInvariant();

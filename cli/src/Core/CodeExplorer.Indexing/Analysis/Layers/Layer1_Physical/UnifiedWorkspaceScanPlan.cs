@@ -1,7 +1,110 @@
+using System.IO.Enumeration;
 using System.Runtime.CompilerServices;
+using CodeExplorer.Core.Common.Nodes;
 using CodeExplorer.Core.Common.Nodes.Layer1_Physical;
 
 namespace CodeExplorer.Core.Parser.Layers;
+
+internal readonly record struct DirectoryFileEntry(
+    string Name,
+    string FullPath,
+    long SizeBytes,
+    DateTime LastModifiedUtc);
+
+internal static class SinglePassDirectoryReader
+{
+    private const string DotGitName = ".git";
+    private const string DotGitIgnoreName = ".gitignore";
+    private const string DotCeIgnoreName = ".codeexplorerignore";
+    private const string DotVscodeName = ".vscode";
+
+    private static readonly EnumerationOptions SingleDirOptions = new()
+    {
+        AttributesToSkip = 0,
+        IgnoreInaccessible = false,
+        RecurseSubdirectories = false,
+        ReturnSpecialDirectories = false
+    };
+
+    private readonly record struct RawEntry(
+        bool IsDirectory,
+        string Name,
+        string FullPath,
+        long SizeBytes,
+        DateTime LastModifiedUtc);
+
+    public static void ReadEntries(
+        string currentDir,
+        out DirectoryFileEntry[] files,
+        out string[] filePaths,
+        out string[] subDirPaths,
+        out bool hasGitPointer,
+        out bool hasGitSubDir,
+        out bool hasVscodeSubDir,
+        out string? gitIgnorePath,
+        out string? ceIgnorePath)
+    {
+        hasGitPointer = false;
+        hasGitSubDir = false;
+        hasVscodeSubDir = false;
+        gitIgnorePath = null;
+        ceIgnorePath = null;
+
+        var fileList = new List<DirectoryFileEntry>();
+        var subDirList = new List<(string Name, string FullPath)>();
+
+        var enumerable = new FileSystemEnumerable<RawEntry>(
+            currentDir,
+            static (ref FileSystemEntry entry) => new RawEntry(
+                entry.IsDirectory,
+                entry.FileName.ToString(),
+                entry.ToFullPath(),
+                entry.IsDirectory ? 0L : entry.Length,
+                entry.LastWriteTimeUtc.UtcDateTime),
+            SingleDirOptions);
+
+        foreach (var raw in enumerable)
+        {
+            if (raw.IsDirectory)
+            {
+                if (raw.Name.Equals(DotGitName, StringComparison.OrdinalIgnoreCase)) hasGitSubDir = true;
+                else if (raw.Name.Equals(DotVscodeName, StringComparison.OrdinalIgnoreCase)) hasVscodeSubDir = true;
+                subDirList.Add((raw.Name, raw.FullPath));
+            }
+            else
+            {
+                if (raw.Name.Equals(DotGitName, StringComparison.OrdinalIgnoreCase)) hasGitPointer = true;
+                else if (raw.Name.Equals(DotGitIgnoreName, StringComparison.OrdinalIgnoreCase)) gitIgnorePath = raw.FullPath;
+                else if (raw.Name.Equals(DotCeIgnoreName, StringComparison.OrdinalIgnoreCase)) ceIgnorePath = raw.FullPath;
+                fileList.Add(new DirectoryFileEntry(raw.Name, raw.FullPath, raw.SizeBytes, raw.LastModifiedUtc));
+            }
+        }
+
+        if (fileList.Count == 0)
+        {
+            files = [];
+            filePaths = [];
+        }
+        else
+        {
+            fileList.Sort(static (a, b) => StringComparer.Ordinal.Compare(a.Name, b.Name));
+            files = fileList.ToArray();
+            filePaths = new string[files.Length];
+            for (var i = 0; i < files.Length; i++) filePaths[i] = files[i].FullPath;
+        }
+
+        if (subDirList.Count == 0)
+        {
+            subDirPaths = [];
+        }
+        else
+        {
+            subDirList.Sort(static (a, b) => StringComparer.Ordinal.Compare(a.Name, b.Name));
+            subDirPaths = new string[subDirList.Count];
+            for (var i = 0; i < subDirList.Count; i++) subDirPaths[i] = subDirList[i].FullPath;
+        }
+    }
+}
 
 internal readonly record struct SubtreeLanguageCounts(
     int TypeScript,
@@ -46,7 +149,7 @@ internal readonly record struct SubtreeLanguageCounts(
         (TypeScript | JavaScript | Python | Java | Kotlin | CSharp | Go | Rust |
          Php | Perl | Ruby | Cpp | Swift | Terraform | ColdFusion) != 0;
 
-    public static SubtreeLanguageCounts FromDirectoryFiles(FileInfo[] dirFiles, out bool hasSourceCodeFile)
+    public static SubtreeLanguageCounts FromDirectoryFiles(DirectoryFileEntry[] dirFiles, out bool hasSourceCodeFile)
     {
         int ts = 0, js = 0, py = 0, java = 0, kt = 0, cs = 0, go = 0, rs = 0;
         int php = 0, pl = 0, rb = 0, cpp = 0, swift = 0, tf = 0, cf = 0;
@@ -54,7 +157,7 @@ internal readonly record struct SubtreeLanguageCounts(
 
         for (var i = 0; i < dirFiles.Length; i++)
         {
-            var ext = dirFiles[i].Extension;
+            var ext = Path.GetExtension(dirFiles[i].Name);
             if (string.IsNullOrEmpty(ext)) continue;
 
             switch (ext.ToLowerInvariant())
@@ -124,7 +227,7 @@ internal sealed class ScopedDirectoryTreeNode(
     string normalizedPath,
     string relativeDir,
     bool isRoot,
-    FileInfo[] dirFiles,
+    DirectoryFileEntry[] dirFiles,
     string[] filesInDir,
     IOntologyNode fileParentNode,
     FolderNode? folderNode,
@@ -137,7 +240,7 @@ internal sealed class ScopedDirectoryTreeNode(
     public string NormalizedPath { get; } = normalizedPath;
     public string RelativeDir { get; } = relativeDir;
     public bool IsRoot { get; } = isRoot;
-    public FileInfo[] DirFiles { get; } = dirFiles;
+    public DirectoryFileEntry[] DirFiles { get; } = dirFiles;
     public string[] FilesInDir { get; } = filesInDir;
     public IOntologyNode FileParentNode { get; } = fileParentNode;
     public FolderNode? FolderNode { get; } = folderNode;

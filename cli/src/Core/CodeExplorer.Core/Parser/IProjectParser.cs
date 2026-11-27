@@ -192,6 +192,11 @@ public interface IProjectParser
     void InspectDirectoryFiles(string directoryPath, FileInfo[] files, CodeExplorer.Core.Common.Nodes.WorkspaceNode workspace) { }
 
     /// <summary>
+    /// Allocation-free overload inspecting discovered file paths in a directory without <see cref="FileInfo"/> wrappers.
+    /// </summary>
+    void InspectDirectoryFilePaths(string directoryPath, string[] filePaths, CodeExplorer.Core.Common.Nodes.WorkspaceNode workspace) { }
+
+    /// <summary>
     /// Indicates whether a directory name represents a bundled/compiled distribution directory for this dialect
     /// that should be included when <see cref="WorkspaceFileFilter.IncludeDistAndMinifiedArtifacts"/> is enabled.
     /// </summary>

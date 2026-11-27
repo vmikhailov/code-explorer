@@ -5,6 +5,11 @@ All notable changes to the CodeExplorer project (CLI, MCP Server, and VS Code Ex
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.106.4] - 2026-11-27
+
+### Changed
+- **Zero-Source-Read Folder Walk & On-Demand Per-Project Streaming in Layer 3 (`Layer1PhysicalAnalyzer`, `UnifiedWorkspaceScanPlan`, `Layer3ProjectFileStreamer`, `Layer3SyntacticAnalyzer`, `WorkspaceCandidateEnumerator`)**: Replaced double directory enumeration (`GetFiles()` + `GetDirectories()` / `FileInfo[]`) with a single `FileSystemEnumerable` pass per non-ignored folder (`SinglePassDirectoryReader`) and eliminated the upfront Layer 1 `Streaming physical files` pass over source files — Layer 1 now reads only project manifests while Layer 3 streams, hashes, checks content-level minification, and parses source files on demand per project and immediately evicts file text buffers.
+
 ## [1.106.3] - 2026-11-27
 
 ### Fixed

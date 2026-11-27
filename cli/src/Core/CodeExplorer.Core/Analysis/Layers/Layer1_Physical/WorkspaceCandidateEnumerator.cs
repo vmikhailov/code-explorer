@@ -74,7 +74,7 @@ internal static class WorkspaceCandidateEnumerator
             }
             for (var p = 0; p < scratchPatterns.Count; p++) gitTrie.AddPattern(scratchPatterns[p]);
 
-            var activeScope = gitTrie.CompileChildScope(parentScope, relativeDir, gitIgnoreFile, ceIgnoreFile, scratchPatterns);
+            var activeScope = gitTrie.CompileChildScope(parentScope, relativeDir, gitIgnoreFile, ceIgnoreFile);
             var isOwned = activeParsers is { Count: > 0 };
             if (isOwned) hasAnyOwnedDirectory = true;
 
@@ -188,4 +188,163 @@ internal static class WorkspaceCandidateEnumerator
             return inherited;
         }
     }
+}
+
+/// <summary>
+/// Allocation-free path/metadata helpers for single-pass directory discovery without <see cref="FileInfo"/> wrappers.
+/// </summary>
+public static class WorkspacePathFilterHelpers
+{
+    private const string BinFolderName = "bin";
+    private const long IncludedArtifactMaxBytes = 2L * 1024 * 1024;
+
+    private static readonly HashSet<string> NonManifestTriggerExtensions = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ".cfc", ".cfm", ".cfml",
+        ".php", ".phtml", ".inc",
+        ".pl", ".pm", ".t", ".psgi",
+        ".py"
+    };
+
+    public static bool ShouldSkipFileMetadata(WorkspaceFileFilter filter, string fileName, long sizeBytes)
+    {
+        if (filter.ShouldSkipFileName(fileName)) return true;
+        var maxAllowedSize = filter.IncludeDistAndMinifiedArtifacts ? IncludedArtifactMaxBytes : WorkspaceFileFilter.MaxSourceFileSize;
+        return sizeBytes > maxAllowedSize;
+    }
+
+    public static IReadOnlyList<IProjectParser>? MatchDirectProjectParsersByPaths(
+        WorkspaceFileFilter filter,
+        string currentDir,
+        string[] dirFilePaths,
+        bool allowFallback)
+    {
+        var matched = MatchDirectoryProjectParsersByPaths(filter, currentDir, dirFilePaths, includeFallback: false);
+        if (matched is { Count: > 0 } || !allowFallback)
+        {
+            return matched;
+        }
+        return MatchDirectoryProjectParsersByPaths(filter, currentDir, dirFilePaths, includeFallback: true);
+    }
+
+    private static List<IProjectParser>? MatchDirectoryProjectParsersByPaths(
+        WorkspaceFileFilter filter,
+        string currentDir,
+        string[] dirFilePaths,
+        bool includeFallback)
+    {
+        var hasCachedChildDirs = PhysicalFileStore.HasCachedDirectChildDirectories(currentDir);
+        if (!includeFallback && dirFilePaths.Length == 0 && !hasCachedChildDirs)
+        {
+            var parentDir = Path.GetDirectoryName(currentDir.TrimEnd('/', '\\'));
+            var parentName = parentDir != null ? Path.GetFileName(parentDir) : string.Empty;
+            if (!parentName.Equals(BinFolderName, StringComparison.OrdinalIgnoreCase))
+            {
+                return null;
+            }
+        }
+
+        if (!includeFallback && dirFilePaths.Length > 0 && !hasCachedChildDirs)
+        {
+            var hasTrigger = false;
+            for (var f = 0; f < dirFilePaths.Length; f++)
+            {
+                var fn = Path.GetFileName(dirFilePaths[f]);
+                var ext = Path.GetExtension(fn);
+                if (filter.IsManifestFile(fn) || (!string.IsNullOrEmpty(ext) && NonManifestTriggerExtensions.Contains(ext)))
+                {
+                    hasTrigger = true;
+                    break;
+                }
+            }
+            if (!hasTrigger)
+            {
+                var parentDir = Path.GetDirectoryName(currentDir.TrimEnd('/', '\\'));
+                var parentName = parentDir != null ? Path.GetFileName(parentDir) : string.Empty;
+                if (!parentName.Equals(BinFolderName, StringComparison.OrdinalIgnoreCase))
+                {
+                    return null;
+                }
+            }
+        }
+
+        var parsers = filter.ConnectedProjectParsers;
+        List<IProjectParser>? matched = null;
+        for (var p = 0; p < parsers.Count; p++)
+        {
+            var parser = parsers[p];
+            if (parser.IsFallback != includeFallback) continue;
+
+            var hasManifest = false;
+            for (var f = 0; f < dirFilePaths.Length; f++)
+            {
+                if (parser.IsManifestFile(Path.GetFileName(dirFilePaths[f])))
+                {
+                    hasManifest = true;
+                    break;
+                }
+            }
+
+            if (hasManifest || parser.IsProjectDirectory(currentDir, dirFilePaths))
+            {
+                matched ??= [];
+                matched.Add(parser);
+            }
+        }
+
+        return matched;
+    }
+
+    public static IReadOnlyList<IProjectParser>? MatchFileSupportedProjectParsersByPaths(
+        WorkspaceFileFilter filter,
+        string[] dirFilePaths,
+        bool includeFallback)
+    {
+        if (dirFilePaths.Length == 0) return null;
+
+        var parsers = filter.ConnectedProjectParsers;
+        List<IProjectParser>? matched = null;
+        for (var p = 0; p < parsers.Count; p++)
+        {
+            var parser = parsers[p];
+            if (parser.IsFallback != includeFallback) continue;
+
+            for (var f = 0; f < dirFilePaths.Length; f++)
+            {
+                var fn = Path.GetFileName(dirFilePaths[f]);
+                var ext = Path.GetExtension(fn);
+                if (parser.IsManifestFile(fn) || IsNonManifestExtensionForParser(parser.ProjectType, ext))
+                {
+                    matched ??= [];
+                    matched.Add(parser);
+                    break;
+                }
+            }
+        }
+
+        return matched;
+    }
+
+    private static bool IsNonManifestExtensionForParser(string projectType, string ext) =>
+        projectType switch
+        {
+            "php" => ext.Equals(".php", StringComparison.OrdinalIgnoreCase) ||
+                     ext.Equals(".phtml", StringComparison.OrdinalIgnoreCase) ||
+                     ext.Equals(".inc", StringComparison.OrdinalIgnoreCase),
+            "perl" => ext.Equals(".pl", StringComparison.OrdinalIgnoreCase) ||
+                      ext.Equals(".pm", StringComparison.OrdinalIgnoreCase) ||
+                      ext.Equals(".t", StringComparison.OrdinalIgnoreCase) ||
+                      ext.Equals(".psgi", StringComparison.OrdinalIgnoreCase),
+            "python" => ext.Equals(".py", StringComparison.OrdinalIgnoreCase),
+            "coldfusion" => ext.Equals(".cfc", StringComparison.OrdinalIgnoreCase) ||
+                            ext.Equals(".cfm", StringComparison.OrdinalIgnoreCase) ||
+                            ext.Equals(".cfml", StringComparison.OrdinalIgnoreCase),
+            "script" => ext.Equals(".sh", StringComparison.OrdinalIgnoreCase) ||
+                        ext.Equals(".bash", StringComparison.OrdinalIgnoreCase) ||
+                        ext.Equals(".zsh", StringComparison.OrdinalIgnoreCase) ||
+                        ext.Equals(".ps1", StringComparison.OrdinalIgnoreCase) ||
+                        ext.Equals(".bat", StringComparison.OrdinalIgnoreCase) ||
+                        ext.Equals(".cmd", StringComparison.OrdinalIgnoreCase),
+            _ => false
+        };
 }

@@ -134,6 +134,18 @@ public partial class CSharpProjectParser : IProjectParser
         }
     }
 
+    public void InspectDirectoryFilePaths(string directoryPath, string[] filePaths, CodeExplorer.Core.Common.Nodes.WorkspaceNode workspace)
+    {
+        for (var i = 0; i < filePaths.Length; i++)
+        {
+            if (filePaths[i].EndsWith(".dll", StringComparison.OrdinalIgnoreCase))
+            {
+                CodeExplorer.Core.Common.Nodes.AnalysisSignalStore.Signals(workspace).HasDotNetDll = true;
+                break;
+            }
+        }
+    }
+
     public void OnDirectoryScan(string directoryPath, string relativeDir, GitIgnoreMatcher gitignore, Action<string>? log = null)
     {
         var libmanPath = Path.Combine(directoryPath, "libman.json");

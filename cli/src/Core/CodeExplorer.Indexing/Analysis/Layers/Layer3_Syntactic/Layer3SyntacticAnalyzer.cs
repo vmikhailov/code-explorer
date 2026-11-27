@@ -46,109 +46,14 @@ public partial class Layer3SyntacticParser
         var primaryOwnerByFilePath = new Dictionary<string, ProjectNode>(l2Result.Prev.Files.Count, StringComparer.OrdinalIgnoreCase);
         var fileNodeByPath = new Dictionary<string, FileNode>(l2Result.Prev.Files.Count, StringComparer.OrdinalIgnoreCase);
 
-        foreach (var file in l2Result.Prev.Files)
-        {
-            if (!string.IsNullOrEmpty(file.Path))
-            {
-                fileNodeByPath[file.Path.NormalizeSlashes().Trim('/')] = file;
-            }
+        Layer3ProjectFileStreamer.GroupFilesByEnclosingProject(
+            l2Result,
+            filesByProjectId,
+            primaryOwnerByFilePath,
+            fileNodeByPath,
+            projectRels);
 
-            int bestMatchLength = -1;
-            var bestMatches = new List<ProjectNode>();
-            var hasNonScriptProject = l2Result.Projects.Any(pr => pr.EntityKind != ProjectEntityKind.ScriptProject);
-            var isManagedSourceExt = Path.GetExtension(file.Name).ToLowerInvariant() is
-                ".ts" or ".tsx" or ".mts" or ".cts" or ".js" or ".jsx" or ".mjs" or ".cjs" or ".cs" or ".java" or ".kt" or ".go" or ".rs" or ".php" or ".phtml" or ".inc" or ".pm" or ".pl";
-            foreach (var p in l2Result.Projects)
-            {
-                if (hasNonScriptProject && isManagedSourceExt && p.EntityKind == ProjectEntityKind.ScriptProject)
-                {
-                    continue;
-                }
-
-                if (string.IsNullOrEmpty(p.Path))
-                {
-                    if (bestMatchLength < 0)
-                    {
-                        bestMatchLength = 0;
-                        bestMatches.Clear();
-                        bestMatches.Add(p);
-                    }
-                    else if (bestMatchLength == 0)
-                    {
-                        bestMatches.Add(p);
-                    }
-                    continue;
-                }
-
-                var normProjPath = p.Path.NormalizeSlashes().Trim('/');
-                if (file.Path.Equals(normProjPath, StringComparison.OrdinalIgnoreCase))
-                {
-                    var exactLen = normProjPath.Length + 1;
-                    if (exactLen > bestMatchLength)
-                    {
-                        bestMatchLength = exactLen;
-                        bestMatches.Clear();
-                        bestMatches.Add(p);
-                    }
-                    else if (exactLen == bestMatchLength)
-                    {
-                        bestMatches.Add(p);
-                    }
-                    continue;
-                }
-
-                var prefix = normProjPath + "/";
-                if (file.Path.StartWithIC(prefix))
-                {
-                    if (prefix.Length > bestMatchLength)
-                    {
-                        bestMatchLength = prefix.Length;
-                        bestMatches.Clear();
-                        bestMatches.Add(p);
-                    }
-                    else if (prefix.Length == bestMatchLength)
-                    {
-                        bestMatches.Add(p);
-                    }
-                }
-            }
-
-            if (bestMatches.Count > 0)
-            {
-                var primaryMatch = bestMatches[0];
-                var isTest = primaryMatch.IsTest || WorkspaceConventions.IsTestFilePath(file.Path);
-                file.IsTest = isTest;
-                file.ProjectKind = primaryMatch.EntityKind != ProjectEntityKind.Unknown ? primaryMatch.EntityKind : null;
-                file.ProjectName = primaryMatch.Name;
-                if (!string.IsNullOrEmpty(file.Path))
-                {
-                    primaryOwnerByFilePath[file.Path.NormalizeSlashes().Trim('/')] = primaryMatch;
-                }
-
-                if (!filesByProjectId.TryGetValue(primaryMatch.Id, out var primaryList))
-                {
-                    primaryList = [];
-                    filesByProjectId[primaryMatch.Id] = primaryList;
-                }
-                primaryList.Add(file);
-
-                foreach (var matchProj in bestMatches)
-                {
-                    projectRels.Add(new Relationship(matchProj.Id, file.Id, RelationshipKind.Contains));
-                }
-            }
-            else
-            {
-                file.IsTest = WorkspaceConventions.IsTestFilePath(file.Path);
-            }
-        }
-
-        if (projectRels.Count > 0)
-        {
-            ctx.TreeRelationships.AddRange(projectRels);
-            await ctx.EnqueueUploadRelationshipsAsync(projectRels);
-            ctx.AddRelsCount(projectRels.Count);
-        }
+        var prunedFileIds = new System.Collections.Concurrent.ConcurrentDictionary<string, byte>(StringComparer.Ordinal);
 
         // Phase 0: register configuration already parsed once by shared file parsers in Layer 2
         ConfigurationIndex.Clear();
@@ -227,6 +132,7 @@ public partial class Layer3SyntacticParser
                            syntaxStructureNode,
                            filesByProjectId,
                            parentByChildId,
+                           prunedFileIds,
                            ctx.CancellationToken))
         {
             // Replace the empty FileNode in physical tree with the parsed FileNode
@@ -250,6 +156,20 @@ public partial class Layer3SyntacticParser
             ctx.RawVariables.AddRange(syntaxTree.RawVariables);
             ctx.RawTypeBindings.AddRange(syntaxTree.RawTypeBindings);
             PipelineMemoryEvictor.ReleaseSyntaxTreeBuffersAfterLayer3(syntaxTree, ctx);
+        }
+
+        Layer3ProjectFileStreamer.PruneSkippedFilesAndEnqueueContains(
+            l2Result,
+            parentByChildId,
+            fileNodeByPath,
+            primaryOwnerByFilePath,
+            projectRels,
+            prunedFileIds);
+        if (projectRels.Count > 0)
+        {
+            ctx.TreeRelationships.AddRange(projectRels);
+            await ctx.EnqueueUploadRelationshipsAsync(projectRels);
+            ctx.AddRelsCount(projectRels.Count);
         }
 
         if (!ctx.LightweightAstScanMode && !ctx.IsSubtreeScan && ctx.IncrementalChangedFiles == null)
@@ -285,6 +205,7 @@ public partial class Layer3SyntacticParser
         SyntaxStructureNode syntaxStructureNode,
         Dictionary<string, List<FileNode>> filesByProjectId,
         Dictionary<string, IOntologyNode> parentByChildId,
+        System.Collections.Concurrent.ConcurrentDictionary<string, byte> prunedFileIds,
         [EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
         var totalProjects = l2Result.Projects.Count;
@@ -360,6 +281,9 @@ public partial class Layer3SyntacticParser
 
                 if (!parentByChildId.TryGetValue(file.Id, out var parentNode)) return;
                 var parentId = parentNode.Id;
+
+                var streamedOk = await Layer3ProjectFileStreamer.EnsureSourceFileStreamedAsync(file, ctx, prunedFileIds, ct);
+                if (!streamedOk) return;
 
                 try
                 {

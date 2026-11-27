@@ -707,4 +707,57 @@ snapshots/*.snap
             if (Directory.Exists(tempDir)) Directory.Delete(tempDir, true);
         }
     }
+
+    [Test]
+    public async Task Test_Layer1DoesNotReadSourceFilesUpfront_AndLayer3PrunesMinifiedBundlesOnDemand()
+    {
+        var tempDir = Path.Combine(Path.GetTempPath(), "ce_lazy_l3_stream_test_" + Guid.NewGuid());
+        var srcDir = Path.Combine(tempDir, "src");
+        Directory.CreateDirectory(srcDir);
+        try
+        {
+            var mainPath = Path.Combine(srcDir, "app.ts");
+            var minifiedPath = Path.Combine(srcDir, "webpack-chunk.js");
+            await File.WriteAllTextAsync(Path.Combine(tempDir, "package.json"), """{"name": "lazy-stream-app", "version": "1.0.0"}""");
+            await File.WriteAllTextAsync(mainPath, "export function runApp(): number {\n  return 42;\n}\n");
+            await File.WriteAllTextAsync(minifiedPath, "(function(modules){function __webpack_require__(id){return modules[id];}})([]);");
+
+            WorkspaceIndexer.AutoRegisterParsers();
+            var channel = System.Threading.Channels.Channel.CreateUnbounded<Func<Task>>();
+            await using var memRepo = new InMemoryGraphRepository();
+            var l1Ctx = new ParsingContext(tempDir, tempDir, memRepo, channel)
+            {
+                FileFilter = WorkspaceFileFilter.Default
+            };
+
+            // 1. Layer 1 must NOT open or preload source files into memory
+            var l1 = await new CodeExplorer.Core.Parser.Layers.Layer1PhysicalParser().ParseAsync(l1Ctx);
+            var appFile = l1.Files.Single(f => f.Name == "app.ts");
+            appFile.PreloadedContent.Should().BeNull("Layer 1 should not read source file contents upfront");
+            appFile.LineCount.Should().BeNull("LineCount is computed on demand when Layer 3 streams the project file");
+            PhysicalFileStore.TryGetFileText(mainPath, out _).Should().BeFalse("Source text must not be buffered in PhysicalFileStore during Layer 1");
+            PhysicalFileStore.TryGetFileText(Path.Combine(tempDir, "package.json"), out var pkgText).Should().BeTrue("Manifests remain available for Layer 2");
+            pkgText.Should().Contain("lazy-stream-app");
+
+            // 2. Full pipeline streams project files in Layer 3, computes LineCount & hashes, and prunes content-minified JS bundles
+            var dbPath = Path.Combine(tempDir, "lazy_graph.db");
+            await using var client = new SqliteGraphClient(dbPath);
+            var indexer = new WorkspaceIndexer(client);
+            await indexer.IndexAsync(tempDir, tempDir, clear: true);
+
+            var filesJson = (await client.ExecuteCypherAsync("MATCH (f:File) RETURN f.path AS path, f.line_count AS lines")).ToJson();
+            filesJson.Should().Contain("src/app.ts");
+            filesJson.Should().NotContain("webpack-chunk.js");
+
+            var funcsJson = (await client.ExecuteCypherAsync("MATCH (fn:Function) RETURN fn.name AS name")).ToJson();
+            funcsJson.Should().Contain("runApp");
+
+            var changed = await indexer.IndexIncrementalAsync(tempDir, tempDir);
+            changed.Should().BeFalse("Incremental registry should track both streamed project files and content-skipped bundles");
+        }
+        finally
+        {
+            if (Directory.Exists(tempDir)) Directory.Delete(tempDir, true);
+        }
+    }
 }

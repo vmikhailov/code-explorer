@@ -76,6 +76,8 @@ public class JavaScriptProjectParser : IProjectParser
     public bool IsDistOutputDirectory(string dirName) => _tsParser.IsDistOutputDirectory(dirName);
     public void InspectDirectoryFiles(string directoryPath, FileInfo[] files, CodeExplorer.Core.Common.Nodes.WorkspaceNode workspace) =>
         _tsParser.InspectDirectoryFiles(directoryPath, files, workspace);
+    public void InspectDirectoryFilePaths(string directoryPath, string[] filePaths, CodeExplorer.Core.Common.Nodes.WorkspaceNode workspace) =>
+        _tsParser.InspectDirectoryFilePaths(directoryPath, filePaths, workspace);
     public bool IsConfigurationFile(string fileName) => _tsParser.IsConfigurationFile(fileName);
 
     public string GetProjectName(string directoryPath, string[] filesInDirectory) =>
