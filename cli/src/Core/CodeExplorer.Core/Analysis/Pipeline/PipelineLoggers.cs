@@ -155,9 +155,6 @@ public static partial class Layer4LogMessages
     [LoggerMessage(EventId = 4006, Level = LogLevel.Information, Message = "[Layer 4    ] Semantic enrichment pass complete in {ElapsedMs:N0}ms. Identified {SemanticNodeCount} semantic nodes.")]
     public static partial void SemanticPassComplete(ILogger logger, long elapsedMs, int semanticNodeCount);
 
-    [LoggerMessage(EventId = 4007, Level = LogLevel.Information, Message = "[Layer 4    ] Enriched project {Processed}/{Total}: {ProjectName}...")]
-    public static partial void EnrichedProjectProgress(ILogger logger, int processed, int total, string projectName);
-
     [LoggerMessage(EventId = 4008, Level = LogLevel.Warning, Message = "[ConfigurationParser] Failed to parse config file '{RelativePath}': {ErrorMessage}")]
     public static partial void ConfigParseFailed(ILogger logger, string relativePath, string errorMessage, Exception? ex);
 }
@@ -170,7 +167,6 @@ public readonly struct Layer4Logger(ILogger logger)
     public void UploadingSemanticRelationships(int relationshipCount) => Layer4LogMessages.UploadingSemanticRelationships(logger, relationshipCount);
     public void QueuingOntologyTree() => Layer4LogMessages.QueuingOntologyTree(logger);
     public void ScanCompleted(int semanticNodeCount, long elapsedMs = 0) => Layer4LogMessages.SemanticPassComplete(logger, elapsedMs, semanticNodeCount);
-    public void EnrichingProgress(int processed, int total, string projectName) => Layer4LogMessages.EnrichedProjectProgress(logger, processed, total, projectName);
     public void ConfigParseFailed(string relativePath, Exception ex) => Layer4LogMessages.ConfigParseFailed(logger, relativePath, ex.Message, ex);
 }
 

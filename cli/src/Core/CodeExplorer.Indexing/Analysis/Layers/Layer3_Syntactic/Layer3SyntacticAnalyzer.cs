@@ -294,7 +294,7 @@ public partial class Layer3SyntacticParser
                 continue;
             }
 
-            var progressPct = totalProjects > 0 ? 14 + (int)(38.0 * nProject / totalProjects) : 52;
+            var progressPct = totalProjects > 0 ? 14 + (int)(54.0 * nProject / totalProjects) : 68;
             const string layer3StageName = "Layer 3: Syntactic";
             ctx.ReportProgress(progressPct, layer3StageName, $"Scanning project {nProject}/{totalProjects}: {project.Name} ({projectFileCount} files)", nProject, totalProjects);
             ctx.Layer3Log.ParsingProject(nProject, totalProjects, project.Name, projectFileCount);

@@ -336,16 +336,6 @@ public partial class Layer4SemanticParser
         {
             var workloadNode = workloadNodeByProjectId[project.Id];
 
-            void ReportProgressIfNeeded()
-            {
-                var globalPct = 52 + (int)(16.0 * projectsProcessed / Math.Max(1, totalProjects));
-                const string layer4StageTitle = "Layer 4: Semantic";
-                ctx.ReportProgress(globalPct, layer4StageTitle, $"Enriched project {projectsProcessed}/{totalProjects}: {project.Name}");
-                ctx.Layer4Log.EnrichingProgress(projectsProcessed, totalProjects, project.Name);
-                lastLogTicks = Environment.TickCount64;
-                ctx.TriggerProgressReport();
-            }
-
             // Find project parser(s) — fast-path via in-memory ProjectType lookup before falling back to in-memory file list
             var directParser = WorkspaceIndexer.GetProjectParser(project.ProjectType.ToCanonicalString());
             List<IProjectParser> matchingParsers;
@@ -368,7 +358,6 @@ public partial class Layer4SemanticParser
 
             if (projectParser == null)
             {
-                ReportProgressIfNeeded();
                 return (lastLogTicks, []);
             }
 
@@ -707,7 +696,6 @@ public partial class Layer4SemanticParser
             // Group EntryPoints under the Layer 4 workload node
             GroupEntryPoints(workloadNode, project, projectTrees, semanticRelationships, existingRelKeys, ctx);
 
-            ReportProgressIfNeeded();
             return (lastLogTicks, projectSemanticNodes);
         }
     }

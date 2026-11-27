@@ -5,6 +5,11 @@ All notable changes to the CodeExplorer project (CLI, MCP Server, and VS Code Ex
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.108.2] - 2026-11-28
+
+### Changed
+- **Single-Line Per-Project Scan Progress & Monotonic Progress Bar (`PipelineLoggers`, `Layer3SyntacticAnalyzer`, `Layer4SemanticAnalyzer`)**: Removed redundant per-project `Enriched project` log lines now that Layer 3 and Layer 4 execute in a single fused per-project streaming pass, keeping concise `Scanning project k/N: <Name> (<Files> files)...` logs and advancing overall progress monotonically (`14% -> 68%`) across projects.
+
 ## [1.108.1] - 2026-11-27
 
 ### Fixed
