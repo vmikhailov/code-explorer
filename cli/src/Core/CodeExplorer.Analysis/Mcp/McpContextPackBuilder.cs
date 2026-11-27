@@ -72,10 +72,11 @@ internal static partial class McpContextPackBuilder
     private const string ExpandOutboundSideEffectsSuffix =
         "] OPTIONAL MATCH (owner:Type)-[:HAS_METHOD]->(fn) " +
         "OPTIONAL MATCH (calleeOwner:Type)-[:HAS_METHOD]->(callee) " +
+        "OPTIONAL MATCH (callee)-[:DECLARED_IN]->(cf:File) " +
         "WHERE calleeOwner IS NULL OR owner IS NULL OR calleeOwner.id <> owner.id " +
         "RETURN coalesce(owner.name + '.' + fn.name, fn.name) AS callerName, " +
         "coalesce(calleeOwner.name, '') AS calleeOwner, coalesce(callee.name, '') AS calleeName, " +
-        "type(r) AS relName, coalesce(callee.file_path, callee.path, '') AS filePath, " +
+        "type(r) AS relName, coalesce(callee.file_path, callee.path, cf.path, calleeOwner.file_path, calleeOwner.path, '') AS filePath, " +
         "coalesce(callee.start_line, 0) AS startLine LIMIT 60";
 
     private const string ExpandInboundCallersPrefix =
@@ -84,11 +85,12 @@ internal static partial class McpContextPackBuilder
     private const string ExpandInboundCallersSuffix =
         "] OPTIONAL MATCH (targetOwner:Type)-[:HAS_METHOD]->(target) " +
         "OPTIONAL MATCH (callerOwner:Type)-[:HAS_METHOD]->(caller) " +
+        "OPTIONAL MATCH (caller)-[:DECLARED_IN]->(cf:File) " +
         "WHERE callerOwner IS NULL OR targetOwner IS NULL OR callerOwner.id <> targetOwner.id " +
         "RETURN coalesce(targetOwner.name + '.' + target.name, target.name) AS calleeName, " +
         "coalesce(callerOwner.name, '') AS callerOwner, " +
         "CASE WHEN caller:Endpoint THEN coalesce(caller.http_method, 'HTTP') + ' ' + coalesce(caller.route_template, caller.route, caller.name) ELSE coalesce(caller.name, '') END AS callerName, " +
-        "type(r) AS relName, coalesce(caller.file_path, caller.path, '') AS filePath, " +
+        "type(r) AS relName, coalesce(caller.file_path, caller.path, cf.path, callerOwner.file_path, callerOwner.path, '') AS filePath, " +
         "coalesce(caller.start_line, 0) AS startLine LIMIT 50";
 
     private static readonly HashSet<string> StopWords = new(StringComparer.OrdinalIgnoreCase)

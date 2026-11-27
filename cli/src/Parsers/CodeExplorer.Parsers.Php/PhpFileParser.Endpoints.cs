@@ -276,9 +276,14 @@ public partial class PhpFileParser
 
             var candidateClasses = ExpandFactoryKeyCandidates(key, useAliases);
             factoryBoundVars[varName] = candidateClasses;
-            if (candidateClasses.Count > 0)
+            foreach (var candCls in candidateClasses)
             {
-                rawTypeBindings.Add(new RawTypeBinding(varName, candidateClasses[0], fnNode.Id, relativePath));
+                rawTypeBindings.Add(new RawTypeBinding(varName, candCls, fnNode.Id, relativePath));
+                if (enclosingClass != null)
+                {
+                    rawTypeBindings.Add(new RawTypeBinding(varName, candCls, enclosingClass.Node.Id, relativePath));
+                    rawTypeBindings.Add(new RawTypeBinding(varName, candCls, enclosingClass.Name, relativePath));
+                }
             }
         }
 
@@ -378,7 +383,8 @@ public partial class PhpFileParser
         FileNode fileNode,
         string workspaceId,
         string relativePath,
-        List<RawImport> rawImports)
+        List<RawImport> rawImports,
+        Dictionary<string, string> localConstants)
     {
         _ = commentMasked;
         _ = masked;
@@ -415,8 +421,6 @@ public partial class PhpFileParser
             var topFunc = funSpans.FirstOrDefault()?.Node;
             AddPhpEndpoint(fileNode, workspaceId, relativePath, MethodGet, route, topFunc, 1, 1);
         }
-
-        var localConstants = ExtractAndRegisterPhpConstants(commentMasked, classScopes);
 
         foreach (Match mm in MregCallRegex.Matches(commentMasked))
         {
@@ -767,30 +771,54 @@ public partial class PhpFileParser
             AddCandidate(mappedCls);
         }
 
-        var parts = rawKey.Split(['_', '-', '/', '\\'], StringSplitOptions.RemoveEmptyEntries);
+        var parts = Regex.Replace(rawKey, @"([a-z0-9])([A-Z])", "$1_$2")
+            .Split(['_', '-', '/', '\\'], StringSplitOptions.RemoveEmptyEntries);
         if (parts.Length > 0)
         {
-            var pascal = string.Concat(parts.Select(p => char.ToUpperInvariant(p[0]) + p[1..]));
-            AddCandidate(pascal);
-            AddCandidate($"{pascal}Datasource");
-            AddCandidate($"Datasource_{pascal}");
-            AddCandidate($"{pascal}Model");
-            AddCandidate($"Model_{pascal}");
-            AddCandidate($"{pascal}Table");
-            AddCandidate($"Table_{pascal}");
+            var pascalParts = parts.Select(p => char.ToUpperInvariant(p[0]) + p[1..]).ToArray();
+            var pascal = string.Concat(pascalParts);
+            var underscored = string.Join('_', pascalParts);
+
+            void AddVariants(string stem, string? underscoredStem = null)
+            {
+                AddCandidate(stem);
+                if (!string.IsNullOrEmpty(underscoredStem))
+                {
+                    AddCandidate(underscoredStem);
+                    AddCandidate($"WL_{underscoredStem}");
+                    AddCandidate($"Datasource_{underscoredStem}");
+                    AddCandidate($"Model_{underscoredStem}");
+                    AddCandidate($"Table_{underscoredStem}");
+                }
+                AddCandidate($"WL_{stem}");
+                AddCandidate($"{stem}Datasource");
+                AddCandidate($"Datasource_{stem}");
+                AddCandidate($"Datasource{stem}");
+                AddCandidate($"{stem}Model");
+                AddCandidate($"Model_{stem}");
+                AddCandidate($"Model{stem}");
+                AddCandidate($"{stem}Table");
+                AddCandidate($"Table_{stem}");
+                AddCandidate($"Table{stem}");
+            }
+
+            AddVariants(pascal, underscored);
+
+            if (pascalParts.Length > 1 && pascalParts[0].Equals("Db", StringComparison.OrdinalIgnoreCase))
+            {
+                var withoutDb = string.Concat(pascalParts.Skip(1));
+                var withoutDbUnderscored = string.Join('_', pascalParts.Skip(1));
+                AddVariants(withoutDb, withoutDbUnderscored);
+                AddCandidate($"WL_Db_{withoutDbUnderscored}");
+                AddCandidate($"Db_{withoutDbUnderscored}");
+            }
 
             if (pascal.EndsWith('s') && pascal.Length > 2)
             {
                 var singular = pascal.EndsWith("ies", StringComparison.OrdinalIgnoreCase) && pascal.Length > 4
                     ? pascal[..^3] + "y"
                     : pascal[..^1];
-                AddCandidate(singular);
-                AddCandidate($"{singular}Datasource");
-                AddCandidate($"Datasource_{singular}");
-                AddCandidate($"{singular}Model");
-                AddCandidate($"Model_{singular}");
-                AddCandidate($"{singular}Table");
-                AddCandidate($"Table_{singular}");
+                AddVariants(singular);
             }
         }
 

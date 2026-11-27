@@ -935,6 +935,16 @@ public partial class Layer5AnalysisParser
             }
         }
 
+        if (results.Count == 0)
+        {
+            Layer3IncludePathResolver.AppendIncludePathCandidates(
+                callerFile,
+                importPath,
+                symbols.KnownFiles,
+                results,
+                rawCand => AddFileCandidates(NormalizeRelativePath(rawCand), results, symbols));
+        }
+
         imports.CandidateCache?[(callerFile, importPath)] = results;
         return results;
     }
@@ -961,6 +971,9 @@ public partial class Layer5AnalysisParser
             basePath + ".jsx",
             basePath + ".mjs",
             basePath + ".cjs",
+            basePath + ".php",
+            basePath + ".phtml",
+            basePath + ".inc",
             basePath + "/index.ts",
             basePath + "/index.tsx",
             basePath + "/index.js",

@@ -467,6 +467,16 @@ public class Layer1PhysicalParser
                                  p.ProjectType.Equals(cfgProj.Language, StringComparison.OrdinalIgnoreCase)))
                     .ToList();
             }
+            else if (directNonFallback is not { Count: > 0 } &&
+                     !node.IsRoot &&
+                     node.IsGitRepoRoot &&
+                     node.DescendantGitRepoCount == 0 &&
+                     node.HasSourceFiles)
+            {
+                directNonFallback = ctx.FileFilter.ConnectedProjectParsers
+                    .Where(p => !p.IsFallback)
+                    .ToList();
+            }
         }
 
         IReadOnlyList<IProjectParser>? localFallback = null;

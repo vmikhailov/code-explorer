@@ -18,11 +18,9 @@ internal static partial class McpContextPackBuilder
     private const string FindTablesByTermQuery =
         "MATCH (t:Table) WHERE t.name IS NOT NULL AND toLower(t.name) CONTAINS toLower($term) RETURN t.id AS id LIMIT 6";
 
-    private const string FindTablesTouchedByFunctionsPrefix =
-        "MATCH (fn:Function)-[:READS_FROM|WRITES_TO]->(t:Table) WHERE fn.id IN [";
-
-    private const string FindTablesTouchedByFunctionsSuffix =
-        "] RETURN DISTINCT t.id AS id LIMIT 8";
+    private static string BuildFindTablesTouchedByFunctionsQuery(string fnIdsLiteral) =>
+        $"MATCH (fn:Function)-[:READS_FROM|WRITES_TO]->(t:Table) WHERE fn.id IN [{fnIdsLiteral}] RETURN DISTINCT t.id AS id UNION " +
+        $"MATCH (q:Query)-[:ACCESSED_BY]->(fn:Function) WHERE fn.id IN [{fnIdsLiteral}] MATCH (q)-[:READS_FROM|WRITES_TO]->(t:Table) RETURN DISTINCT t.id AS id LIMIT 8";
 
     internal sealed record TablesOwnershipResult(
         List<object> Tables,
@@ -42,7 +40,7 @@ internal static partial class McpContextPackBuilder
         var tableIds = new HashSet<string>(StringComparer.Ordinal);
         if (allFnIds.Count > 0)
         {
-            var touched = await client.ExecuteCypherAsync(FindTablesTouchedByFunctionsPrefix + BuildIdList(allFnIds.Take(40)) + FindTablesTouchedByFunctionsSuffix, null, ct);
+            var touched = await client.ExecuteCypherAsync(BuildFindTablesTouchedByFunctionsQuery(BuildIdList(allFnIds.Take(40))), null, ct);
             foreach (var r in touched.Rows)
             {
                 var id = r.GetStringProp(ColId);
@@ -94,9 +92,13 @@ internal static partial class McpContextPackBuilder
         return anchor + "OPTIONAL MATCH (t)-[:IMPLEMENTED_BY]->(e:Type) " +
                "RETURN t.name AS tableName, 'ENTITY' AS accessKind, '' AS id, coalesce(e.name, '') AS name, '' AS ownerName, coalesce(e.file_path, e.path, '') AS filePath, 0 AS startLine UNION " +
                anchor + "OPTIONAL MATCH (t)<-[r:WRITES_TO]-(fn:Function) OPTIONAL MATCH (fn)<-[:HAS_METHOD]-(owner:Type) " +
-               "RETURN t.name AS tableName, 'WRITER' AS accessKind, coalesce(fn.id, '') AS id, coalesce(fn.name, '') AS name, coalesce(owner.name, '') AS ownerName, coalesce(fn.file_path, fn.path, r.file_path, '') AS filePath, coalesce(fn.start_line, 0) AS startLine UNION " +
+               "RETURN t.name AS tableName, 'WRITER' AS accessKind, coalesce(fn.id, '') AS id, coalesce(fn.name, '') AS name, coalesce(owner.name, '') AS ownerName, coalesce(fn.file_path, fn.path, r.file_path, '') AS filePath, coalesce(fn.start_line, r.line, 0) AS startLine UNION " +
+               anchor + "OPTIONAL MATCH (t)<-[r:WRITES_TO]-(q:Query) OPTIONAL MATCH (q)-[:ACCESSED_BY]->(fn:Function) OPTIONAL MATCH (fn)<-[:HAS_METHOD]-(owner:Type) OPTIONAL MATCH (q)-[:ACCESSED_BY]->(ownerType:Type) " +
+               "RETURN t.name AS tableName, 'WRITER' AS accessKind, coalesce(fn.id, q.id, '') AS id, coalesce(fn.name, q.name, '') AS name, coalesce(owner.name, ownerType.name, '') AS ownerName, coalesce(fn.file_path, fn.path, q.file_path, q.path, r.file_path, '') AS filePath, coalesce(fn.start_line, q.line, q.start_line, r.line, 0) AS startLine UNION " +
                anchor + "OPTIONAL MATCH (t)<-[r:READS_FROM]-(fn:Function) OPTIONAL MATCH (fn)<-[:HAS_METHOD]-(owner:Type) " +
-               "RETURN t.name AS tableName, 'READER' AS accessKind, coalesce(fn.id, '') AS id, coalesce(fn.name, '') AS name, coalesce(owner.name, '') AS ownerName, coalesce(fn.file_path, fn.path, r.file_path, '') AS filePath, coalesce(fn.start_line, 0) AS startLine";
+               "RETURN t.name AS tableName, 'READER' AS accessKind, coalesce(fn.id, '') AS id, coalesce(fn.name, '') AS name, coalesce(owner.name, '') AS ownerName, coalesce(fn.file_path, fn.path, r.file_path, '') AS filePath, coalesce(fn.start_line, r.line, 0) AS startLine UNION " +
+               anchor + "OPTIONAL MATCH (t)<-[r:READS_FROM]-(q:Query) OPTIONAL MATCH (q)-[:ACCESSED_BY]->(fn:Function) OPTIONAL MATCH (fn)<-[:HAS_METHOD]-(owner:Type) OPTIONAL MATCH (q)-[:ACCESSED_BY]->(ownerType:Type) " +
+               "RETURN t.name AS tableName, 'READER' AS accessKind, coalesce(fn.id, q.id, '') AS id, coalesce(fn.name, q.name, '') AS name, coalesce(owner.name, ownerType.name, '') AS ownerName, coalesce(fn.file_path, fn.path, q.file_path, q.path, r.file_path, '') AS filePath, coalesce(fn.start_line, q.line, q.start_line, r.line, 0) AS startLine";
     }
 
     private static object? SummarizeSingleTableOwnership(
@@ -124,8 +126,8 @@ internal static partial class McpContextPackBuilder
                 Path: McpResultFormatter.CleanRelativePath(r.GetStringProp(ColFilePath), workspaceRoot),
                 Line: r.GetLongProp(ColStartLine)))
             .Where(x => !string.IsNullOrEmpty(x.FnName) && !IsNoiseOrTestPath(x.Path, x.FnName))
-            .GroupBy(x => !string.IsNullOrEmpty(x.Owner) ? x.Owner : x.Path, StringComparer.Ordinal)
-            .Select(g => ScoreOwnerGroup(tableName, entityDir, g.Key, g.ToList()))
+            .GroupBy(x => (OwnerKey: !string.IsNullOrEmpty(x.Owner) ? x.Owner : x.Path, FilePath: x.Path))
+            .Select(g => ScoreOwnerGroup(tableName, entityDir, g.Key.OwnerKey, g.ToList()))
             .OrderByDescending(x => x.Score)
             .ToList();
 

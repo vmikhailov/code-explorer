@@ -433,8 +433,12 @@ public partial class Layer2ProjectParser
             return [];
         }
 
-        var isNestedGitRepo = precomputedIsLeafGitRepo
-                              ?? (dirIndex.IsGitRepositoryRoot(dir) && !dirIndex.HasChildGitRepositories(dir));
+        var isRootDir = string.Equals(
+            dir.NormalizeFullPath(trimTrailingSlash: true),
+            ctx.AbsoluteWorkspacePath.NormalizeFullPath(trimTrailingSlash: true),
+            StringComparison.OrdinalIgnoreCase);
+        var isNestedGitRepo = !isRootDir &&
+                              (precomputedIsLeafGitRepo ?? (dirIndex.IsGitRepositoryRoot(dir) && !dirIndex.HasChildGitRepositories(dir)));
         var parseContext = new ProjectParseContext(dir, filesInDir, ctx.AbsoluteWorkspacePath, dirIndex);
         var matchedResults = new List<(IProjectParser Parser, ProjectParseResult Result)>();
 
@@ -483,6 +487,21 @@ public partial class Layer2ProjectParser
                 {
                     var (p, r) = matchedResults[i];
                     matchedResults[i] = (p, r with { Project = r.Project with { Name = configuredSetting.Name } });
+                }
+            }
+        }
+        else if (isNestedGitRepo && matchedResults.Count == 0 && (precomputedCounts?.HasAnyCount == true || dirIndex.EnumerateCachedFilesInSubtree(dir).Any()))
+        {
+            var repoName = Path.GetFileName(dir.TrimEnd('/', '\\'));
+            if (!string.IsNullOrWhiteSpace(repoName))
+            {
+                var repoSetting = new WorkspaceProjectSetting { Name = repoName, Path = dir };
+                var gitParser = ResolveConfiguredProjectParser(dir, repoSetting, dirIndex);
+                if (gitParser != null)
+                {
+                    var props = gitParser.ExtractManifestProperties(dir, filesInDir);
+                    var desc = new ParsedProjectDescriptor(repoName, dir, gitParser.ProjectType, props);
+                    matchedResults.Add((gitParser, new ProjectParseResult(desc)));
                 }
             }
         }

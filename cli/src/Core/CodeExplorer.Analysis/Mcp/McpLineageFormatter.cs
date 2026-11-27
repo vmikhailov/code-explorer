@@ -75,12 +75,12 @@ internal static class McpLineageFormatter
                "RETURN t.name AS tableName, 'ENTITY' AS kind, coalesce(e.name, '') AS name, '' AS ownerName, '' AS extra, coalesce(e.file_path, e.path, '') AS filePath, 0 AS startLine UNION ALL " +
                anchor + "OPTIONAL MATCH (t)<-[r:WRITES_TO]-(fn:Function) OPTIONAL MATCH (fn)<-[:HAS_METHOD]-(owner:Type) " +
                "RETURN t.name AS tableName, 'WRITER' AS kind, coalesce(fn.name, '') AS name, coalesce(owner.name, '') AS ownerName, coalesce(r.operation, 'WRITE') AS extra, coalesce(fn.file_path, fn.path, r.file_path, '') AS filePath, coalesce(fn.start_line, r.line, 0) AS startLine UNION ALL " +
-               anchor + "OPTIONAL MATCH (t)<-[r:WRITES_TO]-(q:Query) OPTIONAL MATCH (q)-[:ACCESSED_BY]->(fn:Function) OPTIONAL MATCH (fn)<-[:HAS_METHOD]-(owner:Type) " +
-               "RETURN t.name AS tableName, 'WRITER' AS kind, coalesce(fn.name, '') AS name, coalesce(owner.name, '') AS ownerName, coalesce(q.verb, r.operation, 'WRITE') AS extra, coalesce(fn.file_path, fn.path, q.file_path, '') AS filePath, coalesce(fn.start_line, q.line, 0) AS startLine UNION ALL " +
+               anchor + "OPTIONAL MATCH (t)<-[r:WRITES_TO]-(q:Query) OPTIONAL MATCH (q)-[:ACCESSED_BY]->(fn:Function) OPTIONAL MATCH (fn)<-[:HAS_METHOD]-(owner:Type) OPTIONAL MATCH (q)-[:ACCESSED_BY]->(ownerType:Type) " +
+               "RETURN t.name AS tableName, 'WRITER' AS kind, coalesce(fn.name, q.name, '') AS name, coalesce(owner.name, ownerType.name, '') AS ownerName, coalesce(q.verb, q.operation, r.operation, 'WRITE') AS extra, coalesce(fn.file_path, fn.path, q.file_path, q.path, r.file_path, '') AS filePath, coalesce(fn.start_line, q.line, q.start_line, r.line, 0) AS startLine UNION ALL " +
                anchor + "OPTIONAL MATCH (t)<-[r:READS_FROM]-(fn:Function) OPTIONAL MATCH (fn)<-[:HAS_METHOD]-(owner:Type) " +
                "RETURN t.name AS tableName, 'READER' AS kind, coalesce(fn.name, '') AS name, coalesce(owner.name, '') AS ownerName, '' AS extra, coalesce(fn.file_path, fn.path, r.file_path, '') AS filePath, coalesce(fn.start_line, r.line, 0) AS startLine UNION ALL " +
-               anchor + "OPTIONAL MATCH (t)<-[r:READS_FROM]-(q:Query) OPTIONAL MATCH (q)-[:ACCESSED_BY]->(fn:Function) OPTIONAL MATCH (fn)<-[:HAS_METHOD]-(owner:Type) " +
-               "RETURN t.name AS tableName, 'READER' AS kind, coalesce(fn.name, '') AS name, coalesce(owner.name, '') AS ownerName, '' AS extra, coalesce(fn.file_path, fn.path, q.file_path, '') AS filePath, coalesce(fn.start_line, q.line, 0) AS startLine UNION ALL " +
+               anchor + "OPTIONAL MATCH (t)<-[r:READS_FROM]-(q:Query) OPTIONAL MATCH (q)-[:ACCESSED_BY]->(fn:Function) OPTIONAL MATCH (fn)<-[:HAS_METHOD]-(owner:Type) OPTIONAL MATCH (q)-[:ACCESSED_BY]->(ownerType:Type) " +
+               "RETURN t.name AS tableName, 'READER' AS kind, coalesce(fn.name, q.name, '') AS name, coalesce(owner.name, ownerType.name, '') AS ownerName, '' AS extra, coalesce(fn.file_path, fn.path, q.file_path, q.path, r.file_path, '') AS filePath, coalesce(fn.start_line, q.line, q.start_line, r.line, 0) AS startLine UNION ALL " +
                anchor + "OPTIONAL MATCH (t)-[:ACCESSED_BY|QUERIED_BY]->(fn:Function) OPTIONAL MATCH (fn)<-[:HAS_METHOD]-(owner:Type) " +
                "RETURN t.name AS tableName, 'READER' AS kind, coalesce(fn.name, '') AS name, coalesce(owner.name, '') AS ownerName, '' AS extra, coalesce(fn.file_path, fn.path, '') AS filePath, coalesce(fn.start_line, 0) AS startLine UNION ALL " +
                anchor + "OPTIONAL MATCH (t)<-[:READS_FROM|WRITES_TO]-(fn:Function) OPTIONAL MATCH (fn)<-[:CALLS]-(caller:Function) OPTIONAL MATCH (caller)<-[:HAS_METHOD]-(owner:Type) " +
@@ -89,8 +89,8 @@ internal static class McpLineageFormatter
                "RETURN t.name AS tableName, 'CALLER' AS kind, coalesce(caller.name, '') AS name, coalesce(owner.name, '') AS ownerName, '' AS extra, coalesce(caller.file_path, caller.path, '') AS filePath, coalesce(caller.start_line, 0) AS startLine UNION ALL " +
                anchor + "OPTIONAL MATCH (t)-[:ACCESSED_BY|QUERIED_BY]->(fn:Function) OPTIONAL MATCH (fn)<-[:CALLS]-(caller:Function) OPTIONAL MATCH (caller)<-[:HAS_METHOD]-(owner:Type) " +
                "RETURN t.name AS tableName, 'CALLER' AS kind, coalesce(caller.name, '') AS name, coalesce(owner.name, '') AS ownerName, '' AS extra, coalesce(caller.file_path, caller.path, '') AS filePath, coalesce(caller.start_line, 0) AS startLine UNION ALL " +
-               anchor + "OPTIONAL MATCH (t)<-[:READS_FROM|WRITES_TO]-(q:Query) " +
-               "RETURN t.name AS tableName, 'QUERY' AS kind, coalesce(q.name, '') AS name, '' AS ownerName, coalesce(q.query_text, '') AS extra, coalesce(q.path, q.file_path, '') AS filePath, 0 AS startLine UNION ALL " +
+               anchor + "OPTIONAL MATCH (t)<-[r:READS_FROM|WRITES_TO]-(q:Query) " +
+               "RETURN t.name AS tableName, 'QUERY' AS kind, coalesce(q.name, '') AS name, '' AS ownerName, coalesce(q.query_text, '') AS extra, coalesce(q.path, q.file_path, r.file_path, '') AS filePath, coalesce(q.line, q.start_line, r.line, 0) AS startLine UNION ALL " +
                anchor +
                "RETURN t.name AS tableName, 'META' AS kind, coalesce(t.sub_kind, '') AS name, '' AS ownerName, coalesce(t.columns, '') AS extra, coalesce(t.path, '') AS filePath, 0 AS startLine UNION ALL " +
                anchor + "OPTIONAL MATCH (t)-[r:REFERENCES]->(parent:Table) " +
@@ -422,7 +422,10 @@ internal static class McpLineageFormatter
             {
                 var qText = r.GetStringProp(ColExtra).Replace("\r", " ").Replace("\n", " ").Trim();
                 if (qText.Length > MaxQueryTextLength) qText = qText[..MaxQueryTextLength] + "...";
-                return (Name: r.GetStringProp(ColName), Path: McpResultFormatter.CleanRelativePath(r.GetStringProp(ColFilePath), workspaceRoot), Sql: qText);
+                var cleanPath = McpResultFormatter.CleanRelativePath(r.GetStringProp(ColFilePath), workspaceRoot);
+                var line = r.GetLongProp(ColStartLine);
+                var locPath = !string.IsNullOrEmpty(cleanPath) && line > 0 ? $"{cleanPath}:{line}" : cleanPath;
+                return (Name: r.GetStringProp(ColName), Path: locPath, Sql: qText);
             })
             .Where(q => (!string.IsNullOrEmpty(q.Sql) || !string.IsNullOrEmpty(q.Name)) && IsQueryRelevantToTable(q.Sql, tableName))
             .Distinct()

@@ -655,7 +655,7 @@ public partial class Layer3SyntacticParser
         if (string.IsNullOrWhiteSpace(path)) return false;
         var normalized = path.Replace('\\', '/').ToLowerInvariant();
         var ext = Path.GetExtension(normalized);
-        if (ext is not (".ts" or ".js" or ".cs" or ".go" or ".py" or ".json"))
+        if (ext is not (".ts" or ".js" or ".cs" or ".go" or ".py" or ".php" or ".phtml" or ".inc" or ".pl" or ".pm" or ".json"))
             return false;
 
         var fileName = Path.GetFileName(normalized);
@@ -687,13 +687,21 @@ public partial class Layer3SyntacticParser
         if (rawImports.Count == 0 || fileNodeByPath.Count == 0) return newRels;
 
         var localImportEdges = new Dictionary<string, List<string>>(StringComparer.OrdinalIgnoreCase);
+        Dictionary<string, List<string>>? suffixIndex = null;
         foreach (var imp in rawImports)
         {
             if (string.IsNullOrWhiteSpace(imp.FilePath) || string.IsNullOrWhiteSpace(imp.Path)) continue;
-            if (!imp.Path.StartsWith('.')) continue;
+            var isRelative = imp.Path.StartsWith('.');
+            var isIncludeFile = !isRelative && imp.Type == ImportType.Internal && Layer3IncludePathResolver.IsIncludeFilePath(imp.Path);
+            if (!isRelative && !isIncludeFile) continue;
 
             var fromNorm = imp.FilePath.Replace('\\', '/').Trim('/');
-            var resolvedTarget = TryResolveRelativeFileImport(fromNorm, imp.Path, fileNodeByPath);
+            var resolvedTarget = Layer3IncludePathResolver.TryResolveRelativeFileImport(fromNorm, imp.Path, fileNodeByPath);
+            if (resolvedTarget == null && isIncludeFile)
+            {
+                suffixIndex ??= Layer3IncludePathResolver.BuildFileSuffixIndex(fileNodeByPath.Keys);
+                resolvedTarget = Layer3IncludePathResolver.TryResolveIncludePathSuffix(fromNorm, imp.Path, fileNodeByPath, suffixIndex);
+            }
             if (resolvedTarget == null) continue;
 
             if (!localImportEdges.TryGetValue(fromNorm, out var targets))
@@ -761,43 +769,6 @@ public partial class Layer3SyntacticParser
         }
 
         return newRels;
-    }
-
-    private static string? TryResolveRelativeFileImport(
-        string importerRelativePath,
-        string rawImportSpec,
-        Dictionary<string, FileNode> fileNodeByPath)
-    {
-        var lastSlash = importerRelativePath.LastIndexOf('/');
-        var baseDir = lastSlash >= 0 ? importerRelativePath[..lastSlash] : "";
-        var combined = string.IsNullOrEmpty(baseDir)
-            ? rawImportSpec.Replace('\\', '/')
-            : baseDir + "/" + rawImportSpec.Replace('\\', '/');
-
-        var stack = new List<string>();
-        foreach (var seg in combined.Split('/', StringSplitOptions.RemoveEmptyEntries))
-        {
-            if (seg == ".") continue;
-            if (seg == "..")
-            {
-                if (stack.Count > 0) stack.RemoveAt(stack.Count - 1);
-                continue;
-            }
-            stack.Add(seg);
-        }
-
-        if (stack.Count == 0) return null;
-        var normalizedCandidate = string.Join('/', stack);
-
-        if (fileNodeByPath.ContainsKey(normalizedCandidate)) return normalizedCandidate;
-
-        foreach (var ext in new[] { ".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs", "/index.ts", "/index.tsx", "/index.js", "/index.jsx" })
-        {
-            var withExt = normalizedCandidate + ext;
-            if (fileNodeByPath.ContainsKey(withExt)) return withExt;
-        }
-
-        return null;
     }
 
     private static IEnumerable<(string Name, LambdaExprSyntax Lambda)> EnumerateNamedLambdaFunctions(SyntaxNode? root)

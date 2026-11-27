@@ -84,9 +84,15 @@ public partial class Layer5AnalysisParser
             if (normCallerFile != null &&
                 bindings.BindingsLookup.TryGetValue((normCallerFile, varName), out var candidates))
             {
+                string? firstKnownType = null;
                 for (var i = 0; i < candidates.Count; i++)
                 {
                     var candidate = candidates[i];
+                    var isKnownType = symbols.TypeSymbols.ContainsKey(candidate.TypeName);
+                    if (isKnownType && firstKnownType == null)
+                    {
+                        firstKnownType = candidate.TypeName;
+                    }
                     if (!string.IsNullOrEmpty(candidate.ScopeMarker) && !string.IsNullOrEmpty(candidate.ScopeId) &&
                         (refItem.ScopeSymbolId.Contains(candidate.ScopeMarker, StringComparison.Ordinal) ||
                          refItem.ScopeSymbolId.Contains($":{candidate.ScopeId}:", StringComparison.OrdinalIgnoreCase) ||
@@ -96,11 +102,17 @@ public partial class Layer5AnalysisParser
                          (normCallerFile != null && (normCallerFile.Contains($"/{candidate.ScopeId}.", StringComparison.OrdinalIgnoreCase) || normCallerFile.Contains($"\\{candidate.ScopeId}.", StringComparison.OrdinalIgnoreCase))) ||
                          (scopeForFile.EnclosingTypeName != null && string.Equals(scopeForFile.EnclosingTypeName, candidate.ScopeId, StringComparison.OrdinalIgnoreCase))))
                     {
-                        targetTypeName = candidate.TypeName;
-                        break;
+                        if (isKnownType)
+                        {
+                            targetTypeName = candidate.TypeName;
+                            break;
+                        }
+                        targetTypeName ??= candidate.TypeName;
                     }
                 }
-                targetTypeName ??= candidates[0].TypeName;
+                targetTypeName = (targetTypeName != null && symbols.TypeSymbols.ContainsKey(targetTypeName))
+                    ? targetTypeName
+                    : (firstKnownType ?? targetTypeName ?? candidates[0].TypeName);
             }
             else if (bindings.BindingsLookup.TryGetValue(("", varName), out var emptyFileCandidates))
             {
@@ -121,7 +133,11 @@ public partial class Layer5AnalysisParser
                           (string.Equals(scopeForFile.EnclosingTypeName, candidate.ScopeId, StringComparison.OrdinalIgnoreCase) ||
                            Layer5SymbolVisibilityResolver.DoesTypeInheritFrom(scopeForFile.EnclosingTypeName, candidate.ScopeId, symbols)))))
                     {
-                        targetTypeName = candidate.TypeName;
+                        var isKnownGlobalType = symbols.TypeSymbols.ContainsKey(candidate.TypeName);
+                        if (targetTypeName == null || isKnownGlobalType)
+                        {
+                            targetTypeName = candidate.TypeName;
+                        }
                         if (!string.IsNullOrEmpty(methodName) &&
                             !string.Equals(scopeForFile.EnclosingTypeName, candidate.ScopeId, StringComparison.Ordinal) &&
                             ((!string.IsNullOrEmpty(candidate.FilePath) && symbols.MembersByType.TryGetValue((candidate.FilePath, candidate.ScopeId, varName), out var inhMemberId)) ||
@@ -136,7 +152,10 @@ public partial class Layer5AnalysisParser
                             accessedRel.Column = refItem.Column;
                             referenceRelationships.Add(accessedRel);
                         }
-                        break;
+                        if (isKnownGlobalType)
+                        {
+                            break;
+                        }
                     }
                 }
 

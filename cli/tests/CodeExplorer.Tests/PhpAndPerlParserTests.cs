@@ -562,20 +562,53 @@ public class PhpAndPerlParserTests
                 }
                 """);
 
+            await File.WriteAllTextAsync(Path.Combine(repoA, "custom_classes", "WL_Db_Pos.php"), """
+                <?php
+                class WL_Db_Pos
+                {
+                    public function updatePosition($db, $id)
+                    {
+                        $db->query("UPDATE positions SET state = 'ACTIVE'");
+                    }
+                }
+                """);
+
             await File.WriteAllTextAsync(Path.Combine(repoA, "custom_classes", "OrderController.php"), """
                 <?php
+                require_once 'custom_classes/WL_Db_Pos.php';
                 class OrderController
                 {
+                    private $posDb;
+
+                    public function init()
+                    {
+                        $this->posDb = $this->datasource('dbPos');
+                    }
+
                     public function approveOrderAction($ids)
                     {
                         $this->datasource('orders')->markPaidByIds($this->db, $ids);
+                        $this->posDb->updatePosition($this->db, $ids);
                     }
                 }
+                """);
+
+            Directory.CreateDirectory(Path.Combine(repoA, "workers"));
+            await File.WriteAllTextAsync(Path.Combine(repoA, "workers", "lilith_client.py"), """
+                class LilithClient:
+                    def dispatch_py2(self, cursor):
+                        cursor.execute("INSERT INTO command_dispatcher (cmd) VALUES ('py2')")
                 """);
 
             await File.WriteAllTextAsync(Path.Combine(repoB, "workers", "balance_writer.py"), """
                 def sync_balances(cursor):
                     cursor.execute("INSERT INTO user_balance (user_id, amount) VALUES (1, 100)")
+
+                class LilithClient:
+                    def dispatch_py3(self, cursor):
+                        cursor.execute("INSERT INTO command_dispatcher (cmd) VALUES ('py3')")
+
+                cursor.execute("UPDATE command_dispatcher SET status = 'DONE'")
                 """);
 
             WorkspaceLocator.Initialize(tempDir, "audit-10pts");
@@ -600,9 +633,22 @@ public class PhpAndPerlParserTests
             var qWritesRes = await client.ExecuteCypherAsync("MATCH (q:Query)-[:WRITES_TO]->(t:Table {name: 'user_balance'}) RETURN count(q) AS cnt");
             qWritesRes.Rows[0].GetLongProp("cnt").Should().BeGreaterThanOrEqualTo(2);
 
-            // 3 & 4. Chained factory call ($this->datasource('orders')->markPaidByIds) AND concrete class callers (Orders -m markPaidByIds)
+            // 3 & 4. Chained factory call ($this->datasource('orders')->markPaidByIds), camelCase property factory ($this->datasource('dbPos') -> WL_Db_Pos), AND concrete class callers
             var callersYaml = await repository.ResolveCallTargetAsync("Orders", "markPaidByIds", tempDir, includeTests: false);
             callersYaml.Should().Contain("approveOrderAction");
+
+            var posCallersYaml = await repository.ResolveCallTargetAsync("WL_Db_Pos", "updatePosition", tempDir, includeTests: false);
+            posCallersYaml.Should().Contain("approveOrderAction");
+
+            // 5. Top-level Query writer on command_dispatcher & disambiguated duplicate LilithClient classes in get_task_context
+            var cmdLineageYaml = await repository.InspectDataLineageAsync("command_dispatcher", tempDir);
+            cmdLineageYaml.Should().Contain("dispatch_py2");
+            cmdLineageYaml.Should().Contain("dispatch_py3");
+            cmdLineageYaml.Should().Contain("UPDATE Query");
+
+            var taskCtxYaml = await repository.GetTaskContextAsync("LilithClient command_dispatcher", maxAnchors: 10, includeGates: false, workspacePath: tempDir);
+            taskCtxYaml.Should().Contain("billing-admin/workers/lilith_client.py");
+            taskCtxYaml.Should().Contain("socket-daemon/workers/balance_writer.py");
 
             // 7. Constant self::QUERY_ACCOUNT_LIST resolved on ExternalService
             var extRes = await client.ExecuteCypherAsync("MATCH (es:ExternalService) RETURN es.name AS name");

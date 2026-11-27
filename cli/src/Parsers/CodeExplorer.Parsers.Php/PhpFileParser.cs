@@ -44,6 +44,7 @@ public partial class PhpFileParser : IFileParser
     internal const char SingleQuoteChar = '\'';
     internal const char DoubleQuoteChar = '"';
     internal const string DotString = ".";
+    internal const string WildcardImportStar = "*";
     internal const string DoubleColon = "::";
     internal const string ArrowOp = "->";
     internal const string ControllerSuffix = "Controller";
@@ -70,8 +71,8 @@ public partial class PhpFileParser : IFileParser
         RegexOptions.Compiled | RegexOptions.Multiline);
 
     private static readonly Regex IncludeRequireRegex = new(
-        @"\b(?:require_once|require|include_once|include)\s*\(?\s*(?:__DIR__\s*\.\s*|dirname\s*\(\s*__FILE__\s*\)\s*\.\s*)?['""](?<path>[^'""]+)['""]\s*\)?",
-        RegexOptions.Compiled);
+        @"\b(?:require_once|require|include_once|include)\s*\(?\s*(?:(?:\$[a-zA-Z0-9_]+|[A-Z_][A-Z0-9_]*|__DIR__|dirname\s*\(\s*(?:__FILE__|__DIR__|\$[a-zA-Z0-9_]+)\s*\))\s*\.\s*)*['""](?<path>[^'""]+\.(?:php|phtml|inc|tpl))['""]\s*\)?",
+        RegexOptions.Compiled | RegexOptions.IgnoreCase);
 
     private static readonly Regex ClassDeclRegex = new(
         @"(?<![a-zA-Z0-9_$])\b(?:(?:abstract|final|readonly)\s+)*(?<kind>class|interface|trait)\s+(?<name>[a-zA-Z0-9_]+)(?:\s+extends\s+(?<extends>[a-zA-Z0-9_\\]+))?(?:\s+implements\s+(?<implements>[a-zA-Z0-9_\\,\s]+))?",
@@ -170,9 +171,10 @@ public partial class PhpFileParser : IFileParser
 
         var namespaceName = ExtractNamespaceAndImports(content, commentMasked, relativePath, absoluteWorkspacePath, rawImports, useAliases);
         var classScopes = ParseClassesAndTypes(content, commentMasked, masked, lineOffsets, fileNode, workspaceId, relativePath, namespaceName, useAliases, rawTypeBindings, semanticSymbols);
+        var localConstants = ExtractAndRegisterPhpConstants(commentMasked, classScopes);
         var funSpans = ParseFunctionsAndMethods(content, commentMasked, masked, lineOffsets, classScopes, fileNode, workspaceId, relativePath, useAliases, rawTypeBindings);
 
-        ParseEndpointsAndExternalCalls(content, commentMasked, masked, lineOffsets, classScopes, funSpans, fileNode, workspaceId, relativePath, rawImports);
+        ParseEndpointsAndExternalCalls(content, commentMasked, masked, lineOffsets, classScopes, funSpans, fileNode, workspaceId, relativePath, rawImports, localConstants);
         PhpDatabaseSqlExtractor.ExtractDatabaseAndQueries(content, commentMasked, masked, lineOffsets, classScopes, funSpans, fileNode, workspaceId, relativePath);
 
         var doc = SyntaxDocument.Create(content, LanguageName, filePath, relativePath);
@@ -247,7 +249,11 @@ public partial class PhpFileParser : IFileParser
             var incPath = im.Groups["path"].Value.Trim(QuoteTrimChars).Replace(BackslashChar, SlashChar);
             if (!string.IsNullOrWhiteSpace(incPath))
             {
-                rawImports.Add(new RawImport(incPath, relativePath, ImportType.Internal));
+                rawImports.Add(new RawImport(
+                    incPath,
+                    relativePath,
+                    ImportType.Internal,
+                    [new ImportSpecifier(WildcardImportStar, WildcardImportStar, IsDefault: false, IsNamespace: true)]));
             }
         }
 

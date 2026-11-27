@@ -156,15 +156,24 @@ internal static partial class McpContextPackBuilder
         if (allTypeIds.Count > 0)
         {
             var methodsRes = await client.ExecuteCypherAsync(ExpandTypeMethodsPrefix + BuildIdList(allTypeIds) + ExpandTypeMethodsSuffix, null, ct);
-            foreach (var grp in methodsRes.Rows.GroupBy(r => r.GetStringProp(ColOwnerId), StringComparer.Ordinal))
+            var typeGroups = methodsRes.Rows
+                .Select(r => (Row: r, CleanPath: McpResultFormatter.CleanRelativePath(r.GetStringProp(ColFilePath), workspaceRoot)))
+                .GroupBy(x => (OwnerId: x.Row.GetStringProp(ColOwnerId), OwnerName: x.Row.GetStringProp(ColOwnerName), FilePath: x.CleanPath))
+                .ToList();
+            var ownerNameCounts = typeGroups
+                .GroupBy(g => g.Key.OwnerName, StringComparer.Ordinal)
+                .ToDictionary(g => g.Key, g => g.Count(), StringComparer.Ordinal);
+
+            foreach (var grp in typeGroups)
             {
-                var ownerName = grp.First().GetStringProp(ColOwnerName);
+                var ownerName = grp.Key.OwnerName;
                 if (string.IsNullOrEmpty(ownerName)) continue;
                 serviceTypeNames.Add(ownerName);
-                var firstPath = McpResultFormatter.CleanRelativePath(grp.First().GetStringProp(ColFilePath), workspaceRoot);
+                var firstPath = grp.Key.FilePath;
                 if (!string.IsNullOrEmpty(firstPath)) subgraphFiles.Add(firstPath);
 
                 var methods = grp
+                    .Select(x => x.Row)
                     .Where(m => !string.Equals(m.GetStringProp(ColName), "constructor", StringComparison.OrdinalIgnoreCase))
                     .OrderBy(m => m.GetLongProp(ColStartLine))
                     .Take(MaxMethodsPerType)
@@ -179,7 +188,10 @@ internal static partial class McpContextPackBuilder
                     .Distinct(StringComparer.Ordinal)
                     .ToList();
 
-                outlines.Add(new { serviceOrClass = ownerName, filePath = firstPath, methods });
+                var displayServiceOrClass = ownerNameCounts.GetValueOrDefault(ownerName) > 1 && !string.IsNullOrEmpty(firstPath)
+                    ? $"{ownerName} ({firstPath})"
+                    : ownerName;
+                outlines.Add(new { serviceOrClass = displayServiceOrClass, filePath = firstPath, methods });
             }
         }
 
@@ -214,7 +226,7 @@ internal static partial class McpContextPackBuilder
 
             var targetDisplay = !string.IsNullOrEmpty(calleeOwner) ? $"{calleeOwner}.{callee}" : callee;
             var line = r.GetLongProp(ColStartLine);
-            var loc = !string.IsNullOrEmpty(fp) && line > 0 ? $" ({fp}:{line})" : string.Empty;
+            var loc = !string.IsNullOrEmpty(fp) ? (line > 0 ? $" ({fp}:{line})" : $" ({fp})") : string.Empty;
             var edge = $"{caller} -> {targetDisplay}{loc}";
             if (seen.Add(edge))
             {
@@ -251,7 +263,7 @@ internal static partial class McpContextPackBuilder
 
             var callerDisplay = !string.IsNullOrEmpty(callerOwner) ? $"{callerOwner}.{caller}" : caller;
             var line = r.GetLongProp(ColStartLine);
-            var loc = !string.IsNullOrEmpty(fp) && line > 0 ? $" ({fp}:{line})" : string.Empty;
+            var loc = !string.IsNullOrEmpty(fp) ? (line > 0 ? $" ({fp}:{line})" : $" ({fp})") : string.Empty;
             var entry = $"{callerDisplay} -> {callee}{loc}";
             if (seen.Add(entry))
             {

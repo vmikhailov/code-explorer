@@ -1,6 +1,6 @@
 {
   "name": "code-explorer",
-  "version": "1.107.0",
+  "version": "1.107.1",
   "description": "Deterministic polyglot architecture graph, cross-service API & SQL data lineage, blast-radius impact analysis, and OpenCypher Semantic Invariant Gates.",
   "author": {
     "name": "Slava Mikhailov",

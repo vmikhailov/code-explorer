@@ -5,6 +5,14 @@ All notable changes to the CodeExplorer project (CLI, MCP Server, and VS Code Ex
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.107.1] - 2026-11-27
+
+### Fixed
+- **Unified `Function` + `Query` Data Lineage (`McpLineageFormatter`, `McpContextPackBuilder.LineageAndGates`, `inspect_data_lineage.cypher`)**: Retained top-level and unlinked `Query` readers/writers (falling back to `coalesce(fn.name, q.name)` and `q.file_path:q.line` when no `ACCESSED_BY -> Function` edge exists) and unified `Function` and `Query` table accessors across `inspect_data_lineage` and `get_task_context`.
+- **Path-Disambiguated Duplicate Class Names in `get_task_context` (`McpContextPackBuilder`)**: Grouped table ownership candidates and `serviceMethods` outlines by `(Owner, FilePath)` instead of bare class short name (appending `(filePath)` when duplicate class names exist across repositories or Python 2/3 copies) and preserved file paths on outbound side effects and inbound callers when line numbers are `0`.
+- **Manifestless Leaf `.git` Repository Boundary Fallback (`Layer1PhysicalAnalyzer`, `Layer2BoundariesAnalyzer`)**: Ensured every leaf `.git` repository root containing source files is promoted to its own `Project` boundary by dominant subtree language even when no manifest or single-language heuristic matches directly.
+- **PHP `camelCase` String-Keyed Factory & Cross-Repo `include_path` Resolution (`PhpFileParser`, `Layer3SyntacticAnalyzer`, `Layer5GlobalAnalyzer`)**: Executed PHP constant and factory map extraction before method call resolution, expanded `camelCase` factory keys (`$this->datasource('dbPos')` -> `WL_Db_Pos`, `Db_Pos`, `DbPos`, `Pos`) with class-property and inheritance bindings prioritizing known workspace `TypeSymbols`, and added suffix-based `include_path` (`require_once` / `include`) file and symbol resolution across Layer 3 and Layer 5.
+
 ## [1.107.0] - 2026-11-27
 
 ### Added
