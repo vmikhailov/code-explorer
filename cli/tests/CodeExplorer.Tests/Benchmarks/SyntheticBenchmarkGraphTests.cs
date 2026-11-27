@@ -20,9 +20,9 @@ public class SyntheticBenchmarkGraphTests
         _client = new SqliteGraphClient(_dbPath);
         _repo = new CodeExplorerRepository(_client);
 
-        TestContext.WriteLine("Generating synthetic 100k-node benchmark graph...");
+        TestContext.Out.WriteLine("Generating synthetic 100k-node benchmark graph...");
         _stats = await SyntheticBenchmarkGraphGenerator.GenerateAsync(_client);
-        TestContext.WriteLine($"Generated {_stats.TotalNodes:N0} nodes and {_stats.TotalRelationships:N0} relationships in {_stats.GenerationDurationMs}ms.");
+        TestContext.Out.WriteLine($"Generated {_stats.TotalNodes:N0} nodes and {_stats.TotalRelationships:N0} relationships in {_stats.GenerationDurationMs}ms.");
     }
 
     [OneTimeTearDown]
@@ -49,7 +49,7 @@ public class SyntheticBenchmarkGraphTests
     [Test]
     public async Task Test_02_FindSymbol_MeetsSla_Under25ms()
     {
-        int slaMs = 25 * CiMultiplier;
+        var slaMs = 25 * CiMultiplier;
 
         // Warmup
         var warmup = await _repo.FindSymbolAsync(SyntheticBenchmarkGraphGenerator.WellKnownSearchSymbol);
@@ -58,7 +58,7 @@ public class SyntheticBenchmarkGraphTests
         // Measured runs
         const int iterations = 5;
         var times = new List<long>();
-        for (int i = 0; i < iterations; i++)
+        for (var i = 0; i < iterations; i++)
         {
             var sw = Stopwatch.StartNew();
             var result = await _repo.FindSymbolAsync(SyntheticBenchmarkGraphGenerator.WellKnownSearchSymbol);
@@ -69,7 +69,7 @@ public class SyntheticBenchmarkGraphTests
 
         var avgMs = times.Average();
         var minMs = times.Min();
-        TestContext.WriteLine($"find_symbol SLA check: min={minMs}ms, avg={avgMs:F2}ms (SLA < {slaMs}ms)");
+        TestContext.Out.WriteLine($"find_symbol SLA check: min={minMs}ms, avg={avgMs:F2}ms (SLA < {slaMs}ms)");
 
         minMs.Should().BeLessThan(slaMs, $"find_symbol minimum execution time ({minMs}ms) exceeded SLA of {slaMs}ms");
     }
@@ -77,7 +77,7 @@ public class SyntheticBenchmarkGraphTests
     [Test]
     public async Task Test_03_GetCallChain_MeetsSla_Under100ms()
     {
-        int slaMs = 100 * CiMultiplier;
+        var slaMs = 100 * CiMultiplier;
 
         // Warmup
         var warmup = await _repo.GetCallChainAsync(
@@ -90,7 +90,7 @@ public class SyntheticBenchmarkGraphTests
         // Measured runs
         const int iterations = 5;
         var times = new List<long>();
-        for (int i = 0; i < iterations; i++)
+        for (var i = 0; i < iterations; i++)
         {
             var sw = Stopwatch.StartNew();
             var result = await _repo.GetCallChainAsync(
@@ -105,7 +105,7 @@ public class SyntheticBenchmarkGraphTests
 
         var avgMs = times.Average();
         var minMs = times.Min();
-        TestContext.WriteLine($"get_call_chain SLA check: min={minMs}ms, avg={avgMs:F2}ms (SLA < {slaMs}ms)");
+        TestContext.Out.WriteLine($"get_call_chain SLA check: min={minMs}ms, avg={avgMs:F2}ms (SLA < {slaMs}ms)");
 
         minMs.Should().BeLessThan(slaMs, $"get_call_chain minimum execution time ({minMs}ms) exceeded SLA of {slaMs}ms");
     }
@@ -113,7 +113,7 @@ public class SyntheticBenchmarkGraphTests
     [Test]
     public async Task Test_04_InspectDataLineage_MeetsSla_Under50ms()
     {
-        int slaMs = 50 * CiMultiplier;
+        var slaMs = 50 * CiMultiplier;
 
         // Warmup
         var warmup = await _repo.InspectDataLineageAsync(SyntheticBenchmarkGraphGenerator.WellKnownTable);
@@ -124,7 +124,7 @@ public class SyntheticBenchmarkGraphTests
         // Measured runs
         const int iterations = 5;
         var times = new List<long>();
-        for (int i = 0; i < iterations; i++)
+        for (var i = 0; i < iterations; i++)
         {
             var sw = Stopwatch.StartNew();
             var result = await _repo.InspectDataLineageAsync(SyntheticBenchmarkGraphGenerator.WellKnownTable);
@@ -137,7 +137,7 @@ public class SyntheticBenchmarkGraphTests
 
         var avgMs = times.Average();
         var minMs = times.Min();
-        TestContext.WriteLine($"inspect_data_lineage SLA check: min={minMs}ms, avg={avgMs:F2}ms (SLA < {slaMs}ms)");
+        TestContext.Out.WriteLine($"inspect_data_lineage SLA check: min={minMs}ms, avg={avgMs:F2}ms (SLA < {slaMs}ms)");
 
         minMs.Should().BeLessThan(slaMs, $"inspect_data_lineage minimum execution time ({minMs}ms) exceeded SLA of {slaMs}ms");
     }

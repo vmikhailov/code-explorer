@@ -39,48 +39,48 @@ public static class Queries
         });
     }
 
-    public record BuiltInQueryInfo(string Name, string Description, CodeExplorer.Cypher.Common.BuiltInQueryCategory Category)
+    public record BuiltInQueryInfo(string Name, string Description, BuiltInQueryCategory Category)
     {
         public BuiltInQueryInfo(string Name, string Description, string Category)
-            : this(Name, Description, CodeExplorer.Cypher.Common.TaxonomyViewEnumExtensions.ParseBuiltInQueryCategory(Category))
+            : this(Name, Description, TaxonomyViewEnumExtensions.ParseBuiltInQueryCategory(Category))
         {
         }
     }
 
-    private static readonly Dictionary<string, (string Description, CodeExplorer.Cypher.Common.BuiltInQueryCategory Category)> KnownMetadata = new(StringComparer.OrdinalIgnoreCase)
+    private static readonly Dictionary<string, (string Description, BuiltInQueryCategory Category)> KnownMetadata = new(StringComparer.OrdinalIgnoreCase)
     {
-        ["get_architecture_overview"] = ("High-level architectural overview with projects grouped by layers/roles and key statistics", CodeExplorer.Cypher.Common.BuiltInQueryCategory.Architecture),
-        ["get_architecture_map_workspace"] = ("Hierarchical workspace architecture map (projects, languages, dependencies, ingress, egress)", CodeExplorer.Cypher.Common.BuiltInQueryCategory.Architecture),
-        ["get_architecture_map_project"] = ("Project-level architecture map including dependencies and endpoints", CodeExplorer.Cypher.Common.BuiltInQueryCategory.Architecture),
-        ["get_project_entry_points"] = ("Find API endpoints, CLI commands, and project entry points", CodeExplorer.Cypher.Common.BuiltInQueryCategory.Architecture),
-        ["get_project_dependencies_all"] = ("List all project-to-project dependency links", CodeExplorer.Cypher.Common.BuiltInQueryCategory.Architecture),
-        ["get_project_dependencies_filtered"] = ("Project dependencies filtered by source/target project", CodeExplorer.Cypher.Common.BuiltInQueryCategory.Architecture),
-        ["get_workspace_content"] = ("Structural breakdown of projects, folders, and files in workspace", CodeExplorer.Cypher.Common.BuiltInQueryCategory.Architecture),
+        ["get_architecture_overview"] = ("High-level architectural overview with projects grouped by layers/roles and key statistics", BuiltInQueryCategory.Architecture),
+        ["get_architecture_map_workspace"] = ("Hierarchical workspace architecture map (projects, languages, dependencies, ingress, egress)", BuiltInQueryCategory.Architecture),
+        ["get_architecture_map_project"] = ("Project-level architecture map including dependencies and endpoints", BuiltInQueryCategory.Architecture),
+        ["get_project_entry_points"] = ("Find API endpoints, CLI commands, and project entry points", BuiltInQueryCategory.Architecture),
+        ["get_project_dependencies_all"] = ("List all project-to-project dependency links", BuiltInQueryCategory.Architecture),
+        ["get_project_dependencies_filtered"] = ("Project dependencies filtered by source/target project", BuiltInQueryCategory.Architecture),
+        ["get_workspace_content"] = ("Structural breakdown of projects, folders, and files in workspace", BuiltInQueryCategory.Architecture),
 
-        ["trace_cqrs_pipeline"] = ("Trace CQRS command/query handlers, event producers, message topics, and consumer subscribers", CodeExplorer.Cypher.Common.BuiltInQueryCategory.Architecture),
-        ["trace_ingress_to_egress"] = ("Trace gateway ingress entry points through internal call paths to downstream egress microservices and APIs", CodeExplorer.Cypher.Common.BuiltInQueryCategory.Architecture),
+        ["trace_cqrs_pipeline"] = ("Trace CQRS command/query handlers, event producers, message topics, and consumer subscribers", BuiltInQueryCategory.Architecture),
+        ["trace_ingress_to_egress"] = ("Trace gateway ingress entry points through internal call paths to downstream egress microservices and APIs", BuiltInQueryCategory.Architecture),
 
-        ["find_refactor_dead_code"] = ("Detect unreferenced/dead functions, classes, and types", CodeExplorer.Cypher.Common.BuiltInQueryCategory.Refactoring),
-        ["find_refactor_god_objects"] = ("Detect classes with excessive coupling and complexity", CodeExplorer.Cypher.Common.BuiltInQueryCategory.Refactoring),
-        ["find_refactor_god_functions"] = ("Detect oversized production functions, hooks, components, and route handlers", CodeExplorer.Cypher.Common.BuiltInQueryCategory.Refactoring),
-        ["find_refactor_empty_catches"] = ("Detect empty production catch blocks that silently swallow errors", CodeExplorer.Cypher.Common.BuiltInQueryCategory.Refactoring),
-        ["find_module_copy_drift"] = ("Compare duplicate or forked module files across folders/projects by content hash and line-count drift", CodeExplorer.Cypher.Common.BuiltInQueryCategory.Refactoring),
-        ["analyze_code_impact"] = ("Analyze downstream blast radius / impact of changing a symbol or file", CodeExplorer.Cypher.Common.BuiltInQueryCategory.Refactoring),
-        ["get_callers"] = ("Find all callers, inbound service consumers, callers of functions, and table/topic accessors", CodeExplorer.Cypher.Common.BuiltInQueryCategory.Architecture),
-        ["get_affected_tests"] = ("Find test cases affected by a changed file or symbol via static call graph traversal", CodeExplorer.Cypher.Common.BuiltInQueryCategory.Testing),
-        ["get_test_coverage"] = ("Analyze static reachability test coverage: list covered and uncovered classes & methods", CodeExplorer.Cypher.Common.BuiltInQueryCategory.Testing),
-        ["inspect_data_lineage"] = ("Trace database entities, SQL queries, and data lineage", CodeExplorer.Cypher.Common.BuiltInQueryCategory.Refactoring),
+        ["find_refactor_dead_code"] = ("Detect unreferenced/dead functions, classes, and types", BuiltInQueryCategory.Refactoring),
+        ["find_refactor_god_objects"] = ("Detect classes with excessive coupling and complexity", BuiltInQueryCategory.Refactoring),
+        ["find_refactor_god_functions"] = ("Detect oversized production functions, hooks, components, and route handlers", BuiltInQueryCategory.Refactoring),
+        ["find_refactor_empty_catches"] = ("Detect empty production catch blocks that silently swallow errors", BuiltInQueryCategory.Refactoring),
+        ["find_module_copy_drift"] = ("Compare duplicate or forked module files across folders/projects by content hash and line-count drift", BuiltInQueryCategory.Refactoring),
+        ["analyze_code_impact"] = ("Analyze downstream blast radius / impact of changing a symbol or file", BuiltInQueryCategory.Refactoring),
+        ["get_callers"] = ("Find all callers, inbound service consumers, callers of functions, and table/topic accessors", BuiltInQueryCategory.Architecture),
+        ["get_affected_tests"] = ("Find test cases affected by a changed file or symbol via static call graph traversal", BuiltInQueryCategory.Testing),
+        ["get_test_coverage"] = ("Analyze static reachability test coverage: list covered and uncovered classes & methods", BuiltInQueryCategory.Testing),
+        ["inspect_data_lineage"] = ("Trace database entities, SQL queries, and data lineage", BuiltInQueryCategory.Refactoring),
 
-        ["find_symbol_all"] = ("Search for symbols across all kinds (Class, Interface, Function, Struct)", CodeExplorer.Cypher.Common.BuiltInQueryCategory.Symbols),
-        ["find_symbol_class"] = ("Search for classes by name or pattern", CodeExplorer.Cypher.Common.BuiltInQueryCategory.Symbols),
-        ["find_symbol_interface"] = ("Search for interfaces by name or pattern", CodeExplorer.Cypher.Common.BuiltInQueryCategory.Symbols),
-        ["find_symbol_function"] = ("Search for functions and methods by name or pattern", CodeExplorer.Cypher.Common.BuiltInQueryCategory.Symbols),
-        ["get_file_outline"] = ("File outline: types, functions, and symbols declared in file", CodeExplorer.Cypher.Common.BuiltInQueryCategory.Symbols),
-        ["get_call_chain"] = ("Trace caller/callee function invocation chains", CodeExplorer.Cypher.Common.BuiltInQueryCategory.Symbols),
-        ["resolve_call_target"] = ("Find implementation target and definitions for a method call", CodeExplorer.Cypher.Common.BuiltInQueryCategory.Symbols),
+        ["find_symbol_all"] = ("Search for symbols across all kinds (Class, Interface, Function, Struct)", BuiltInQueryCategory.Symbols),
+        ["find_symbol_class"] = ("Search for classes by name or pattern", BuiltInQueryCategory.Symbols),
+        ["find_symbol_interface"] = ("Search for interfaces by name or pattern", BuiltInQueryCategory.Symbols),
+        ["find_symbol_function"] = ("Search for functions and methods by name or pattern", BuiltInQueryCategory.Symbols),
+        ["get_file_outline"] = ("File outline: types, functions, and symbols declared in file", BuiltInQueryCategory.Symbols),
+        ["get_call_chain"] = ("Trace caller/callee function invocation chains", BuiltInQueryCategory.Symbols),
+        ["resolve_call_target"] = ("Find implementation target and definitions for a method call", BuiltInQueryCategory.Symbols),
 
-        ["get_taxonomy_nodes"] = ("Counts and distinct labels of all graph nodes", CodeExplorer.Cypher.Common.BuiltInQueryCategory.Taxonomy),
-        ["get_taxonomy_properties"] = ("Property keys and schemas for graph node kinds", CodeExplorer.Cypher.Common.BuiltInQueryCategory.Taxonomy),
+        ["get_taxonomy_nodes"] = ("Counts and distinct labels of all graph nodes", BuiltInQueryCategory.Taxonomy),
+        ["get_taxonomy_properties"] = ("Property keys and schemas for graph node kinds", BuiltInQueryCategory.Taxonomy),
     };
 
     public static bool Exists(string name)
@@ -114,7 +114,7 @@ public static class Queries
             }
             else
             {
-                list.Add(new BuiltInQueryInfo(n, $"Built-in Cypher query: {n}", CodeExplorer.Cypher.Common.BuiltInQueryCategory.General));
+                list.Add(new BuiltInQueryInfo(n, $"Built-in Cypher query: {n}", BuiltInQueryCategory.General));
             }
         }
         return list;

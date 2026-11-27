@@ -42,6 +42,7 @@ import { computeDomainIslandsLayout, IslandGuide } from '../layout/domainIslands
 import { computeHivePlotLayout, HiveAxisGuide } from '../layout/hivePlotLayout';
 import { DomainMatrixView } from './DomainMatrixView';
 import { DomainMermaidView } from '../domain/components/DomainMermaidView';
+import { UniversalGraph3DCanvas } from './UniversalGraph3DCanvas';
 import { DomainOverrideModal } from './DomainOverrideModal';
 import { attachNormalizedCytoscapeWheel } from '../utils/wheelZoom';
 import { DomainInspector } from '../domain/components/DomainInspector';
@@ -111,7 +112,8 @@ export type DomainLayoutName =
   | 'matrix'
   | 'cose'
   | 'dagre'
-  | 'mermaid';
+  | 'mermaid'
+  | 'orbital-3d';
 
 export type EdgeCurveMode = 'bezier' | 'straight' | 'avoid-inner';
 
@@ -1140,6 +1142,7 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
   customOrbitTitlesRef.current = customOrbitTitles;
 
   const [concentricGuides, setConcentricGuides] = useState<ConcentricOrbitGuide[]>([]);
+  const [concentricPositions, setConcentricPositions] = useState<Map<string, { x: number; y: number }>>(new Map());
   const [orbitLegendItems, setOrbitLegendItems] = useState<OrbitLegendItem[]>([]);
   const [isOrbitLegendOpen, setIsOrbitLegendOpen] = useState(true);
   const [orbitConfig, setOrbitConfigState] = useState<OrbitConfig>(() => DEFAULT_ORBIT_CONFIG);
@@ -3819,7 +3822,8 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
         layoutName === 'concentric-equispaced' ||
         layoutName === 'concentric-barycentric' ||
         layoutName === 'concentric-polar-force' ||
-        layoutName === 'concentric-sectors'
+        layoutName === 'concentric-sectors' ||
+        layoutName === 'orbital-3d'
       ) {
         setSwimlaneGuides([]);
         setIslandGuides([]);
@@ -3876,7 +3880,7 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
           baseSectorGuidesRef.current = [];
           if (layoutName === 'concentric-equispaced') {
             layoutResult = computeConcentricEquispacedLayout(visibleNodesInput, visibleEdgesInput, spacing, effectiveOrder, orbitDistanceRef.current, minOrbitNodeDistanceRef.current, customOrbitTitlesRef.current);
-          } else if (layoutName === 'concentric-barycentric') {
+          } else if (layoutName === 'concentric-barycentric' || layoutName === 'orbital-3d') {
             layoutResult = computeConcentricBarycentricLayout(visibleNodesInput, visibleEdgesInput, spacing, effectiveOrder, orbitDistanceRef.current, minOrbitNodeDistanceRef.current, customOrbitTitlesRef.current);
           } else if (layoutName === 'concentric-polar-force') {
             layoutResult = computeConcentricPolarForceLayout(visibleNodesInput, visibleEdgesInput, spacing, effectiveOrder, orbitDistanceRef.current, minOrbitNodeDistanceRef.current, customOrbitTitlesRef.current);
@@ -3900,6 +3904,7 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
         }));
         relabelMergedOrbits(layoutResult, orbitCfg, customOrbitTitlesRef.current);
         setConcentricGuides(layoutResult.guides);
+        setConcentricPositions(new Map(layoutResult.positions));
         setOrbitLegendItems(
           buildAllOrbitLegendItems(
             rawGraph.allNodes,
@@ -4527,6 +4532,7 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
     { id: 'concentric-barycentric', label: '🪐 Concentric: Barycentric' },
     { id: 'concentric-polar-force', label: '🪐 Concentric: Polar Force' },
     { id: 'concentric-sectors', label: '🪐 Concentric: Domain Sectors' },
+    { id: 'orbital-3d', label: '🪐 3D Orbital Constellation' },
     { id: 'swimlanes', label: '🏊 Swimlanes (Pipeline)' },
     { id: 'clusters', label: '🏝️ Domain Islands (Bounded Contexts)' },
     { id: 'hive', label: '🕸️ Hive Plot (Multi-Axis)' },
@@ -5590,6 +5596,88 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
               }}
               title={hudTitle || 'Architecture Mermaid Flowchart'}
             />
+          ) : layoutName === 'orbital-3d' ? (
+            <UniversalGraph3DCanvas
+              nodes={visibleNodes.map((n) => {
+                const id = n.data.id as string;
+                const pos = concentricPositions.get(id) ?? { x: 0, y: 0 };
+                return {
+                  id,
+                  name: String((n.data as any).name || id),
+                  displayLabel: String((n.data as any).displayLabel || (n.data as any).displayName || (n.data as any).name || id),
+                  kind: String((n.data as any).kind || 'Service'),
+                  echelonTier: Number((n.data as any).echelonTier ?? 2),
+                  size: Number((n.data as any).size ?? baseIconSize),
+                  bgColor: String((n.data as any).bgColor || '#38bdf8'),
+                  borderColor: String((n.data as any).borderColor || '#38bdf8'),
+                  x2d: pos.x,
+                  y2d: pos.y,
+                };
+              })}
+              edges={visibleEdges.map((e) => ({
+                id: String((e.data as any).id),
+                source: String((e.data as any).source),
+                target: String((e.data as any).target),
+                category: String((e.data as any).category || 'service_call'),
+                label: String((e.data as any).label || 'CALLS'),
+                count: Number((e.data as any).count ?? 1),
+              }))}
+              orbits={concentricGuides
+                .filter((g) => !hiddenOrbitTiers.has(g.levelIndex))
+                .map((g) => ({
+                  levelIndex: g.levelIndex,
+                  radius: g.radius,
+                  shortLabel: g.shortLabel || (g.label.includes(':') ? g.label.split(':')[0] : g.label),
+                  title: g.title,
+                  color: '#38bdf8',
+                }))}
+              selectedNodeId={selectedNode?.id ?? null}
+              multiSelectedNodeIds={multiSelectedNodeIds}
+              searchMatchNodeIds={null}
+              fontSize={fontSize}
+              onSelectNode={(nid, isMultiKey) => {
+                setContextMenu(null);
+                if (isMultiKey && nid && !nid.startsWith('group:')) {
+                  toggleMultiSelectedNode(nid);
+                  return;
+                }
+                if (multiSelectedNodeIdsRef.current.size > 0) {
+                  clearMultiSelection();
+                }
+                const detail = nid
+                  ? effectiveDetailMapRef.current.get(nid) ?? rawGraph.detailMap.get(nid) ?? null
+                  : null;
+                setSelectedNode(detail);
+                setSelectedEdge(null);
+              }}
+              onContextMenuNode={(x, y, nodeId) => {
+                const detail = effectiveDetailMapRef.current.get(nodeId) ?? rawGraph.detailMap.get(nodeId);
+                if (!detail) return;
+                setContextMenu({
+                  x,
+                  y,
+                  nodeId: detail.id,
+                  nodeName: detail.displayName || detail.name,
+                  nodeKind: detail.kind,
+                });
+              }}
+              onDoubleClickNode={(nid) => {
+                setContextMenu(null);
+                if (nid.startsWith('group:custom:')) {
+                  toggleCustomGroupCollapse(nid.replace('group:custom:', ''));
+                  return;
+                }
+                if (nid.startsWith('group:kind:')) {
+                  toggleTypeGrouping(nid.replace('group:kind:', '') as EntityKind);
+                  return;
+                }
+                const detail = rawGraph.detailMap.get(nid);
+                if (detail?.primaryFilePath) {
+                  onOpenFile?.(detail.primaryFilePath, detail.primaryLineStart);
+                }
+              }}
+              detailMap={effectiveDetailMapRef.current}
+            />
           ) : (
             <>
           {/* SVG Overlay Guides for Concentric, Swimlanes, Domain Islands, and Hive Plot */}
@@ -5970,7 +6058,7 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
           <div
             ref={containerRef}
             className="domain-cytoscape-container"
-            style={{ display: layoutName === 'mermaid' ? 'none' : 'block' }}
+            style={{ display: layoutName === 'mermaid' || layoutName === 'orbital-3d' ? 'none' : 'block' }}
           />
         </>
       )}

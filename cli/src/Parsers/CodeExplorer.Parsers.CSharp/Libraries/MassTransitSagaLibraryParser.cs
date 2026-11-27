@@ -26,7 +26,7 @@ public class MassTransitSagaLibraryParser : DeclarativeSemanticExtension
         ];
     }
 
-    private static void CollectReferencesCore(Node node, string scopeSymbolId, List<Reference> references, ParsingContext ctx)
+    private static void CollectReferencesCore(Node node, string scopeSymbolId, List<Reference> references, SemanticParseContext ctx)
     {
         if (IsSagaStateMachineClass(node, out var stateType))
         {

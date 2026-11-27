@@ -1,4 +1,3 @@
-using CodeExplorer.Core.Common.Nodes.Layer2_Boundaries;
 using CodeExplorer.Core.Common.Nodes.Layer4_Semantic;
 using CodeExplorer.Core.Common.Relationships;
 
@@ -13,7 +12,7 @@ public partial class Layer5AnalysisParser
         Relationship.CreateWithCallSite(
             refItem.ScopeSymbolId,
             targetId,
-            CodeExplorer.Cypher.Common.RelationshipKind.Calls,
+            RelationshipKind.Calls,
             refItem.Line,
             refItem.Column,
             refItem.Context,
@@ -21,7 +20,7 @@ public partial class Layer5AnalysisParser
 
     private static void ResolveCallsReference(
         Reference refItem,
-        ParsingContext ctx,
+        Layer5Context ctx,
         SymbolLookups symbols,
         BindingLookups bindings,
         ImportLookups imports,
@@ -85,7 +84,7 @@ public partial class Layer5AnalysisParser
             if (normCallerFile != null &&
                 bindings.BindingsLookup.TryGetValue((normCallerFile, varName), out var candidates))
             {
-                for (int i = 0; i < candidates.Count; i++)
+                for (var i = 0; i < candidates.Count; i++)
                 {
                     var candidate = candidates[i];
                     if (!string.IsNullOrEmpty(candidate.ScopeMarker) && !string.IsNullOrEmpty(candidate.ScopeId) &&
@@ -287,7 +286,7 @@ public partial class Layer5AnalysisParser
                 referenceRelationships.Add(Relationship.CreateWithCallSite(
                     refItem.ScopeSymbolId,
                     targetProcId,
-                    CodeExplorer.Cypher.Common.RelationshipKind.Calls,
+                    RelationshipKind.Calls,
                     refItem.Line,
                     refItem.Column,
                     refItem.Context,
@@ -296,7 +295,7 @@ public partial class Layer5AnalysisParser
             referenceRelationships.Add(Relationship.CreateWithCallSite(
                 targetProcId,
                 refItem.ScopeSymbolId,
-                CodeExplorer.Cypher.Common.RelationshipKind.CalledBy,
+                RelationshipKind.CalledBy,
                 refItem.Line,
                 refItem.Column,
                 refItem.Context,
@@ -462,7 +461,7 @@ public partial class Layer5AnalysisParser
         bool hasExplicitReceiver,
         string? receiverTypeName,
         SymbolLookups symbols,
-        ParsingContext ctx)
+        Layer5Context ctx)
     {
         var callerScope = Layer5SymbolVisibilityResolver.GetOrInferSymbolScope(callerSymbolId, callerFile, ctx);
         var callerProj = !string.IsNullOrEmpty(callerScope.ProjectName)
@@ -494,7 +493,7 @@ public partial class Layer5AnalysisParser
         string targetName,
         SymbolLookups symbols,
         ImportLookups imports,
-        ParsingContext ctx)
+        Layer5Context ctx)
     {
         var normCaller = callerFile.Replace('\\', '/');
 
@@ -566,7 +565,7 @@ public partial class Layer5AnalysisParser
         string exportedName,
         SymbolLookups symbols,
         ImportLookups imports,
-        ParsingContext ctx,
+        Layer5Context ctx,
         int depth = 0)
     {
         if (depth > 4 || string.IsNullOrEmpty(exportedName))
@@ -595,7 +594,7 @@ public partial class Layer5AnalysisParser
         string exportedName,
         SymbolLookups symbols,
         ImportLookups imports,
-        ParsingContext ctx,
+        Layer5Context ctx,
         int depth)
     {
 
@@ -653,7 +652,7 @@ public partial class Layer5AnalysisParser
         return null;
     }
 
-    internal static List<TopicNode> ResolveMessagingReferenceForTest(Reference refItem, ParsingContext ctx)
+    internal static List<TopicNode> ResolveMessagingReferenceForTest(Reference refItem, Layer5Context ctx)
     {
         var topics = new List<TopicNode>();
         var symbols = new SymbolLookups([], [], [], [], [], [], [], [], [], []);
@@ -664,7 +663,7 @@ public partial class Layer5AnalysisParser
 
     private static void ResolveMessagingReference(
         Reference refItem,
-        ParsingContext ctx,
+        Layer5Context ctx,
         SymbolLookups symbols,
         BindingLookups bindings,
         List<TopicNode> newTopicNodes,
@@ -888,7 +887,7 @@ public partial class Layer5AnalysisParser
 
 internal static partial class Layer5SymbolVisibilityResolver
 {
-    internal static string? NormalizeWorkspaceRelativeFilePath(string? filePath, ParsingContext ctx)
+    internal static string? NormalizeWorkspaceRelativeFilePath(string? filePath, Layer5Context ctx)
     {
         if (string.IsNullOrEmpty(filePath)) return null;
         var norm = filePath.Replace('\\', '/');
@@ -903,7 +902,7 @@ internal static partial class Layer5SymbolVisibilityResolver
         return norm;
     }
 
-    internal static SymbolScopeInfo GetOrInferSymbolScope(string symbolId, string? fallbackFilePath, ParsingContext ctx)
+    internal static SymbolScopeInfo GetOrInferSymbolScope(string symbolId, string? fallbackFilePath, Layer5Context ctx)
     {
         if (ctx.SymbolScopes.TryGetValue(symbolId, out var scope))
         {
@@ -1008,7 +1007,7 @@ internal static partial class Layer5SymbolVisibilityResolver
         in SymbolScopeInfo callerScope,
         in SymbolScopeInfo targetScope,
         Layer5AnalysisParser.SymbolLookups symbols,
-        ParsingContext? ctx = null)
+        Layer5Context? ctx = null)
     {
         if (IsSameProjectScope(callerScope, targetScope))
         {
@@ -1070,7 +1069,7 @@ internal static partial class Layer5SymbolVisibilityResolver
         in SymbolScopeInfo callerScope,
         string implementorSymbolId,
         Layer5AnalysisParser.SymbolLookups symbols,
-        ParsingContext ctx)
+        Layer5Context ctx)
     {
         var implScope = GetOrInferSymbolScope(implementorSymbolId, null, ctx);
         if (!callerScope.IsTest && implScope.IsTest)
@@ -1113,7 +1112,7 @@ internal static partial class Layer5SymbolVisibilityResolver
         bool hasExplicitReceiver,
         string? receiverTypeName,
         Layer5AnalysisParser.SymbolLookups symbols,
-        ParsingContext ctx)
+        Layer5Context ctx)
     {
         var callerScope = GetOrInferSymbolScope(callerSymbolId, normCallerFile, ctx);
         var targetScope = GetOrInferSymbolScope(targetSymbolId, null, ctx);
@@ -1188,7 +1187,7 @@ internal static partial class Layer5SymbolVisibilityResolver
         bool hasExplicitReceiver,
         string? receiverTypeName,
         Layer5AnalysisParser.SymbolLookups symbols,
-        ParsingContext ctx)
+        Layer5Context ctx)
     {
         if (candidates.Count == 0) return null;
 
@@ -1370,7 +1369,7 @@ internal static partial class Layer5SymbolVisibilityResolver
         return false;
     }
 
-    private static void DeduplicateSameFileOverloads(List<string> visible, string callerSymbolId, ParsingContext ctx)
+    private static void DeduplicateSameFileOverloads(List<string> visible, string callerSymbolId, Layer5Context ctx)
     {
         if (visible.Count > 1 && callerSymbolId.Contains(":Type:", StringComparison.Ordinal))
         {
@@ -1412,7 +1411,7 @@ internal static partial class Layer5SymbolVisibilityResolver
         Dictionary<string, string> typeSymbols,
         Dictionary<(string FilePath, string FuncName), string> functionSymbolsByFile,
         Dictionary<string, List<(string FuncName, string FuncId)>> functionsInFile,
-        ParsingContext ctx)
+        Layer5Context ctx)
     {
         foreach (var (typeName, tList) in typesByName)
         {

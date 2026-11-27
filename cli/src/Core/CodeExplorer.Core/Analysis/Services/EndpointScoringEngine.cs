@@ -1,6 +1,5 @@
 using System.Text.RegularExpressions;
 using CodeExplorer.Core.Parser.Canonical;
-using CodeExplorer.Cypher.Common;
 
 namespace CodeExplorer.Core.Analysis;
 
@@ -114,7 +113,7 @@ public static partial class EndpointScoringEngine
         var effectiveRoute = !string.IsNullOrEmpty(route) ? route : pathFromHost;
 
         ProjectMatchCandidate? bestProject = null;
-        double bestProjScore = 0.0;
+        var bestProjScore = 0.0;
 
         if (projects != null && !string.IsNullOrWhiteSpace(cleanHost) && !GenericHostPlaceholders.Contains(cleanHost))
         {
@@ -130,7 +129,7 @@ public static partial class EndpointScoringEngine
         }
 
         EndpointMatchCandidate? bestEndpoint = null;
-        double bestEpScore = 0.0;
+        var bestEpScore = 0.0;
 
         if (endpoints != null && !string.IsNullOrWhiteSpace(effectiveRoute))
         {
@@ -244,7 +243,7 @@ public static partial class EndpointScoringEngine
             }
         }
 
-        double maxScore = 0.0;
+        var maxScore = 0.0;
 
         foreach (var cand in candidates)
         {
@@ -276,7 +275,7 @@ public static partial class EndpointScoringEngine
                 var hostTokens = primaryHostToken.Split(['-', '_', '.'], StringSplitOptions.RemoveEmptyEntries);
                 var candTokens = cand.ToLowerInvariant().Split(['-', '_', '.', '/', '\\'], StringSplitOptions.RemoveEmptyEntries);
 
-                bool hasTokenMatch = false;
+                var hasTokenMatch = false;
                 if (normHost.Length <= normCand.Length)
                 {
                     // normHost is inside cand: cand should contain normHost or cand tokens should equal host tokens
@@ -361,11 +360,11 @@ public static partial class EndpointScoringEngine
 
         if (callSegs.Count == 0 || epSegs.Count == 0) return 0.0;
 
-        int matchCount = 0;
-        double typeBonus = 0.0;
-        int minLen = Math.Min(callSegs.Count, epSegs.Count);
+        var matchCount = 0;
+        var typeBonus = 0.0;
+        var minLen = Math.Min(callSegs.Count, epSegs.Count);
 
-        for (int i = 0; i < minLen; i++)
+        for (var i = 0; i < minLen; i++)
         {
             var cSeg = callSegs[i];
             var eSeg = epSegs[i];
@@ -491,18 +490,18 @@ public static partial class EndpointScoringEngine
         if (string.IsNullOrEmpty(s)) return t?.Length ?? 0;
         if (string.IsNullOrEmpty(t)) return s.Length;
 
-        int n = s.Length;
-        int m = t.Length;
+        var n = s.Length;
+        var m = t.Length;
         var d = new int[n + 1, m + 1];
 
-        for (int i = 0; i <= n; i++) d[i, 0] = i;
-        for (int j = 0; j <= m; j++) d[0, j] = j;
+        for (var i = 0; i <= n; i++) d[i, 0] = i;
+        for (var j = 0; j <= m; j++) d[0, j] = j;
 
-        for (int i = 1; i <= n; i++)
+        for (var i = 1; i <= n; i++)
         {
-            for (int j = 1; j <= m; j++)
+            for (var j = 1; j <= m; j++)
             {
-                int cost = (t[j - 1] == s[i - 1]) ? 0 : 1;
+                var cost = (t[j - 1] == s[i - 1]) ? 0 : 1;
                 d[i, j] = Math.Min(
                     Math.Min(d[i - 1, j] + 1, d[i, j - 1] + 1),
                     d[i - 1, j - 1] + cost);

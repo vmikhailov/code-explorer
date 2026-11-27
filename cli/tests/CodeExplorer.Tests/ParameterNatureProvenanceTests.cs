@@ -1,7 +1,4 @@
-using AwesomeAssertions;
 using CodeExplorer.Core.Common.Nodes.Layer3_Syntactic;
-using CodeExplorer.Core.Database;
-using CodeExplorer.Core.Parser;
 using CodeExplorer.Core.Parser.Syntax;
 using CodeExplorer.Core.Semantics;
 using NUnit.Framework;

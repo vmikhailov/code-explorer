@@ -11,10 +11,10 @@ public static class AstTemplateResolver
     public static List<(Node PrimaryNode, string JoinedText)> ExtractMacroArguments(Node tokenTree)
     {
         var result = new List<(Node PrimaryNode, string JoinedText)>();
-        int depth = 0;
+        var depth = 0;
         var currentTokens = new List<Node>();
 
-        for (int i = 0; i < tokenTree.Children.Count; i++)
+        for (var i = 0; i < tokenTree.Children.Count; i++)
         {
             var child = tokenTree.Children[i];
             if (!child.IsValid()) continue;
@@ -69,7 +69,7 @@ public static class AstTemplateResolver
         result = string.Empty;
         if (string.IsNullOrEmpty(fmtStr)) return false;
 
-        bool anyResolved = false;
+        var anyResolved = false;
         var argIndex = 0;
         var res = Regex.Replace(fmtStr, @"\{\s*\}", m =>
         {
@@ -155,7 +155,7 @@ public static class AstTemplateResolver
         result = string.Empty;
         if (string.IsNullOrEmpty(fmtStr)) return false;
 
-        bool anyResolved = false;
+        var anyResolved = false;
         string res;
 
         if (isRustFormat)

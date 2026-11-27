@@ -1,4 +1,3 @@
-using CodeExplorer.Cypher.Common;
 using CodeExplorer.Options;
 
 namespace CodeExplorer.Commands;

@@ -39,14 +39,15 @@ public class AndroidManifestFileParser : IFileParser
         string filePath,
         string parentNodeId,
         string workspaceId,
-        string absoluteWorkspacePath)
+        string absoluteWorkspacePath,
+        string? preloadedContent = null)
     {
         var relativePath = Path.GetRelativePath(absoluteWorkspacePath, filePath).Replace('\\', '/');
         var fileName = Path.GetFileName(filePath);
         var fileNodeId = $"{workspaceId}:{OntologyConstants.IdPrefixes.File}:{relativePath}";
 
         var fileNode = new FileNode(fileNodeId, fileName, relativePath, filePath);
-        var content = await PhysicalFileStore.ConsumeFileTextAsync(filePath);
+        var content = preloadedContent ?? await FileStreamReader.ReadTextOnceAsync(filePath);
         var manifest = AndroidManifestParser.ParseContent(content, Path.GetDirectoryName(filePath));
 
         if (manifest != null)
@@ -95,7 +96,7 @@ public class AndroidManifestFileParser : IFileParser
                         null,
                         null,
                         null,
-                        (CodeExplorer.Cypher.Common.OperationType?)null,
+                        (OperationType?)null,
                         new()
                         {
                             ["scheme"] = dl.Scheme,

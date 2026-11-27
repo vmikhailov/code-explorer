@@ -28,7 +28,7 @@ public class RabbitMqLibraryParser : DeclarativeSemanticExtension
 
     public override IReadOnlyList<CustomAstRule> CustomAstRules => Rules;
 
-    private static void CollectReferencesCore(Node node, string scopeSymbolId, List<Reference> references, ParsingContext ctx)
+    private static void CollectReferencesCore(Node node, string scopeSymbolId, List<Reference> references, SemanticParseContext ctx)
     {
         if (node.Is(TreeSitterSyntax.TypeScript.CallExpression))
         {

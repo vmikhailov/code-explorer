@@ -1,5 +1,4 @@
 using CodeExplorer.Commands;
-using CodeExplorer.Core.Parser;
 using CodeExplorer.Options;
 using Microsoft.Extensions.Logging.Abstractions;
 using NUnit.Framework;
@@ -396,7 +395,7 @@ public class GateCommandTests
         var indexer = new WorkspaceIndexer(client);
         await indexer.IndexAsync(_tempWorkspace, clear: true, enableIntentAnalysis: false);
 
-        var gateRepo = new CodeExplorer.Core.Gates.Storage.FileGateRepository(_tempWorkspace);
+        var gateRepo = new Core.Gates.Storage.FileGateRepository(_tempWorkspace);
         await gateRepo.InitStarterGatesAsync(overwrite: true);
 
         var gatesDir = Path.Combine(_tempWorkspace, ".codeexplorer", "gates");
@@ -413,7 +412,7 @@ public class GateCommandTests
             Path.Combine(gatesDir, "12factor-logs-no-file-log-sinks.yaml.example"),
             Path.Combine(gatesDir, "12factor-logs-no-file-log-sinks.yaml"));
 
-        var evaluator = new CodeExplorer.Core.Gates.Engine.GateExecutionEngine(client, gateRepo);
+        var evaluator = new Core.Gates.Engine.GateExecutionEngine(client, gateRepo);
         var processGate = await gateRepo.GetGateByIdAsync("SIG-12F-006");
         processGate.Should().NotBeNull();
         var processResult = await evaluator.CheckGateAsync(processGate!);
@@ -547,7 +546,7 @@ public class GateCommandTests
         var indexer = new WorkspaceIndexer(client);
         await indexer.IndexAsync(_tempWorkspace, clear: true, enableIntentAnalysis: false);
 
-        var gateRepo = new CodeExplorer.Core.Gates.Storage.FileGateRepository(_tempWorkspace);
+        var gateRepo = new Core.Gates.Storage.FileGateRepository(_tempWorkspace);
         await gateRepo.InitStarterGatesAsync(overwrite: true);
 
         var gatesDir = Path.Combine(_tempWorkspace, ".codeexplorer", "gates");
@@ -565,7 +564,7 @@ public class GateCommandTests
             Path.Combine(gatesDir, "cqrs-http-get-read-only.yaml.example"),
             Path.Combine(gatesDir, "cqrs-http-get-read-only.yaml"));
 
-        var evaluator = new CodeExplorer.Core.Gates.Engine.GateExecutionEngine(client, gateRepo);
+        var evaluator = new Core.Gates.Engine.GateExecutionEngine(client, gateRepo);
 
         var gate1 = await gateRepo.GetGateByIdAsync("SIG-CQRS-001");
         gate1.Should().NotBeNull();
@@ -583,21 +582,21 @@ public class GateCommandTests
         res3.Violations.Should().Contain(v => (v.Target ?? "").Contains("Orders"));
     }
 
-    private async Task<(SqliteGraphClient Client, CodeExplorer.Core.Gates.Storage.FileGateRepository Repo, CodeExplorer.Core.Gates.Engine.GateExecutionEngine Engine)> IndexAndActivateCqrsGatesAsync()
+    private async Task<(SqliteGraphClient Client, Core.Gates.Storage.FileGateRepository Repo, Core.Gates.Engine.GateExecutionEngine Engine)> IndexAndActivateCqrsGatesAsync()
     {
         var ws = WorkspaceLocator.Initialize(_tempWorkspace, "CqrsGateApp");
         var client = new SqliteGraphClient(ws.DbPath);
         await client.CreateIndicesAsync();
         await new WorkspaceIndexer(client).IndexAsync(_tempWorkspace, clear: true, enableIntentAnalysis: false);
 
-        var repo = new CodeExplorer.Core.Gates.Storage.FileGateRepository(_tempWorkspace);
+        var repo = new Core.Gates.Storage.FileGateRepository(_tempWorkspace);
         await repo.InitStarterGatesAsync(overwrite: true);
         var gatesDir = Path.Combine(_tempWorkspace, ".codeexplorer", "gates");
         foreach (var name in new[] { "cqrs-query-no-writes", "cqrs-no-query-to-command-calls", "cqrs-http-get-read-only" })
         {
             File.Move(Path.Combine(gatesDir, name + ".yaml.example"), Path.Combine(gatesDir, name + ".yaml"));
         }
-        return (client, repo, new CodeExplorer.Core.Gates.Engine.GateExecutionEngine(client, repo));
+        return (client, repo, new Core.Gates.Engine.GateExecutionEngine(client, repo));
     }
 
     [Test]

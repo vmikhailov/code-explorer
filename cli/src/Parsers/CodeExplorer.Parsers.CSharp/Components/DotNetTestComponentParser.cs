@@ -46,14 +46,14 @@ public class DotNetTestComponentParser : IComponentLibraryParser
         "Benchmark", "BenchmarkAttribute"
     };
 
-    public void EnrichWithSyntax(ComponentAnalysisResult? result, SyntaxTree syntaxTree, ParsingContext ctx)
+    public void EnrichWithSyntax(ComponentAnalysisResult? result, SyntaxTree syntaxTree, SemanticParseContext ctx)
     {
         if (syntaxTree.Tree == null) return;
 
         var root = syntaxTree.Tree.RootNode;
         var hasTestsInFile = false;
 
-        void WalkNode(CodeExplorer.Core.Parser.Syntax.SyntaxNode node)
+        void WalkNode(Core.Parser.Syntax.SyntaxNode node)
         {
             if (node.Is(TreeSitterSyntax.CSharp.MethodDeclaration))
             {
@@ -93,7 +93,7 @@ public class DotNetTestComponentParser : IComponentLibraryParser
                 }
             }
 
-            for (int i = 0; i < node.Children.Count; i++)
+            for (var i = 0; i < node.Children.Count; i++)
             {
                 var child = node.Children[i];
                 if (child.IsValid())

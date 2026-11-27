@@ -1,5 +1,3 @@
-using CodeExplorer.Cypher.Common;
-
 namespace CodeExplorer.Core.Database;
 
 public record PostIndexGraphData(

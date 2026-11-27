@@ -1,4 +1,5 @@
 using System.Text.RegularExpressions;
+using System.Xml;
 using System.Xml.Linq;
 using CodeExplorer.Parsers.Android;
 
@@ -109,7 +110,100 @@ public class JavaProjectParser : IProjectParser
         return true;
     }
 
-    public string GetProjectName(string directoryPath, string[] filesInDirectory)
+    private sealed record JavaDirectoryManifestBundle(
+        string? PomText,
+        XDocument? PomDoc,
+        string? BuildGradleText,
+        string? SettingsGradleText);
+
+    private static JavaDirectoryManifestBundle ReadJavaBundleOnce(string directoryPath)
+    {
+        string? pomText = null;
+        XDocument? pomDoc = null;
+        var pomPath = Path.Combine(directoryPath, "pom.xml");
+        if (WorkspaceDirectoryIndex.FileExistsInCurrentOrDisk(pomPath) && File.Exists(pomPath))
+        {
+            pomText = FileStreamReader.ReadTextOnce(pomPath);
+            if (!string.IsNullOrEmpty(pomText))
+            {
+                try
+                {
+                    pomDoc = XDocument.Parse(pomText);
+                }
+                catch (XmlException)
+                {
+                    // ignored: malformed pom.xml falls back to text heuristics
+                }
+            }
+        }
+
+        string? gradleText = null;
+        var buildGradle = Path.Combine(directoryPath, "build.gradle");
+        var buildGradleKts = Path.Combine(directoryPath, "build.gradle.kts");
+        var gradleFile = WorkspaceDirectoryIndex.FileExistsInCurrentOrDisk(buildGradle) && File.Exists(buildGradle)
+            ? buildGradle
+            : (WorkspaceDirectoryIndex.FileExistsInCurrentOrDisk(buildGradleKts) && File.Exists(buildGradleKts) ? buildGradleKts : null);
+        if (gradleFile != null)
+        {
+            gradleText = FileStreamReader.ReadTextOnce(gradleFile);
+        }
+
+        string? settingsText = null;
+        var settingsGradle = Path.Combine(directoryPath, "settings.gradle");
+        var settingsGradleKts = Path.Combine(directoryPath, "settings.gradle.kts");
+        var settingsFile = WorkspaceDirectoryIndex.FileExistsInCurrentOrDisk(settingsGradle) && File.Exists(settingsGradle)
+            ? settingsGradle
+            : (WorkspaceDirectoryIndex.FileExistsInCurrentOrDisk(settingsGradleKts) && File.Exists(settingsGradleKts) ? settingsGradleKts : null);
+        if (settingsFile != null)
+        {
+            settingsText = FileStreamReader.ReadTextOnce(settingsFile);
+        }
+
+        return new JavaDirectoryManifestBundle(pomText, pomDoc, gradleText, settingsText);
+    }
+
+    public bool TryParse(ProjectParseContext context, out ProjectParseResult? result)
+    {
+        var activeIndex = context.DirectoryIndex ?? WorkspaceDirectoryIndex.Current;
+        if (activeIndex != null && activeIndex.TryGetCachedProjectParse(this, context.DirectoryPath, out var cached))
+        {
+            result = cached.Result;
+            return cached.Matched;
+        }
+
+        var dir = context.DirectoryPath;
+        var files = context.FilesInDirectory;
+        if (!IsProjectDirectory(dir, files))
+        {
+            activeIndex?.StoreProjectParse(this, dir, false, null);
+            result = null;
+            return false;
+        }
+
+        var bundle = ReadJavaBundleOnce(dir);
+        var name = ExtractProjectNameFromBundle(dir, bundle);
+        if (string.IsNullOrEmpty(name)) name = Path.GetFileName(dir.TrimEnd('/', '\\'));
+        var props = ExtractManifestPropertiesFromBundle(dir, files, bundle);
+        var produced = ExtractProducedPackageFromBundle(dir, bundle);
+        var deps = ExtractDependenciesFromBundle(dir, bundle);
+
+        result = new ProjectParseResult(
+            Project: new ParsedProjectDescriptor(
+                Name: name,
+                DirectoryPath: dir,
+                ProjectType: ProjectType,
+                ManifestProperties: props,
+                ProducedPackage: produced,
+                Dependencies: deps),
+            ClaimMode: ParserClaimMode.AbsorbSecondaryInDirectory);
+        activeIndex?.StoreProjectParse(this, dir, true, result);
+        return true;
+    }
+
+    public string GetProjectName(string directoryPath, string[] filesInDirectory) =>
+        ExtractProjectNameFromBundle(directoryPath, ReadJavaBundleOnce(directoryPath));
+
+    private static string ExtractProjectNameFromBundle(string directoryPath, JavaDirectoryManifestBundle bundle)
     {
         var manifestPath = GradleBuildScriptParser.FindAndroidManifest(directoryPath);
         if (manifestPath != null)
@@ -123,73 +217,34 @@ public class JavaProjectParser : IProjectParser
 
         var folderName = Path.GetFileName(directoryPath.TrimEnd('/', '\\'));
 
-        // 1. If pom.xml exists, extract artifactId
-        var pomPath = Path.Combine(directoryPath, "pom.xml");
-        if (File.Exists(pomPath))
+        if (bundle.PomDoc?.Root is { } root)
         {
-            try
+            var ns = root.GetDefaultNamespace();
+            var artifactId = root.Element(ns + "artifactId")?.Value?.Trim();
+            if (!string.IsNullOrEmpty(artifactId))
             {
-                var doc = XDocument.Load(pomPath);
-                var root = doc.Root;
-                if (root != null)
-                {
-                    var ns = root.GetDefaultNamespace();
-                    var artifactId = root.Element(ns + "artifactId")?.Value?.Trim();
-                    if (!string.IsNullOrEmpty(artifactId))
-                    {
-                        return artifactId;
-                    }
-                }
-            }
-            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.Xml.XmlException)
-            {
-                // Fallback on XML parse error
+                return artifactId;
             }
         }
 
-        // 2. If settings.gradle or settings.gradle.kts exists, extract rootProject.name
-        var settingsGradle = Path.Combine(directoryPath, "settings.gradle");
-        var settingsGradleKts = Path.Combine(directoryPath, "settings.gradle.kts");
-        var settingsFile = File.Exists(settingsGradle) ? settingsGradle : (File.Exists(settingsGradleKts) ? settingsGradleKts : null);
-        if (settingsFile != null)
+        if (!string.IsNullOrEmpty(bundle.SettingsGradleText))
         {
-            try
+            var match = Regex.Match(bundle.SettingsGradleText, @"rootProject\.name\s*=\s*['""]([^'""]+)['""]");
+            if (match.Success && !string.IsNullOrWhiteSpace(match.Groups[1].Value))
             {
-                var match = Regex.Match(PhysicalFileStore.ReadAllText(settingsFile), @"rootProject\.name\s*=\s*['""]([^'""]+)['""]");
-                if (match.Success && !string.IsNullOrWhiteSpace(match.Groups[1].Value))
-                {
-                    return match.Groups[1].Value.Trim();
-                }
-            }
-            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
-            {
-                // Fallback on file read error
+                return match.Groups[1].Value.Trim();
             }
         }
 
-        // 3. If build.gradle or build.gradle.kts exists, check archivesBaseName
-        var buildGradle = Path.Combine(directoryPath, "build.gradle");
-        var buildGradleKts = Path.Combine(directoryPath, "build.gradle.kts");
-        var gradleFile = File.Exists(buildGradle) ? buildGradle : (File.Exists(buildGradleKts) ? buildGradleKts : null);
-        if (gradleFile != null)
+        if (!string.IsNullOrEmpty(bundle.BuildGradleText))
         {
-            try
+            var baseNameMatch = Regex.Match(bundle.BuildGradleText, @"(?:archivesBaseName|base\.archivesName)\s*=\s*['""]([^'""]+)['""]");
+            if (baseNameMatch.Success && !string.IsNullOrWhiteSpace(baseNameMatch.Groups[1].Value))
             {
-                var text = PhysicalFileStore.ReadAllText(gradleFile);
-                var baseNameMatch = Regex.Match(text, @"(?:archivesBaseName|base\.archivesName)\s*=\s*['""]([^'""]+)['""]");
-                if (baseNameMatch.Success && !string.IsNullOrWhiteSpace(baseNameMatch.Groups[1].Value))
-                {
-                    return baseNameMatch.Groups[1].Value.Trim();
-                }
-            }
-            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
-            {
-                // Fallback on file read error
+                return baseNameMatch.Groups[1].Value.Trim();
             }
         }
 
-        // 4. Disambiguate generic module folder names ("app", "src", "main", "core", "api")
-        // when nested inside an enclosing parent folder (e.g. "android/app" -> "android-app")
         if (folderName.Equals("app", StringComparison.OrdinalIgnoreCase) ||
             folderName.Equals("src", StringComparison.OrdinalIgnoreCase) ||
             folderName.Equals("main", StringComparison.OrdinalIgnoreCase) ||
@@ -210,7 +265,13 @@ public class JavaProjectParser : IProjectParser
         return folderName;
     }
 
-    public Dictionary<string, string> ExtractManifestProperties(string directoryPath, string[] filesInDirectory)
+    public Dictionary<string, string> ExtractManifestProperties(string directoryPath, string[] filesInDirectory) =>
+        ExtractManifestPropertiesFromBundle(directoryPath, filesInDirectory, ReadJavaBundleOnce(directoryPath));
+
+    private static Dictionary<string, string> ExtractManifestPropertiesFromBundle(
+        string directoryPath,
+        string[] filesInDirectory,
+        JavaDirectoryManifestBundle bundle)
     {
         var props = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
 
@@ -228,17 +289,11 @@ public class JavaProjectParser : IProjectParser
         var isInternalLibPath = IsInternalLibrarySubmodulePath(directoryPath);
         var hasRunnableEntrypoint = HasDockerfileOrRunnableJavaEntrypoint(directoryPath, filesInDirectory);
 
-        var buildGradle = Path.Combine(directoryPath, "build.gradle");
-        var buildGradleKts = Path.Combine(directoryPath, "build.gradle.kts");
-        var gradleFile = PhysicalFileStore.FileExistsInCachedDirectory(buildGradle) || File.Exists(buildGradle)
-            ? buildGradle
-            : (PhysicalFileStore.FileExistsInCachedDirectory(buildGradleKts) || File.Exists(buildGradleKts) ? buildGradleKts : null);
-
-        if (gradleFile != null)
+        if (!string.IsNullOrEmpty(bundle.BuildGradleText))
         {
             try
             {
-                var content = PhysicalFileStore.ReadAllText(gradleFile);
+                var content = bundle.BuildGradleText;
 
                 var hasAppPlugin = content.Contains("id 'application'") ||
                                    content.Contains("id \"application\"") ||
@@ -303,87 +358,68 @@ public class JavaProjectParser : IProjectParser
             }
         }
 
-        var settingsGradle = Path.Combine(directoryPath, "settings.gradle");
-        var settingsGradleKts = Path.Combine(directoryPath, "settings.gradle.kts");
-        var settingsFile = PhysicalFileStore.FileExistsInCachedDirectory(settingsGradle) || File.Exists(settingsGradle)
-            ? settingsGradle
-            : (PhysicalFileStore.FileExistsInCachedDirectory(settingsGradleKts) || File.Exists(settingsGradleKts) ? settingsGradleKts : null);
-        if (settingsFile != null && !props.ContainsKey("framework_type"))
+        const string keyFrameworkType = "framework_type";
+        if (!string.IsNullOrEmpty(bundle.SettingsGradleText) && !props.ContainsKey(keyFrameworkType))
         {
-            try
+            var content = bundle.SettingsGradleText;
+            if (content.Contains("dev.flutter.flutter-plugin-loader", StringComparison.OrdinalIgnoreCase) ||
+                content.Contains("com.android.application", StringComparison.OrdinalIgnoreCase))
             {
-                var content = PhysicalFileStore.ReadAllText(settingsFile);
-                if (content.Contains("dev.flutter.flutter-plugin-loader", StringComparison.OrdinalIgnoreCase) ||
-                    content.Contains("com.android.application", StringComparison.OrdinalIgnoreCase))
-                {
-                    props["manifest_type"] = "mobile";
-                    props["framework_type"] = "mobile";
-                    props["sdk"] = "android";
-                }
-            }
-            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
-            {
-                // ignored: unreadable build manifest falls back to default properties
+                props["manifest_type"] = "mobile";
+                props["framework_type"] = "mobile";
+                props["sdk"] = "android";
             }
         }
 
-        var pomPath = Path.Combine(directoryPath, "pom.xml");
-        if (PhysicalFileStore.FileExistsInCachedDirectory(pomPath) || File.Exists(pomPath))
+        if (!string.IsNullOrEmpty(bundle.PomText))
         {
-            try
+            var content = bundle.PomText;
+            var isPomPackaging = PomPackagingRegex.IsMatch(content);
+            if (isPomPackaging)
             {
-                var content = PhysicalFileStore.ReadAllText(pomPath);
-                var isPomPackaging = PomPackagingRegex.IsMatch(content);
-                if (isPomPackaging)
+                props["is_orchestrator"] = "true";
+                props["is_build_orchestrator"] = "true";
+                props["manifest_type"] = "library";
+                props["role"] = "Library";
+                props["kind"] = "Library";
+                props["primary_role"] = "Library";
+                props["is_library"] = "true";
+            }
+            else
+            {
+                var isMavenBootSkipped = MavenBootSkipRegex.IsMatch(content);
+                var hasRunnableMavenSignal = !isMavenBootSkipped &&
+                                             (WarPackagingRegex.IsMatch(content) ||
+                                              MavenExecutablePluginRegex.IsMatch(content) ||
+                                              hasRunnableEntrypoint);
+                var hasStandaloneWebFramework = !isSubmodule && !isInternalLibPath &&
+                    (content.Contains("spring-boot-starter-web", StringComparison.OrdinalIgnoreCase) ||
+                     content.Contains("spring-boot-starter-webflux", StringComparison.OrdinalIgnoreCase) ||
+                     content.Contains("spring-cloud-config-server", StringComparison.OrdinalIgnoreCase) ||
+                     content.Contains("spring-boot-admin", StringComparison.OrdinalIgnoreCase) ||
+                     content.Contains("io.quarkus", StringComparison.OrdinalIgnoreCase) ||
+                     content.Contains("io.micronaut", StringComparison.OrdinalIgnoreCase) ||
+                     content.Contains("org.eclipse.jetty", StringComparison.OrdinalIgnoreCase) ||
+                     content.Contains("tomcat-embed", StringComparison.OrdinalIgnoreCase) ||
+                     content.Contains("io.dropwizard", StringComparison.OrdinalIgnoreCase) ||
+                     content.Contains("io.helidon", StringComparison.OrdinalIgnoreCase) ||
+                     content.Contains("io.ktor", StringComparison.OrdinalIgnoreCase));
+
+                if (hasRunnableMavenSignal || hasStandaloneWebFramework)
                 {
-                    props["is_orchestrator"] = "true";
-                    props["is_build_orchestrator"] = "true";
-                    props["manifest_type"] = "library";
-                    props["role"] = "Library";
-                    props["kind"] = "Library";
-                    props["primary_role"] = "Library";
-                    props["is_library"] = "true";
+                    props["manifest_type"] = "application";
+                    props["framework_type"] = "web";
+                    props["role"] = "Service";
+                    props["primary_role"] = "Service";
+                    props["is_library"] = "false";
                 }
                 else
                 {
-                    var isMavenBootSkipped = MavenBootSkipRegex.IsMatch(content);
-                    var hasRunnableMavenSignal = !isMavenBootSkipped &&
-                                                 (WarPackagingRegex.IsMatch(content) ||
-                                                  MavenExecutablePluginRegex.IsMatch(content) ||
-                                                  hasRunnableEntrypoint);
-                    var hasStandaloneWebFramework = !isSubmodule && !isInternalLibPath &&
-                        (content.Contains("spring-boot-starter-web", StringComparison.OrdinalIgnoreCase) ||
-                         content.Contains("spring-boot-starter-webflux", StringComparison.OrdinalIgnoreCase) ||
-                         content.Contains("spring-cloud-config-server", StringComparison.OrdinalIgnoreCase) ||
-                         content.Contains("spring-boot-admin", StringComparison.OrdinalIgnoreCase) ||
-                         content.Contains("io.quarkus", StringComparison.OrdinalIgnoreCase) ||
-                         content.Contains("io.micronaut", StringComparison.OrdinalIgnoreCase) ||
-                         content.Contains("org.eclipse.jetty", StringComparison.OrdinalIgnoreCase) ||
-                         content.Contains("tomcat-embed", StringComparison.OrdinalIgnoreCase) ||
-                         content.Contains("io.dropwizard", StringComparison.OrdinalIgnoreCase) ||
-                         content.Contains("io.helidon", StringComparison.OrdinalIgnoreCase) ||
-                         content.Contains("io.ktor", StringComparison.OrdinalIgnoreCase));
-
-                    if (hasRunnableMavenSignal || hasStandaloneWebFramework)
-                    {
-                        props["manifest_type"] = "application";
-                        props["framework_type"] = "web";
-                        props["role"] = "Service";
-                        props["primary_role"] = "Service";
-                        props["is_library"] = "false";
-                    }
-                    else
-                    {
-                        props["manifest_type"] = "library";
-                        props["role"] = "Library";
-                        props["primary_role"] = "Library";
-                        props["is_library"] = "true";
-                    }
+                    props["manifest_type"] = "library";
+                    props["role"] = "Library";
+                    props["primary_role"] = "Library";
+                    props["is_library"] = "true";
                 }
-            }
-            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
-            {
-                // ignored: unreadable build manifest falls back to default properties
             }
         }
 
@@ -432,22 +468,22 @@ public class JavaProjectParser : IProjectParser
 
     private static bool HasAncestorJavaBuildRoot(string directoryPath)
     {
-        var useCacheBound = PhysicalFileStore.HasCachedDirectory(directoryPath);
+        var useCacheBound = WorkspaceDirectoryIndex.HasCachedDirectoryInCurrent(directoryPath);
         var current = Directory.GetParent(directoryPath);
         var depth = 0;
         while (current != null && depth < 8)
         {
             depth++;
-            if (useCacheBound && !PhysicalFileStore.HasCachedDirectory(current.FullName))
+            if (useCacheBound && !WorkspaceDirectoryIndex.HasCachedDirectoryInCurrent(current.FullName))
             {
                 break;
             }
-            if (PhysicalFileStore.IsGitRepositoryRoot(directoryPath))
+            if (WorkspaceDirectoryIndex.IsGitRepoRootInCurrent(directoryPath))
             {
                 return false;
             }
 
-            var parentFiles = PhysicalFileStore.GetDirectoryFiles(current.FullName);
+            var parentFiles = WorkspaceDirectoryIndex.GetDirectoryFilesOrFallback(current.FullName);
             for (var i = 0; i < parentFiles.Length; i++)
             {
                 var fn = Path.GetFileName(parentFiles[i]).ToLowerInvariant();
@@ -456,7 +492,7 @@ public class JavaProjectParser : IProjectParser
                     return true;
                 }
             }
-            if (PhysicalFileStore.IsGitRepositoryRoot(current.FullName))
+            if (WorkspaceDirectoryIndex.IsGitRepoRootInCurrent(current.FullName))
             {
                 break;
             }
@@ -476,19 +512,19 @@ public class JavaProjectParser : IProjectParser
             }
         }
 
-        if (!PhysicalFileStore.HasCachedDirectory(directoryPath))
+        if (!WorkspaceDirectoryIndex.HasCachedDirectoryInCurrent(directoryPath))
         {
             return false;
         }
 
-        foreach (var file in PhysicalFileStore.EnumerateCachedFilesInSubtree(directoryPath))
+        foreach (var file in WorkspaceDirectoryIndex.EnumerateSubtreeInCurrent(directoryPath))
         {
             var norm = file.Replace('\\', '/');
             if (norm.Contains("/src/test/", StringComparison.OrdinalIgnoreCase)) continue;
             var ext = Path.GetExtension(norm).ToLowerInvariant();
             if (ext is not (".java" or ".kt" or ".groovy")) continue;
 
-            var src = PhysicalFileStore.ReadAllText(file);
+            var src = FileStreamReader.ReadTextOnce(file);
             if (src.Contains("@SpringBootApplication", StringComparison.Ordinal) ||
                 src.Contains("@MicronautApplication", StringComparison.Ordinal) ||
                 src.Contains("@QuarkusMain", StringComparison.Ordinal) ||
@@ -501,127 +537,74 @@ public class JavaProjectParser : IProjectParser
         return false;
     }
 
-    public Task<ProducedPackageInfo?> GetProducedPackageAsync(string projectDirectory)
-    {
-        var pomPath = Path.Combine(projectDirectory, "pom.xml");
-        if (File.Exists(pomPath))
-        {
-            try
-            {
-                var doc = XDocument.Load(pomPath);
-                var root = doc.Root;
-                if (root != null)
-                {
-                    var ns = root.GetDefaultNamespace();
-                    var artifactId = root.Element(ns + "artifactId")?.Value?.Trim();
-                    var groupId = root.Element(ns + "groupId")?.Value?.Trim()
-                                  ?? root.Element(ns + "parent")?.Element(ns + "groupId")?.Value?.Trim();
-                    var version = root.Element(ns + "version")?.Value?.Trim()
-                                  ?? root.Element(ns + "parent")?.Element(ns + "version")?.Value?.Trim()
-                                  ?? "1.0.0";
+    public Task<ProducedPackageInfo?> GetProducedPackageAsync(string projectDirectory) =>
+        Task.FromResult(ExtractProducedPackageFromBundle(projectDirectory, ReadJavaBundleOnce(projectDirectory)));
 
-                    if (!string.IsNullOrEmpty(artifactId))
-                    {
-                        var pkgName = !string.IsNullOrEmpty(groupId) ? $"{groupId}:{artifactId}" : artifactId;
-                        return Task.FromResult<ProducedPackageInfo?>(new ProducedPackageInfo(pkgName, version, "maven"));
-                    }
-                }
-            }
-            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.Xml.XmlException)
+    private static ProducedPackageInfo? ExtractProducedPackageFromBundle(string projectDirectory, JavaDirectoryManifestBundle bundle)
+    {
+        const string defaultVer = "1.0.0";
+        const string ecoMaven = "maven";
+        const string ecoGradle = "gradle";
+        const string ecoJava = "java";
+
+        if (bundle.PomDoc?.Root is { } root)
+        {
+            var ns = root.GetDefaultNamespace();
+            var artifactId = root.Element(ns + "artifactId")?.Value?.Trim();
+            var groupId = root.Element(ns + "groupId")?.Value?.Trim()
+                          ?? root.Element(ns + "parent")?.Element(ns + "groupId")?.Value?.Trim();
+            var version = root.Element(ns + "version")?.Value?.Trim()
+                          ?? root.Element(ns + "parent")?.Element(ns + "version")?.Value?.Trim()
+                          ?? defaultVer;
+
+            if (!string.IsNullOrEmpty(artifactId))
             {
-                // Fallback if malformed XML
+                var pkgName = !string.IsNullOrEmpty(groupId) ? $"{groupId}:{artifactId}" : artifactId;
+                return new ProducedPackageInfo(pkgName, version, ecoMaven);
             }
         }
 
-        var buildGradle = Path.Combine(projectDirectory, "build.gradle");
-        var buildGradleKts = Path.Combine(projectDirectory, "build.gradle.kts");
-        var gradleFile = File.Exists(buildGradle) ? buildGradle : (File.Exists(buildGradleKts) ? buildGradleKts : null);
-
-        if (gradleFile != null)
+        if (!string.IsNullOrEmpty(bundle.BuildGradleText))
         {
-            try
-            {
-                var text = PhysicalFileStore.ReadAllText(gradleFile);
-                var groupMatch = Regex.Match(text, @"group\s*=\s*['""]([^'""]+)['""]");
-                var versionMatch = Regex.Match(text, @"version\s*=\s*['""]([^'""]+)['""]");
+            var text = bundle.BuildGradleText;
+            var groupMatch = Regex.Match(text, @"group\s*=\s*['""]([^'""]+)['""]");
+            var versionMatch = Regex.Match(text, @"version\s*=\s*['""]([^'""]+)['""]");
 
-                var group = groupMatch.Success ? groupMatch.Groups[1].Value : "";
-                var version = versionMatch.Success ? versionMatch.Groups[1].Value : "1.0.0";
-                var name = Path.GetFileName(projectDirectory);
+            var group = groupMatch.Success ? groupMatch.Groups[1].Value : "";
+            var version = versionMatch.Success ? versionMatch.Groups[1].Value : defaultVer;
+            var name = Path.GetFileName(projectDirectory);
 
-                var pkgName = !string.IsNullOrEmpty(group) ? $"{group}:{name}" : name;
-                return Task.FromResult<ProducedPackageInfo?>(new ProducedPackageInfo(pkgName, version, "gradle"));
-            }
-            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
-            {
-                // Fallback
-            }
+            var pkgName = !string.IsNullOrEmpty(group) ? $"{group}:{name}" : name;
+            return new ProducedPackageInfo(pkgName, version, ecoGradle);
         }
 
         var folderName = Path.GetFileName(projectDirectory);
-        return Task.FromResult<ProducedPackageInfo?>(new ProducedPackageInfo(folderName, "1.0.0", "java"));
+        return new ProducedPackageInfo(folderName, defaultVer, ecoJava);
     }
 
-    public Task<ProjectDependencyInfo> ParseDependenciesAsync(string projectDirectory)
+    public Task<ProjectDependencyInfo> ParseDependenciesAsync(string projectDirectory) =>
+        Task.FromResult(ExtractDependenciesFromBundle(projectDirectory, ReadJavaBundleOnce(projectDirectory)));
+
+    private static ProjectDependencyInfo ExtractDependenciesFromBundle(string projectDirectory, JavaDirectoryManifestBundle bundle)
     {
         var localProjects = new List<string>();
         var externalPackages = new List<ProducedPackageInfo>();
 
-        // 1. Maven parsing
-        var pomPath = Path.Combine(projectDirectory, "pom.xml");
-        if (File.Exists(pomPath))
+        if (bundle.PomDoc?.Root is { } root)
         {
-            try
-            {
-                var doc = XDocument.Load(pomPath);
-                if (doc.Root != null)
-                {
-                    JavaBuildManifestHelper.ParseMavenPomDependencies(projectDirectory, doc.Root, localProjects, externalPackages);
-                }
-            }
-            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.Xml.XmlException)
-            {
-                // Ignore XML parse errors
-            }
+            JavaBuildManifestHelper.ParseMavenPomDependencies(projectDirectory, root, localProjects, externalPackages);
         }
 
-        // 2. Gradle parsing
-        var buildGradle = Path.Combine(projectDirectory, "build.gradle");
-        var buildGradleKts = Path.Combine(projectDirectory, "build.gradle.kts");
-        var settingsGradle = Path.Combine(projectDirectory, "settings.gradle");
-        var settingsGradleKts = Path.Combine(projectDirectory, "settings.gradle.kts");
-
-        // Subproject discovery from settings.gradle(.kts)
-        var settingsFile = File.Exists(settingsGradle) ? settingsGradle : (File.Exists(settingsGradleKts) ? settingsGradleKts : null);
-        if (settingsFile != null)
+        if (!string.IsNullOrEmpty(bundle.SettingsGradleText))
         {
-            try
-            {
-                var settingsContent = PhysicalFileStore.ReadAllText(settingsFile);
-                JavaBuildManifestHelper.ParseGradleSettingsIncludes(projectDirectory, settingsContent, localProjects);
-            }
-            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
-            {
-                // ignored: unreadable build manifest falls back to default properties
-            }
+            JavaBuildManifestHelper.ParseGradleSettingsIncludes(projectDirectory, bundle.SettingsGradleText, localProjects);
         }
 
-        var gradleFile = File.Exists(buildGradle) ? buildGradle : (File.Exists(buildGradleKts) ? buildGradleKts : null);
-        if (gradleFile != null)
+        if (!string.IsNullOrEmpty(bundle.BuildGradleText))
         {
-            try
-            {
-                var content = PhysicalFileStore.ReadAllText(gradleFile);
-                JavaBuildManifestHelper.ParseGradleBuildDependencies(projectDirectory, content, localProjects, externalPackages);
-            }
-            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
-            {
-                // ignored: unreadable build manifest falls back to default properties
-            }
+            JavaBuildManifestHelper.ParseGradleBuildDependencies(projectDirectory, bundle.BuildGradleText, localProjects, externalPackages);
         }
 
-        return Task.FromResult(new ProjectDependencyInfo([.. localProjects.Distinct(StringComparer.OrdinalIgnoreCase)],
-            externalPackages
-        ));
+        return new ProjectDependencyInfo([.. localProjects.Distinct(StringComparer.OrdinalIgnoreCase)], externalPackages);
     }
 }

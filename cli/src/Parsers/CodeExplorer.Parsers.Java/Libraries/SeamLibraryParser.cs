@@ -62,20 +62,20 @@ public partial class SeamLibraryParser : DeclarativeSemanticExtension
         ];
     }
 
-    public override void DiscoverDeclarations(string filePath, string content, string? projectName, ParsingContext? ctx)
+    public override void DiscoverDeclarations(string filePath, string content, string? projectName, SemanticParseContext? ctx)
     {
         RegisterNamedBeans(content, ctx);
     }
 
-    public override void DiscoverDeclarations(CodeExplorer.Core.Parser.Syntax.SyntaxNode rootNode, string relativePath, string? projectName, ParsingContext? ctx)
+    public override void DiscoverDeclarations(Core.Parser.Syntax.SyntaxNode rootNode, string relativePath, string? projectName, SemanticParseContext? ctx)
     {
-        var sourceText = (rootNode as CodeExplorer.Core.Parser.Syntax.SyntaxDocument)?.SourceText
+        var sourceText = (rootNode as Core.Parser.Syntax.SyntaxDocument)?.SourceText
                          ?? rootNode.Document?.SourceText
                          ?? rootNode.Text;
         RegisterNamedBeans(sourceText, ctx);
     }
 
-    private static void RegisterNamedBeans(string content, ParsingContext? ctx)
+    private static void RegisterNamedBeans(string content, SemanticParseContext? ctx)
     {
         if (ctx == null || string.IsNullOrEmpty(content) || !content.Contains('@')) return;
 

@@ -411,8 +411,8 @@ public class SemanticInvariantGateTests
         var dbPath = Path.Combine(_tempWorkspace, "graph.db");
         await using var client = new SqliteGraphClient(dbPath);
 
-        Core.Parser.WorkspaceIndexer.AutoRegisterParsers();
-        var indexer = new CodeExplorer.Core.Parser.WorkspaceIndexer(client);
+        WorkspaceIndexer.AutoRegisterParsers();
+        var indexer = new WorkspaceIndexer(client);
         await indexer.IndexAsync(_tempWorkspace, _tempWorkspace, clear: true);
 
         var repo = new FileGateRepository(_tempWorkspace);
@@ -455,7 +455,7 @@ public class SemanticInvariantGateTests
         sb.AppendLine("namespace MyTestApp;");
         sb.AppendLine("public class LongService {");
         sb.AppendLine("    public void MonsterMethod() {");
-        for (int i = 0; i < 510; i++)
+        for (var i = 0; i < 510; i++)
         {
             sb.AppendLine($"        int x_{i} = {i};");
         }
@@ -470,8 +470,8 @@ public class SemanticInvariantGateTests
         var dbPath = Path.Combine(_tempWorkspace, "graph.db");
         await using var client = new SqliteGraphClient(dbPath);
 
-        Core.Parser.WorkspaceIndexer.AutoRegisterParsers();
-        var indexer = new CodeExplorer.Core.Parser.WorkspaceIndexer(client);
+        WorkspaceIndexer.AutoRegisterParsers();
+        var indexer = new WorkspaceIndexer(client);
         await indexer.IndexAsync(_tempWorkspace, _tempWorkspace, clear: true);
 
         var repo = new FileGateRepository(_tempWorkspace);
@@ -508,7 +508,7 @@ public class SemanticInvariantGateTests
         sb.AppendLine("namespace MyTestApp;");
         sb.AppendLine("public class LongServiceR {");
         sb.AppendLine("    public void MonsterMethod() {");
-        for (int i = 0; i < 510; i++)
+        for (var i = 0; i < 510; i++)
         {
             sb.AppendLine($"        int x_{i} = {i};");
         }
@@ -523,8 +523,8 @@ public class SemanticInvariantGateTests
         var dbPath = Path.Combine(_tempWorkspace, "graph_r.db");
         await using var client = new SqliteGraphClient(dbPath);
 
-        Core.Parser.WorkspaceIndexer.AutoRegisterParsers();
-        var indexer = new CodeExplorer.Core.Parser.WorkspaceIndexer(client);
+        WorkspaceIndexer.AutoRegisterParsers();
+        var indexer = new WorkspaceIndexer(client);
         await indexer.IndexAsync(_tempWorkspace, _tempWorkspace, clear: true);
 
         var repo = new FileGateRepository(_tempWorkspace);
@@ -599,8 +599,8 @@ public class SemanticInvariantGateTests
         var dbPath = Path.Combine(_tempWorkspace, "graph.db");
         await using var client = new SqliteGraphClient(dbPath);
 
-        Core.Parser.WorkspaceIndexer.AutoRegisterParsers();
-        var indexer = new CodeExplorer.Core.Parser.WorkspaceIndexer(client);
+        WorkspaceIndexer.AutoRegisterParsers();
+        var indexer = new WorkspaceIndexer(client);
         await indexer.IndexAsync(_tempWorkspace, _tempWorkspace, clear: true);
 
         var repo = new FileGateRepository(_tempWorkspace);
@@ -669,8 +669,8 @@ public class SemanticInvariantGateTests
         var dbPath = Path.Combine(_tempWorkspace, "graph.db");
         await using var client = new SqliteGraphClient(dbPath);
 
-        Core.Parser.WorkspaceIndexer.AutoRegisterParsers();
-        var indexer = new CodeExplorer.Core.Parser.WorkspaceIndexer(client);
+        WorkspaceIndexer.AutoRegisterParsers();
+        var indexer = new WorkspaceIndexer(client);
         await indexer.IndexAsync(_tempWorkspace, _tempWorkspace, clear: true);
 
         var repo = new FileGateRepository(_tempWorkspace);
@@ -1296,14 +1296,14 @@ public class SemanticInvariantGateTests
         await client.UploadNodesAsync([caller, callee]);
 
         // Upload two CALLS edges between the same pair at different call sites
-        var relSite1 = Relationship.FromRelationship(new CodeExplorer.Core.Common.Relationships.CallsRelationship(
+        var relSite1 = Relationship.FromRelationship(new Core.Common.Relationships.CallsRelationship(
             caller.Id,
             callee.Id)
         {
             Line = 18,
             Column = 9
         });
-        var relSite2 = Relationship.FromRelationship(new CodeExplorer.Core.Common.Relationships.CallsRelationship(
+        var relSite2 = Relationship.FromRelationship(new Core.Common.Relationships.CallsRelationship(
             caller.Id,
             callee.Id)
         {

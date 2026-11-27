@@ -44,7 +44,7 @@ public class RoutingControllersLibraryParser : DeclarativeSemanticExtension
 
     public override IReadOnlyList<CustomAstRule> CustomAstRules => Rules;
 
-    private static string? MapNodeTypeCore(Node node, ParsingContext ctx)
+    private static string? MapNodeTypeCore(Node node, SemanticParseContext ctx)
     {
         if (TryGetDecoratorNameAndCall(node, out var decName, out _) && ActionDecorators.Contains(decName))
         {
@@ -53,7 +53,7 @@ public class RoutingControllersLibraryParser : DeclarativeSemanticExtension
         return null;
     }
 
-    private static string? ExtractIdentifierStatic(Node node, ParsingContext ctx, string? projectName, string? relativePath)
+    private static string? ExtractIdentifierStatic(Node node, SemanticParseContext ctx, string? projectName, string? relativePath)
     {
         if (!TryGetDecoratorNameAndCall(node, out var decName, out var callExpr) || !ActionDecorators.Contains(decName))
         {
@@ -86,7 +86,7 @@ public class RoutingControllersLibraryParser : DeclarativeSemanticExtension
         return $"{method}:{combinedRoute}";
     }
 
-    private static void CollectReferencesCore(Node node, string scopeSymbolId, List<Reference> references, ParsingContext ctx)
+    private static void CollectReferencesCore(Node node, string scopeSymbolId, List<Reference> references, SemanticParseContext ctx)
     {
         if (node.Is(TreeSitterSyntax.TypeScript.MethodDefinition))
         {
@@ -109,7 +109,7 @@ public class RoutingControllersLibraryParser : DeclarativeSemanticExtension
         }
     }
 
-    private static void EnrichSymbolCore(Node node, SyntacticSymbol symbol, ParsingContext ctx)
+    private static void EnrichSymbolCore(Node node, SyntacticSymbol symbol, SemanticParseContext ctx)
     {
         var decorators = new List<Node>();
         Node? methodNode = null;
@@ -124,13 +124,13 @@ public class RoutingControllersLibraryParser : DeclarativeSemanticExtension
                 var idx = children.FindIndex(c => c.Id == node.Id);
                 if (idx >= 0)
                 {
-                    for (int i = 0; i < children.Count; i++)
+                    for (var i = 0; i < children.Count; i++)
                     {
                         if (children[i].Is(TreeSitterSyntax.TypeScript.Decorator))
                             decorators.Add(children[i]);
                     }
 
-                    for (int i = idx + 1; i < children.Count; i++)
+                    for (var i = idx + 1; i < children.Count; i++)
                     {
                         if (children[i].Is(TreeSitterSyntax.TypeScript.MethodDefinition))
                         {
@@ -220,7 +220,7 @@ public class RoutingControllersLibraryParser : DeclarativeSemanticExtension
         }
     }
 
-    public override void DiscoverDeclarations(string filePath, string content, string? projectName, ParsingContext? ctx)
+    public override void DiscoverDeclarations(string filePath, string content, string? projectName, SemanticParseContext? ctx)
     {
         if (string.IsNullOrWhiteSpace(content) || !content.Contains("routePrefix")) return;
 
@@ -244,7 +244,7 @@ public class RoutingControllersLibraryParser : DeclarativeSemanticExtension
         }
     }
 
-    public override void DiscoverDeclarations(Node rootNode, string relativePath, string? projectName, ParsingContext? ctx)
+    public override void DiscoverDeclarations(Node rootNode, string relativePath, string? projectName, SemanticParseContext? ctx)
     {
     }
 

@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using CodeExplorer.Options;
 using Microsoft.Extensions.Logging;
 
@@ -71,59 +72,30 @@ public static class ScanCommandHandler
             }
 
             var indexer = new WorkspaceIndexer(client, indexerLogger);
+            var scanSw = Stopwatch.StartNew();
 
-            var performedFullIndex = false;
-            var scanSw = System.Diagnostics.Stopwatch.StartNew();
+            var result = await indexer.IndexAsync(
+                targetPath,
+                ws.RootDirectory,
+                clear: shouldClear,
+                enableIntentAnalysis: false);
+            scanSw.Stop();
 
-            if (!shouldClear && hasExistingRegistry)
+            if (!result.HasChanges)
             {
-                var fileReg = await client.LoadFileRegistryAsync();
-
-                if (fileReg.Count > 0)
-                {
-                    logger.LogInformation("Running fast incremental scan check...");
-
-                    var changed = await indexer.IndexIncrementalAsync(targetPath, ws.RootDirectory,
-                        enableIntentAnalysis: false);
-                    scanSw.Stop();
-
-                    if (!changed)
-                    {
-                        Console.ForegroundColor = ConsoleColor.Green;
-
-                        Console.WriteLine(
-                            $"\n✓ Workspace is up to date (0 changes detected) in {scanSw.ElapsedMilliseconds:N0}ms. Use --clear to force a full re-index.");
-                        Console.ResetColor();
-                    }
-                    else
-                    {
-                        Console.ForegroundColor = ConsoleColor.Green;
-                        Console.WriteLine($"\n✓ Incremental indexing completed successfully in {scanSw.Elapsed.TotalSeconds:F2}s ({scanSw.ElapsedMilliseconds:N0}ms)!");
-                        Console.ResetColor();
-                    }
-
-                    var (nodesCount, relsCount) = await client.GetGraphCountsAsync();
-                    var nodesByKind = await client.GetNodesBreakdownAsync();
-                    PrintNodesBreakdown(nodesCount, relsCount, nodesByKind, scanSw.Elapsed);
-                }
-                else
-                {
-                    performedFullIndex = true;
-                }
+                Console.ForegroundColor = ConsoleColor.Green;
+                Console.WriteLine(
+                    $"\n✓ Workspace is up to date (0 changes detected) in {scanSw.ElapsedMilliseconds:N0}ms. Use --clear to force a full re-index.");
+                Console.ResetColor();
             }
-            else
+            else if (result.Mode is IndexExecutionMode.Incremental or IndexExecutionMode.LogicOnly)
             {
-                performedFullIndex = true;
+                Console.ForegroundColor = ConsoleColor.Green;
+                Console.WriteLine($"\n✓ Incremental indexing completed successfully in {scanSw.Elapsed.TotalSeconds:F2}s ({scanSw.ElapsedMilliseconds:N0}ms)!");
+                Console.ResetColor();
             }
 
-            if (performedFullIndex)
-            {
-                scanSw.Restart();
-                var (nodesCount, relsCount, nodesByKind) = await indexer.IndexAsync(targetPath,
-                    ws.RootDirectory, clear: shouldClear, enableIntentAnalysis: false);
-                scanSw.Stop();
-                PrintNodesBreakdown(nodesCount, relsCount, nodesByKind, scanSw.Elapsed);
-            }
+            PrintNodesBreakdown(result.NodesCount, result.RelationshipsCount, result.NodesByKind, scanSw.Elapsed);
 
             if (opts.Watch)
             {
@@ -149,19 +121,17 @@ public static class ScanCommandHandler
 
                     try
                     {
-                        var changed = await indexer.IndexIncrementalAsync(targetPath,
-                            ws.RootDirectory, cancellationToken: cts.Token,
+                        var watchResult = await indexer.IndexAsync(
+                            targetPath,
+                            ws.RootDirectory,
+                            cancellationToken: cts.Token,
                             enableIntentAnalysis: false,
                             knownChangedFiles: batch);
 
-                        if (changed)
+                        if (watchResult.HasChanges)
                         {
                             logger.LogInformation("[Watch       ] Incremental indexing complete.");
-
-                            var (nodesCount, relsCount) =
-                                await client.GetGraphCountsAsync(cts.Token);
-                            var nodesByKind = await client.GetNodesBreakdownAsync(cts.Token);
-                            PrintNodesBreakdown(nodesCount, relsCount, nodesByKind);
+                            PrintNodesBreakdown(watchResult.NodesCount, watchResult.RelationshipsCount, watchResult.NodesByKind);
                         }
                         else
                         {
@@ -211,7 +181,7 @@ public static class ScanCommandHandler
 
         Console.WriteLine("Nodes breakdown:");
         foreach (var (kind, count) in nodesByKind
-                     .Where(x => !CodeExplorer.Core.Mcp.CodeExplorerRepository.IsTemporarilyHiddenTaxonomyLabel(x.Key))
+                     .Where(x => !CodeExplorerRepository.IsTemporarilyHiddenTaxonomyLabel(x.Key))
                      .OrderByDescending(x => x.Value))
         {
             Console.WriteLine($"  - {kind,-20}: {count,6}");

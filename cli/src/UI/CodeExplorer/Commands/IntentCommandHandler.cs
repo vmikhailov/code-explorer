@@ -136,11 +136,14 @@ public static class IntentCommandHandler
 
             try
             {
-                var channel = System.Threading.Channels.Channel.CreateUnbounded<Func<Task>>();
-
-                var ctx = new ParsingContext(ws.RootDirectory, ws.RootDirectory, client, channel,
-                    clear: false, logger: logger, enableIntentAnalysis: true);
-                ctx.WorkspaceId = ws.RootDirectory;
+                var ctx = new IntentContext(
+                    ws.RootDirectory,
+                    ws.RootDirectory,
+                    client,
+                    enableIntentAnalysis: true,
+                    workspaceId: ws.RootDirectory,
+                    logger: logger,
+                    cancellationToken: cts.Token);
 
                 var serviceFilter = !string.IsNullOrWhiteSpace(opts.Service) ? opts.Service : opts.Project;
                 if (!string.IsNullOrWhiteSpace(serviceFilter))

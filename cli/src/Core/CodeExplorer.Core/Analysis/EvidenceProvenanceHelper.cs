@@ -1,8 +1,5 @@
 using System.Text.Json;
-using CodeExplorer.Core.Common;
 using CodeExplorer.Core.Database;
-using CodeExplorer.Core.Parser.Syntax;
-using CodeExplorer.Cypher.Common;
 
 namespace CodeExplorer.Core.Analysis;
 

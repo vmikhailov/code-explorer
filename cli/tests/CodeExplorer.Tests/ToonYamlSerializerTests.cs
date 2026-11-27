@@ -269,13 +269,13 @@ public class ToonYamlSerializerTests
             await client.BeginBulkLoadAsync();
             await client.UploadRelationshipsAsync(
             [
-                Relationship.FromRelationship(new CodeExplorer.Core.Common.Relationships.AccessedByRelationship("ws:m:session", "ws:fn:index") { Operation = "GetAsync", Line = 10, Column = 5 }),
-                Relationship.FromRelationship(new CodeExplorer.Core.Common.Relationships.AccessedByRelationship("ws:m:session", "ws:fn:index") { Operation = "QueryIndex", Line = 12, Column = 5 }),
-                Relationship.FromRelationship(new CodeExplorer.Core.Common.Relationships.AccessedByRelationship("ws:m:session", "ws:fn:index") { Operation = "GetAsync", Line = 14, Column = 5 })
+                Relationship.FromRelationship(new Core.Common.Relationships.AccessedByRelationship("ws:m:session", "ws:fn:index") { Operation = "GetAsync", Line = 10, Column = 5 }),
+                Relationship.FromRelationship(new Core.Common.Relationships.AccessedByRelationship("ws:m:session", "ws:fn:index") { Operation = "QueryIndex", Line = 12, Column = 5 }),
+                Relationship.FromRelationship(new Core.Common.Relationships.AccessedByRelationship("ws:m:session", "ws:fn:index") { Operation = "GetAsync", Line = 14, Column = 5 })
             ]);
             await client.UploadRelationshipsAsync(
             [
-                Relationship.FromRelationship(new CodeExplorer.Core.Common.Relationships.AccessedByRelationship("ws:m:session", "ws:fn:index") { Operation = "SaveAsync", Line = 18, Column = 5 })
+                Relationship.FromRelationship(new Core.Common.Relationships.AccessedByRelationship("ws:m:session", "ws:fn:index") { Operation = "SaveAsync", Line = 18, Column = 5 })
             ]);
             await client.CommitBulkLoadAsync();
 

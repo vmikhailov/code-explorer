@@ -29,7 +29,7 @@ public class TortoiseOrmLibraryParser : DeclarativeSemanticExtension
         ];
     }
 
-    private static void CollectTortoiseReferences(Node node, string scopeSymbolId, List<Reference> references, ParsingContext ctx)
+    private static void CollectTortoiseReferences(Node node, string scopeSymbolId, List<Reference> references, SemanticParseContext ctx)
     {
         if (TryExtractTortoiseTable(node, out var tableName))
         {

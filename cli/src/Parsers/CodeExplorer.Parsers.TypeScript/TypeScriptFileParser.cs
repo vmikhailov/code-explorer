@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using System.Text.Json;
 using CodeExplorer.Core.Database;
 using CodeExplorer.Core.Parser.Syntax;
 using Node = CodeExplorer.Core.Parser.Syntax.SyntaxNode;
@@ -27,14 +28,7 @@ public class TypeScriptFileParser : IFileParser
     public bool ShouldSkipFileBytes(string fileName, ReadOnlySpan<byte> contentBytes) =>
         WorkspaceFileFilter.IsMinifiedBytes(contentBytes, maxLineLength: 5000);
 
-    public bool ShouldSkipFile(FileInfo fileInfo)
-    {
-        if (PhysicalFileStore.TryGetFileText(fileInfo.FullName, out var cachedText))
-        {
-            return WorkspaceFileFilter.IsMinifiedText(cachedText, maxLineLength: 5000);
-        }
-        return false;
-    }
+    public bool ShouldSkipFile(FileInfo fileInfo) => false;
 
     public string ClassifyArtifactRole(string relativePath, string fileName, ReadOnlySpan<byte> contentBytes = default)
     {
@@ -61,9 +55,9 @@ public class TypeScriptFileParser : IFileParser
     }
 
     public void EnrichFileSignals(
-        CodeExplorer.Core.Common.Nodes.Layer1_Physical.FileNode fileNode,
+        Core.Common.Nodes.Layer1_Physical.FileNode fileNode,
         SyntaxTree syntaxTree,
-        CodeExplorer.Core.Common.Nodes.Layer2_Boundaries.ProjectNode? project,
+        Core.Common.Nodes.Layer2_Boundaries.ProjectNode? project,
         string sourceText)
     {
         var directive = ExtractLeadingDirective(sourceText);
@@ -84,7 +78,7 @@ public class TypeScriptFileParser : IFileParser
         }
 
         const string FamilyRelational = "relational";
-        var projSignals = CodeExplorer.Core.Common.Nodes.AnalysisSignalStore.Signals(project);
+        var projSignals = Core.Common.Nodes.AnalysisSignalStore.Signals(project);
         if (!string.IsNullOrEmpty(projSignals.DbDriverEngine)) return;
 
         var lower = sourceText.ToLowerInvariant();
@@ -280,10 +274,15 @@ public class TypeScriptFileParser : IFileParser
         );
     }
 
-    public async Task<SyntaxTree> ParseAsync(string filePath, string parentNodeId, string workspaceId, string absoluteWorkspacePath)
+    public async Task<SyntaxTree> ParseAsync(
+        string filePath,
+        string parentNodeId,
+        string workspaceId,
+        string absoluteWorkspacePath,
+        string? preloadedContent = null)
     {
         var relativePath = Path.GetRelativePath(absoluteWorkspacePath, filePath).Replace('\\', '/');
-        return await SyntaxTree.ParseAsync(filePath, relativePath, parentNodeId, this, workspaceId, absoluteWorkspacePath);
+        return await SyntaxTree.ParseAsync(filePath, relativePath, parentNodeId, this, workspaceId, absoluteWorkspacePath, preloadedContent);
     }
 
     private readonly ConcurrentDictionary<string, HashSet<string>> _tsDepsCache = new(StringComparer.OrdinalIgnoreCase);
@@ -390,7 +389,7 @@ public class TypeScriptFileParser : IFileParser
 
         try
         {
-            var content = PhysicalFileStore.ReadAllText(path);
+            var content = FileStreamReader.ReadTextOnce(path);
             var root = CypherValue.TryParseJsonText(content);
             var depProperties = new[] { "dependencies", "devDependencies" };
 
@@ -406,7 +405,7 @@ public class TypeScriptFileParser : IFileParser
                 }
             }
         }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.Text.Json.JsonException)
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or JsonException)
         {
             // Ignore
         }

@@ -31,7 +31,7 @@ public class JestVitestLibraryParser : DeclarativeSemanticExtension
         yield return new PackageDescriptor("vitest", "Vitest", LibraryRole.TestFramework, "library", ["vitest", "@vitest/*"]);
     }
 
-    private static string? ExtractIdentifierStatic(Node node, ParsingContext ctx, string? projectName, string? relativePath)
+    private static string? ExtractIdentifierStatic(Node node, SemanticParseContext ctx, string? projectName, string? relativePath)
     {
         if (IsJestVitestCall(node, out _))
         {
@@ -44,7 +44,7 @@ public class JestVitestLibraryParser : DeclarativeSemanticExtension
         return null;
     }
 
-    private static void EnrichSymbolCore(Node node, SyntacticSymbol symbol, ParsingContext ctx)
+    private static void EnrichSymbolCore(Node node, SyntacticSymbol symbol, SemanticParseContext ctx)
     {
         if (IsJestVitestCall(node, out _))
         {
@@ -57,7 +57,7 @@ public class JestVitestLibraryParser : DeclarativeSemanticExtension
         }
     }
 
-    private static void CollectReferencesCore(Node node, string scopeSymbolId, List<Reference> references, ParsingContext ctx)
+    private static void CollectReferencesCore(Node node, string scopeSymbolId, List<Reference> references, SemanticParseContext ctx)
     {
         // Extract mocked modules from jest.mock('...') and vi.mock('...')
         if (node.Is(TreeSitterSyntax.TypeScript.CallExpression))

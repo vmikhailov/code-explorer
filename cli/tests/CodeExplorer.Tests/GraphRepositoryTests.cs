@@ -1,6 +1,3 @@
-using CodeExplorer.Core.Common;
-using CodeExplorer.Core.Database;
-using CodeExplorer.Cypher.Common;
 using NUnit.Framework;
 
 namespace CodeExplorer.Tests;
@@ -117,7 +114,7 @@ public class GraphRepositoryTests
         Assert.That(typedRel.RelationshipKind, Is.EqualTo(RelationshipKind.QueriesDb));
         Assert.That(typedRel.Kind, Is.EqualTo(RelationshipKind.QueriesDb));
 
-        var reference = new CodeExplorer.Common.Reference("sym:1", "BillingService", RelationshipKind.Calls);
+        var reference = new Reference("sym:1", "BillingService", RelationshipKind.Calls);
         Assert.That(reference.RelationshipKind, Is.EqualTo(RelationshipKind.Calls));
         Assert.That(reference.Kind, Is.EqualTo(RelationshipKind.Calls));
     }

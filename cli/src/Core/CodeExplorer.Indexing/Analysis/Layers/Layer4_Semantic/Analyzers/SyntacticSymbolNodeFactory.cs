@@ -1,11 +1,7 @@
-using CodeExplorer.Core.Common;
-using CodeExplorer.Core.Common.Nodes;
 using CodeExplorer.Core.Common.Nodes.Layer2_Boundaries;
 using CodeExplorer.Core.Common.Nodes.Layer3_Syntactic;
 using CodeExplorer.Core.Common.Nodes.Layer4_Semantic;
 using CodeExplorer.Core.Common.Relationships;
-using CodeExplorer.Core.Database;
-using CodeExplorer.Core.Parser;
 using CodeExplorer.Core.Parser.Syntax;
 
 namespace CodeExplorer.Core.Analysis.Layers.Layer4_Semantic.Analyzers;
@@ -80,7 +76,7 @@ internal static class SyntacticSymbolNodeFactory
 
         if (kind == OntologyConstants.NodeLabels.Scope)
         {
-            var scopeKind = syntactic.ScopeKind ?? CodeExplorer.Cypher.Common.ScopeKind.Catch;
+            var scopeKind = syntactic.ScopeKind ?? ScopeKind.Catch;
             var targetType = syntactic.RequestType
                              ?? syntactic.GetPropertyOrDefault(OntologyConstants.PropertyNames.TargetType)
                              ?? syntactic.GetPropertyOrDefault(OntologyConstants.PropertyNames.ExceptionType)
@@ -91,7 +87,7 @@ internal static class SyntacticSymbolNodeFactory
             var line = int.TryParse(syntactic.GetPropertyOrDefault(OntologyConstants.PropertyNames.Line), out var ln) ? ln : (int)node.StartPosition.Row + 1;
             var endLine = (int)node.EndPosition.Row + 1;
             var col = int.TryParse(syntactic.GetPropertyOrDefault(OntologyConstants.PropertyNames.Column), out var cl) ? cl : (int)node.StartPosition.Column + 1;
-            var kindSlug = CodeExplorer.Cypher.Common.TaxonomyEnumExtensions.ToCanonicalString(scopeKind);
+            var kindSlug = TaxonomyEnumExtensions.ToCanonicalString(scopeKind);
             var scopeId = $"{workspaceId}:{OntologyConstants.IdPrefixes.Scope}:{relativePath}:{kindSlug}:{line}:{col}";
             return new ScopeNode(
                 scopeId,
@@ -111,7 +107,7 @@ internal static class SyntacticSymbolNodeFactory
                 Depth: 1,
                 LoopDepth: 0,
                 AwaitCount: 0,
-                BranchCount: scopeKind == CodeExplorer.Cypher.Common.ScopeKind.Catch ? 1 : 0);
+                BranchCount: scopeKind == ScopeKind.Catch ? 1 : 0);
         }
 
         return null;
@@ -121,7 +117,7 @@ internal static class SyntacticSymbolNodeFactory
         ExternalServiceNode esCandidate,
         string workspaceId,
         string relativePath,
-        ParsingContext? ctx,
+        SemanticParseContext? ctx,
         List<Relationship>? relationships)
     {
         if (esCandidate.IsExternal != true ||

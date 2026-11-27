@@ -1,8 +1,6 @@
 using System.Text;
 using System.Text.Json;
-using System.Text.RegularExpressions;
 using CodeExplorer.Core.Protocol;
-using CodeExplorer.Cypher.Common;
 
 namespace CodeExplorer.Core.Analysis;
 

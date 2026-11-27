@@ -1,10 +1,8 @@
-using CodeExplorer.Core.Database;
 using System.Threading.Channels;
 using CodeExplorer.Core.Common.Nodes;
 using CodeExplorer.Core.Common.Nodes.Layer3_Syntactic;
 using CodeExplorer.Core.Common.Nodes.Layer4_Semantic;
 using CodeExplorer.Core.Parser.Layers;
-using CodeExplorer.Cypher.Common;
 using CodeExplorer.Parsers.Rust;
 using CodeExplorer.Parsers.Rust.Libraries;
 using NUnit.Framework;
@@ -380,7 +378,7 @@ public class RustParserTests
         var workspacePath = GetFixturePath("microservices-workspace");
         var channel = Channel.CreateUnbounded<Func<Task>>();
         await using var client = new InMemoryGraphRepository();
-        var ctx = new ParsingContext(workspacePath, workspacePath, client, channel);
+        var ctx = new SemanticParseContext(workspacePath);
 
         using var syntaxTree = await parser.ParseAsync(domainFile, "parent-id", ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
         Layer3SyntacticParser.ProcessVisitor(syntaxTree, ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
@@ -416,7 +414,7 @@ public class RustParserTests
         var workspacePath = GetFixturePath("microservices-workspace");
         var channel = Channel.CreateUnbounded<Func<Task>>();
         await using var client = new InMemoryGraphRepository();
-        var ctx = new ParsingContext(workspacePath, workspacePath, client, channel);
+        var ctx = new SemanticParseContext(workspacePath);
 
         using var syntaxTree = await parser.ParseAsync(authMain, "parent-id", ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
         Layer3SyntacticParser.ProcessVisitor(syntaxTree, ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
@@ -491,7 +489,7 @@ public class RustParserTests
             var parser = new RustFileParser();
             var channel = Channel.CreateUnbounded<Func<Task>>();
             await using var client = new InMemoryGraphRepository();
-            var ctx = new ParsingContext(tempDir, tempDir, client, channel);
+            var ctx = new SemanticParseContext(tempDir);
 
             using var syntaxTree = await parser.ParseAsync(testFile, "parent-id", ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
             Layer3SyntacticParser.ProcessVisitor(syntaxTree, ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);

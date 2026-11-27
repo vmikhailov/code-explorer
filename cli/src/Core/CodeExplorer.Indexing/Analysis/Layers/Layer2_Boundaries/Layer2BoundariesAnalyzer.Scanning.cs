@@ -1,10 +1,6 @@
 using System.Text.Json;
-using CodeExplorer.Core.Common;
-using CodeExplorer.Core.Common.Nodes;
-using CodeExplorer.Core.Common.Nodes.Layer1_Physical;
 using CodeExplorer.Core.Common.Nodes.Layer2_Boundaries;
 using CodeExplorer.Core.Common.Relationships;
-using CodeExplorer.Core.Database;
 
 namespace CodeExplorer.Core.Parser.Layers;
 
@@ -12,7 +8,7 @@ public partial class Layer2ProjectParser
 {
     private static async Task ScanProjectsInDirectoriesAsync(
         Layer1Result l1Result,
-        ParsingContext ctx,
+        Layer2Context ctx,
         ProjectsStructureNode projectsStructureNode,
         List<string> dirsToCheck,
         List<ProjectNode> projects,
@@ -25,6 +21,7 @@ public partial class Layer2ProjectParser
         UnifiedWorkspaceScanPlan? unifiedPlan = null)
     {
         var scanState = new DirectoryScanState(
+            l1Result,
             ctx,
             projectsStructureNode,
             projects,
@@ -62,7 +59,7 @@ public partial class Layer2ProjectParser
             {
                 ctx.CancellationToken.ThrowIfCancellationRequested();
 
-                var filesInDir = PhysicalFileStore.GetDirectoryFiles(dir);
+                var filesInDir = ctx.DirectoryIndex.GetDirectoryFiles(dir);
                 if (filesInDir.Length == 0) continue;
 
                 var relativeProjectDir = Path.GetRelativePath(ctx.AbsoluteWorkspacePath, dir).Replace('\\', '/');
@@ -88,12 +85,23 @@ public partial class Layer2ProjectParser
 
                 if (isCovered) continue;
 
-                var fallbackParser = fallbackParsers.FirstOrDefault(p => p.IsProjectDirectory(dir, filesInDir));
-                if (fallbackParser != null)
+                var fbContext = new ProjectParseContext(dir, filesInDir, ctx.AbsoluteWorkspacePath, ctx.DirectoryIndex);
+                IProjectParser? fallbackParser = null;
+                ProjectParseResult? fbResult = null;
+                for (var fbi = 0; fbi < fallbackParsers.Count; fbi++)
+                {
+                    if (fallbackParsers[fbi].TryParse(fbContext, out var candidateFb) && candidateFb != null)
+                    {
+                        fallbackParser = fallbackParsers[fbi];
+                        fbResult = candidateFb;
+                        break;
+                    }
+                }
+                if (fallbackParser != null && fbResult != null)
                 {
                     var folderName = Path.GetFileName(dir);
                     if (string.IsNullOrEmpty(folderName)) folderName = Path.GetFileName(ctx.AbsoluteWorkspacePath.TrimEnd('/', '\\'));
-                    var projectName = fallbackParser.GetProjectName(dir, filesInDir);
+                    var projectName = fbResult.Project.Name;
                     if (string.IsNullOrEmpty(projectName)) projectName = folderName;
                     if (projects.Any(p => string.Equals(p.Name, projectName, StringComparison.OrdinalIgnoreCase)))
                     {
@@ -107,7 +115,7 @@ public partial class Layer2ProjectParser
                     var projectNodeId = $"{ctx.WorkspaceId}:{OntologyConstants.IdPrefixes.Project}:{relativeProjectDir}:";
                     if (projects.Any(p => p.Id == projectNodeId)) continue;
 
-                    var manifestProps = fallbackParser.ExtractManifestProperties(dir, filesInDir);
+                    var manifestProps = new Dictionary<string, string>(fbResult.Project.ManifestProperties, StringComparer.OrdinalIgnoreCase);
                     var dominantLang = manifestProps.GetValueOrDefault("language") ?? fallbackParser.ProjectType;
 
                     var projectNode = ProjectNodeFactory.Create(
@@ -118,7 +126,8 @@ public partial class Layer2ProjectParser
                         dir,
                         filesInDir,
                         null,
-                        manifestProps);
+                        manifestProps,
+                        fbResult.Project.ManifestMetadata);
 
                     projectsStructureNode.Children.Add(projectNode);
                     projects.Add(projectNode);
@@ -163,20 +172,32 @@ public partial class Layer2ProjectParser
 
                     if (!projects.Any(p => p.Id == projectNodeId))
                     {
-                        var filesInDir = Directory.GetFiles(dir);
-                        var projectParser = WorkspaceIndexer._projectParsers.Where(p => !p.IsFallback).FirstOrDefault(p => p.IsProjectDirectory(dir, filesInDir));
-                        if (projectParser != null)
+                        var filesInDir = ctx.DirectoryIndex.GetDirectoryFiles(dir);
+                        var upContext = new ProjectParseContext(dir, filesInDir, ctx.AbsoluteWorkspacePath, ctx.DirectoryIndex);
+                        IProjectParser? projectParser = null;
+                        ProjectParseResult? upResult = null;
+                        foreach (var candidateParser in WorkspaceIndexer._projectParsers.Where(p => !p.IsFallback))
                         {
-                            var projectName = projectParser.GetProjectName(dir, filesInDir);
+                            if (candidateParser.TryParse(upContext, out var candidateRes) && candidateRes != null)
+                            {
+                                projectParser = candidateParser;
+                                upResult = candidateRes;
+                                break;
+                            }
+                        }
+                        if (projectParser != null && upResult != null)
+                        {
+                            var upDesc = upResult.Project;
+                            var projectName = upDesc.Name;
                             if (string.IsNullOrEmpty(projectName)) projectName = Path.GetFileName(dir);
                             if (string.IsNullOrEmpty(projectName)) projectName = dir;
                             var folderName = Path.GetFileName(dir);
                             if (string.IsNullOrEmpty(folderName)) folderName = projectName;
 
-                            var depInfo = await ParseProjectDependenciesAsync(projectParser, dir, ctx);
+                            var depInfo = upDesc.Dependencies;
                             var extPkgNames = depInfo?.ExternalPackages.Select(p => p.Name).ToList();
 
-                            var manifestProps = projectParser.ExtractManifestProperties(dir, filesInDir);
+                            var manifestProps = new Dictionary<string, string>(upDesc.ManifestProperties, StringComparer.OrdinalIgnoreCase);
 
                             var projectNode = ProjectNodeFactory.Create(
                                 projectNodeId,
@@ -186,7 +207,8 @@ public partial class Layer2ProjectParser
                                 dir,
                                 filesInDir,
                                 extPkgNames,
-                                manifestProps);
+                                manifestProps,
+                                upDesc.ManifestMetadata);
 
                             projectsStructureNode.Children.Add(projectNode);
                             projects.Add(projectNode);
@@ -207,7 +229,7 @@ public partial class Layer2ProjectParser
                                 projectDepList.Add((projectNode, depInfo));
                             }
 
-                            var (prodPkg, prodEco, explicitCoord) = await LinkProducedPackageAsync(projectNode, projectNodeId, projectParser, dir, ctx);
+                            var (prodPkg, prodEco, explicitCoord) = await LinkProducedPackageAsync(projectNode, projectNodeId, projectParser, dir, upDesc.ProducedPackage, ctx);
                             if (!string.IsNullOrEmpty(prodPkg))
                             {
                                 RegisterEcosystemPackageAlias(packageToProjectMap, prodEco, prodPkg, projectNode, isExplicitPackageCoordinate: explicitCoord);
@@ -261,7 +283,7 @@ public partial class Layer2ProjectParser
     private static void NormalizeProjectFolderNames(
         List<ProjectNode> projects,
         Dictionary<string, ProjectNode> packageToProjectMap,
-        ParsingContext ctx)
+        Layer2Context ctx)
     {
         foreach (var proj in projects)
         {
@@ -270,7 +292,7 @@ public partial class Layer2ProjectParser
                 : Path.GetFullPath(Path.Combine(ctx.AbsoluteWorkspacePath, proj.Path));
             var folderName = Path.GetFileName(fullProjPath.TrimEnd('/', '\\'));
             if (string.IsNullOrEmpty(folderName) ||
-                proj.ProjectType is CodeExplorer.Cypher.Common.ProjectLanguage.Script or CodeExplorer.Cypher.Common.ProjectLanguage.Batch or CodeExplorer.Cypher.Common.ProjectLanguage.Shell or CodeExplorer.Cypher.Common.ProjectLanguage.PowerShell ||
+                proj.ProjectType is ProjectLanguage.Script or ProjectLanguage.Batch or ProjectLanguage.Shell or ProjectLanguage.PowerShell ||
                 proj.Name.EndsWith(".Scripts", StringComparison.OrdinalIgnoreCase) ||
                 string.Equals(folderName, proj.Name, StringComparison.OrdinalIgnoreCase) ||
                 projects.Any(p => p != proj && string.Equals(p.Name, folderName, StringComparison.OrdinalIgnoreCase)))
@@ -306,7 +328,7 @@ public partial class Layer2ProjectParser
     }
 
     private static async Task ScanSiblingLibrariesAsync(
-        ParsingContext ctx,
+        Layer2Context ctx,
         ProjectsStructureNode projectsStructureNode,
         List<ProjectNode> projects,
         List<(ProjectNode Project, ProjectDependencyInfo DepInfo)> projectDepList,
@@ -342,11 +364,22 @@ public partial class Layer2ProjectParser
                 var subDirs = ctx.FileFilter.EnumerateDirectories(libRoot);
                 foreach (var subDir in subDirs)
                 {
-                    var filesInSubDir = Directory.GetFiles(subDir);
-                    var subParser = WorkspaceIndexer._projectParsers.FirstOrDefault(p => p.IsProjectDirectory(subDir, filesInSubDir));
-                    if (subParser != null)
+                    var filesInSubDir = ctx.DirectoryIndex.GetDirectoryFiles(subDir);
+                    var subParseContext = new ProjectParseContext(subDir, filesInSubDir, ctx.AbsoluteWorkspacePath, ctx.DirectoryIndex);
+                    IProjectParser? subParser = null;
+                    ProjectParseResult? subRes = null;
+                    foreach (var candidateSub in WorkspaceIndexer._projectParsers)
                     {
-                        var prod = await subParser.GetProducedPackageAsync(subDir);
+                        if (candidateSub.TryParse(subParseContext, out var candidateSubRes) && candidateSubRes != null)
+                        {
+                            subParser = candidateSub;
+                            subRes = candidateSubRes;
+                            break;
+                        }
+                    }
+                    if (subParser != null && subRes != null)
+                    {
+                        var prod = subRes.Project.ProducedPackage;
                         var prodEco = prod != null
                             ? ProjectNodeFactory.NormalizePackageEcosystem(prod.Ecosystem, TaxonomyEnumExtendedExtensions.ParseProjectLanguage(subParser.ProjectType))
                             : string.Empty;
@@ -358,13 +391,16 @@ public partial class Layer2ProjectParser
 
                             if (!projects.Any(p => p.Id == subProjId))
                             {
+                                var libManifestProps = new Dictionary<string, string>(subRes.Project.ManifestProperties, StringComparer.OrdinalIgnoreCase);
                                 var libProjectNode = ProjectNodeFactory.Create(
                                     subProjId,
                                     folderName,
                                     relDir,
                                     subParser.ProjectType,
                                     subDir,
-                                    filesInSubDir);
+                                    filesInSubDir,
+                                    manifestProps: libManifestProps,
+                                    manifestMetadata: subRes.Project.ManifestMetadata);
                                 projectsStructureNode.Children.Add(libProjectNode);
                                 projects.Add(libProjectNode);
 
@@ -393,13 +429,13 @@ public partial class Layer2ProjectParser
             catch (Exception ex)
             {
                 ctx.Layer2Log.SiblingLibraryScanError(libRoot, ex);
-                ctx.RecordScanIssue("Layer2_Boundaries", "manifest_error", libRoot, ex.Message, name: "SiblingLibraryScanError", exception: ex, isFileParent: false, logToConsole: false);
+                ctx.RecordScanIssue("Layer2_Boundaries", "manifest_error", libRoot, ex.Message, name: "SiblingLibraryScanError", exception: ex, isFileParent: false);
             }
         }
     }
 
     private static async Task ScanAdditionalProjectsAsync(
-        ParsingContext ctx,
+        Layer2Context ctx,
         ProjectsStructureNode projectsStructureNode,
         IReadOnlyList<string> dirsToCheck,
         List<ProjectNode> projects,
@@ -411,7 +447,7 @@ public partial class Layer2ProjectParser
         foreach (var dir in dirsToCheck)
         {
             ctx.CancellationToken.ThrowIfCancellationRequested();
-            var filesInDir = PhysicalFileStore.GetDirectoryFiles(dir);
+            var filesInDir = ctx.DirectoryIndex.GetDirectoryFiles(dir);
             if (filesInDir.Length == 0) continue;
 
             foreach (var parser in WorkspaceIndexer._projectParsers.Where(p => !p.IsFallback))
@@ -421,7 +457,21 @@ public partial class Layer2ProjectParser
                     continue;
                 }
 
-                foreach (var descriptor in parser.GetAdditionalProjects(dir, filesInDir))
+                IReadOnlyList<AdditionalProjectDescriptor> additionalDescriptors;
+                ProjectDependencyInfo? cachedDirDeps = null;
+                if (ctx.DirectoryIndex.TryGetCachedProjectParse(parser, dir, out var cachedParse) &&
+                    cachedParse.Matched &&
+                    cachedParse.Result != null)
+                {
+                    additionalDescriptors = cachedParse.Result.Project.AdditionalTargets ?? [];
+                    cachedDirDeps = cachedParse.Result.Project.Dependencies;
+                }
+                else
+                {
+                    additionalDescriptors = parser.GetAdditionalProjects(dir, filesInDir);
+                }
+
+                foreach (var descriptor in additionalDescriptors)
                 {
                     if (!File.Exists(descriptor.EntryPointPath))
                     {
@@ -472,7 +522,25 @@ public partial class Layer2ProjectParser
                     projects.Add(projectNode);
                     RegisterEcosystemPackageAlias(packageToProjectMap, null, descriptor.Name, projectNode);
 
-                    var dependencyInfo = await ParseProjectDependenciesAsync(parser, manifestDirectory, ctx);
+                    ProjectDependencyInfo? dependencyInfo;
+                    if (string.Equals(
+                            manifestDirectory.NormalizeFullPath(trimTrailingSlash: true),
+                            dir.NormalizeFullPath(trimTrailingSlash: true),
+                            StringComparison.OrdinalIgnoreCase) &&
+                        cachedDirDeps != null)
+                    {
+                        dependencyInfo = cachedDirDeps;
+                    }
+                    else if (ctx.DirectoryIndex.TryGetCachedProjectParse(parser, manifestDirectory, out var cachedManifestParse) &&
+                             cachedManifestParse.Matched &&
+                             cachedManifestParse.Result != null)
+                    {
+                        dependencyInfo = cachedManifestParse.Result.Project.Dependencies;
+                    }
+                    else
+                    {
+                        dependencyInfo = await ParseProjectDependenciesAsync(parser, manifestDirectory, ctx);
+                    }
                     if (dependencyInfo != null)
                     {
                         var localDependenciesOnly = new ProjectDependencyInfo(
@@ -548,13 +616,13 @@ public partial class Layer2ProjectParser
     }
 
     private static void ResolveCrossProjectDependencies(
-        ParsingContext ctx,
+        Layer2Context ctx,
         List<(ProjectNode Project, ProjectDependencyInfo DepInfo)> projectDepList,
         Dictionary<string, ProjectNode> packageToProjectMap,
         List<Relationship> dependencies)
     {
         var seenDependsOn = dependencies
-            .Where(d => d.Kind == CodeExplorer.Cypher.Common.RelationshipKind.DependsOn)
+            .Where(d => d.Kind == RelationshipKind.DependsOn)
             .Select(d => (d.From, d.To))
             .ToHashSet();
 
@@ -586,7 +654,7 @@ public partial class Layer2ProjectParser
     }
 
     private static void LinkNestedSubProjects(
-        ParsingContext ctx,
+        Layer2Context ctx,
         List<ProjectNode> projects,
         List<Relationship> dependencies)
     {
@@ -600,7 +668,7 @@ public partial class Layer2ProjectParser
             foreach (var candidateParent in projects)
             {
                 if (string.Equals(candidateParent.Id, childProj.Id, StringComparison.OrdinalIgnoreCase)) continue;
-                if (!CodeExplorer.Core.Analysis.ProjectNodeFactory.AreCompatibleEcosystems(candidateParent.ProjectType, childProj.ProjectType)) continue;
+                if (!ProjectNodeFactory.AreCompatibleEcosystems(candidateParent.ProjectType, childProj.ProjectType)) continue;
                 var parentNormPath = candidateParent.Path.Replace('\\', '/').Trim('/');
                 if (string.IsNullOrEmpty(parentNormPath))
                 {
@@ -628,15 +696,15 @@ public partial class Layer2ProjectParser
             if (bestParent != null)
             {
                 childProj.Signals().ParentProjectId = bestParent.Id;
-                var containsProjRel = new Relationship(bestParent.Id, childProj.Id, CodeExplorer.Cypher.Common.RelationshipKind.Contains);
-                if (!dependencies.Any(d => d.From == bestParent.Id && d.To == childProj.Id && d.Kind == CodeExplorer.Cypher.Common.RelationshipKind.Contains))
+                var containsProjRel = new Relationship(bestParent.Id, childProj.Id, RelationshipKind.Contains);
+                if (!dependencies.Any(d => d.From == bestParent.Id && d.To == childProj.Id && d.Kind == RelationshipKind.Contains))
                 {
                     dependencies.Add(containsProjRel);
                 }
 
                 if (childProj.IsLibrary && !bestParent.IsLibrary && bestParent.IsBuildOrchestrator != true &&
                     bestParent.ProjectType != ProjectLanguage.CSharp &&
-                    !dependencies.Any(d => d.From == bestParent.Id && d.To == childProj.Id && d.Kind == CodeExplorer.Cypher.Common.RelationshipKind.DependsOn))
+                    !dependencies.Any(d => d.From == bestParent.Id && d.To == childProj.Id && d.Kind == RelationshipKind.DependsOn))
                 {
                     var depRel = Relationship.FromRelationship(new DependsOnRelationship(bestParent.Id, childProj.Id)
                     {
@@ -662,10 +730,10 @@ public partial class Layer2ProjectParser
             var normFrom = projectsById.TryGetValue(dep.From, out var fromProj) ? fromProj.Id : dep.From;
             var normTo = projectsById.TryGetValue(dep.To, out var toProj) ? toProj.Id : dep.To;
 
-            if (dep.Kind == CodeExplorer.Cypher.Common.RelationshipKind.DependsOn &&
+            if (dep.Kind == RelationshipKind.DependsOn &&
                 fromProj != null &&
                 toProj != null &&
-                !CodeExplorer.Core.Analysis.ProjectNodeFactory.AreCompatibleEcosystems(fromProj.ProjectType, toProj.ProjectType))
+                !ProjectNodeFactory.AreCompatibleEcosystems(fromProj.ProjectType, toProj.ProjectType))
             {
                 dependencies.RemoveAt(i);
                 continue;
@@ -682,7 +750,7 @@ public partial class Layer2ProjectParser
     private static async Task<ProjectDependencyInfo?> ParseProjectDependenciesAsync(
         IProjectParser projectParser,
         string projectDir,
-        ParsingContext ctx)
+        Layer2Context ctx)
     {
         try
         {
@@ -692,7 +760,7 @@ public partial class Layer2ProjectParser
         {
             const string layer2Name = "Layer2_Boundaries", manifestErr = "manifest_error", depParseErr = "DependencyParseError";
             ctx.Layer2Log.DependencyParseFailed(projectParser.ProjectType, projectDir, ex.Message, ex);
-            ctx.RecordScanIssue(layer2Name, manifestErr, projectDir, $"Error parsing dependencies for {projectParser.ProjectType}: {ex.Message}", name: depParseErr, exception: ex, language: projectParser.ProjectType, isFileParent: false, logToConsole: false);
+            ctx.RecordScanIssue(layer2Name, manifestErr, projectDir, $"Error parsing dependencies for {projectParser.ProjectType}: {ex.Message}", name: depParseErr, exception: ex, language: projectParser.ProjectType, isFileParent: false);
             return null;
         }
     }
@@ -740,13 +808,13 @@ public partial class Layer2ProjectParser
         List<Relationship> dependencies,
         List<PackageNode> packages,
         IProjectParser projectParser,
-        ParsingContext ctx)
+        Layer2Context ctx)
     {
         var seenTargets = new HashSet<string>(StringComparer.Ordinal);
         for (var i = 0; i < dependencies.Count; i++)
         {
             var d = dependencies[i];
-            if (d.From == projectNodeId && d.Kind == CodeExplorer.Cypher.Common.RelationshipKind.DependsOn)
+            if (d.From == projectNodeId && d.Kind == RelationshipKind.DependsOn)
             {
                 seenTargets.Add(d.To);
             }
@@ -809,46 +877,36 @@ public partial class Layer2ProjectParser
         string projectNodeId,
         IProjectParser projectParser,
         string projectDir,
-        ParsingContext ctx)
+        ProducedPackageInfo? producedPackage,
+        Layer2Context ctx)
     {
         var packageDetected = false;
         string? resultName = null;
         string? resultEco = null;
 
-        try
+        if (producedPackage != null)
         {
-            var producedPackage = await projectParser.GetProducedPackageAsync(projectDir);
+            var ecosystem = !string.IsNullOrEmpty(producedPackage.Ecosystem) ? producedPackage.Ecosystem.ToLowerInvariant() : projectParser.ProjectType.ToLowerInvariant();
+            var packageNodeId = $"{ctx.WorkspaceId}:{OntologyConstants.IdPrefixes.Package}:{ecosystem}:{producedPackage.Name.ToLowerInvariant()}";
 
-            if (producedPackage != null)
-            {
-                var ecosystem = !string.IsNullOrEmpty(producedPackage.Ecosystem) ? producedPackage.Ecosystem.ToLowerInvariant() : projectParser.ProjectType.ToLowerInvariant();
-                var packageNodeId = $"{ctx.WorkspaceId}:{OntologyConstants.IdPrefixes.Package}:{ecosystem}:{producedPackage.Name.ToLowerInvariant()}";
+            var packageNode = new PackageNode(
+                Id: packageNodeId,
+                Name: producedPackage.Name,
+                Version: producedPackage.Version,
+                IsInternal: true,
+                Ecosystem: ecosystem,
+                Path: projectNode.Path);
 
-                var packageNode = new PackageNode(
-                    Id: packageNodeId,
-                    Name: producedPackage.Name,
-                    Version: producedPackage.Version,
-                    IsInternal: true,
-                    Ecosystem: ecosystem,
-                    Path: projectNode.Path);
+            projectNode.Children.Add(packageNode);
 
-                projectNode.Children.Add(packageNode);
+            var producesRel = Relationship.FromRelationship(new ProducesRelationship(projectNodeId, packageNodeId));
+            var implRel = Relationship.FromRelationship(new ImplementedByRelationship(packageNodeId, projectNodeId));
+            await ctx.EnqueueUploadRelationshipsAsync([producesRel, implRel]);
+            ctx.AddRelsCount(2);
 
-                var producesRel = Relationship.FromRelationship(new ProducesRelationship(projectNodeId, packageNodeId));
-                var implRel = Relationship.FromRelationship(new ImplementedByRelationship(packageNodeId, projectNodeId));
-                await ctx.EnqueueUploadRelationshipsAsync([producesRel, implRel]);
-                ctx.AddRelsCount(2);
-
-                packageDetected = true;
-                resultName = producedPackage.Name;
-                resultEco = ecosystem;
-            }
-        }
-        catch (Exception ex) when (ex is not OperationCanceledException)
-        {
-            const string layer2Name = "Layer2_Boundaries", manifestErr = "manifest_error", prodPkgErr = "ProducedPackageParseError";
-            ctx.Layer2Log.ProducedPackageParseFailed(projectParser.ProjectType, projectDir, ex.Message, ex);
-            ctx.RecordScanIssue(layer2Name, manifestErr, projectDir, $"Error getting produced package for {projectParser.ProjectType}: {ex.Message}", name: prodPkgErr, exception: ex, language: projectParser.ProjectType, isFileParent: false, logToConsole: false);
+            packageDetected = true;
+            resultName = producedPackage.Name;
+            resultEco = ecosystem;
         }
 
         if (!packageDetected)

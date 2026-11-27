@@ -1,9 +1,5 @@
-using CodeExplorer.Core.Common.Nodes.Layer1_Physical;
 using CodeExplorer.Core.Common.Nodes.Layer3_Syntactic;
 using CodeExplorer.Core.Common.Nodes.Layer4_Semantic;
-using CodeExplorer.Core.Mcp;
-using CodeExplorer.Core.Parser;
-using CodeExplorer.Cypher.Common;
 using CodeExplorer.Parsers.Perl;
 using CodeExplorer.Parsers.Php;
 using NUnit.Framework;

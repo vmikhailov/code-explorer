@@ -1,7 +1,5 @@
-using System.Text.Json;
 using System.Text.RegularExpressions;
 using CodeExplorer.Core.Database;
-using CodeExplorer.Cypher.Common;
 using Microsoft.Data.Sqlite;
 
 namespace CodeExplorer.Core.Analysis.Testing;

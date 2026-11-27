@@ -70,7 +70,7 @@ public class EventBusLibraryParser : DeclarativeSemanticExtension
         "CancellationToken"
     };
 
-    private static void CollectEventBusReferences(Node node, string scopeSymbolId, List<Reference> references, ParsingContext ctx)
+    private static void CollectEventBusReferences(Node node, string scopeSymbolId, List<Reference> references, SemanticParseContext ctx)
     {
         // 1. Ingress: Handler classes subscribe to message types
         if (IsHandlerClass(node))

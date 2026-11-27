@@ -1,5 +1,4 @@
 using System.Text.RegularExpressions;
-using CodeExplorer.Core.Common.Nodes;
 using CodeExplorer.Core.Common.Nodes.Layer2_Boundaries;
 using CodeExplorer.Core.Common.Nodes.Layer3_Syntactic;
 using CodeExplorer.Core.Common.Nodes.Layer4_Semantic;
@@ -33,7 +32,7 @@ public static class EndpointSemanticAnalyzer
     public static void Enrich(
         SyntaxTree syntaxTree,
         ProjectNode? project = null,
-        ParsingContext? ctx = null,
+        SemanticParseContext? ctx = null,
         List<Relationship>? relationships = null)
     {
         if (syntaxTree.SemanticSymbols == null || syntaxTree.SemanticSymbols.Count == 0) return;
@@ -62,14 +61,14 @@ public static class EndpointSemanticAnalyzer
         string relativePath,
         string workspaceId,
         ProjectNode? project,
-        ParsingContext? ctx,
+        SemanticParseContext? ctx,
         string? projectName,
         bool symbolIsTest,
         ProjectEntityKind? projectKind,
         List<Relationship>? relationships)
     {
         var node = syntactic.Node;
-        var kind = CodeExplorer.Cypher.Common.TaxonomyEnumExtendedExtensions.ToCanonicalString(syntactic.Kind);
+        var kind = TaxonomyEnumExtendedExtensions.ToCanonicalString(syntactic.Kind);
         var name = syntactic.Name;
         var idName = (name.Length > 80 || name.AsSpan().IndexOfAny(CharLf, CharCr) >= 0) ? $"{name[..Math.Min(48, name.Length)].Replace(CharLf, CharSpace).Replace(CharCr, CharSpace).Trim()}_{Convert.ToHexStringLower(System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(name))[..6])}" : name;
         var symbolId = $"{workspaceId}:{OntologyConstants.IdPrefixes.Symbol}:{relativePath}:{kind}:{idName}";
@@ -227,11 +226,11 @@ public static class EndpointSemanticAnalyzer
         }
         else if (kind == OntologyConstants.NodeLabels.Table)
         {
-            if (symbolIsTest)
+            if (symbolIsTest || string.IsNullOrWhiteSpace(name) || name.IndexOfAny(['\n', '\r', '\t']) >= 0)
             {
                 return null;
             }
-            var resolvedName = name;
+            var resolvedName = name.Trim();
             var isExplicitQuotedLiteral = !string.IsNullOrEmpty(node.Text) &&
                                           (node.Text.Contains($"'{name}'", StringComparison.Ordinal) ||
                                            node.Text.Contains($"\"{name}\"", StringComparison.Ordinal));
@@ -269,7 +268,7 @@ public static class EndpointSemanticAnalyzer
                 return null;
             }
             var tableId = $"{workspaceId}:{OntologyConstants.IdPrefixes.Table}:{resolvedName.ToLowerInvariant()}";
-            var canonicalTbl = TableCanonicalParser.Parse(resolvedName, CodeExplorer.Cypher.Common.TableDialect.Auto, explicitSchema);
+            var canonicalTbl = TableCanonicalParser.Parse(resolvedName, TableDialect.Auto, explicitSchema);
             typedNode = new TableNode(tableId, resolvedName, relativePath)
             {
                 Schema = explicitSchema,
@@ -527,7 +526,7 @@ public static class EndpointSemanticAnalyzer
             : null;
         var canonicalEp = RouteCanonicalParser.Parse(
             route,
-            CodeExplorer.Cypher.Common.RouteDialect.Auto,
+            RouteDialect.Auto,
             epParamTypes);
         return new EndpointNode(
             endpointId,
@@ -928,7 +927,7 @@ public static class EndpointSemanticAnalyzer
             : null;
         var canonicalExt = RouteCanonicalParser.Parse(
             templatePath,
-            CodeExplorer.Cypher.Common.RouteDialect.OutboundClient,
+            RouteDialect.OutboundClient,
             extParamTypes);
 
         return new ExternalServiceNode(extServiceId, domainOrService, protocol, domainOrService, path)

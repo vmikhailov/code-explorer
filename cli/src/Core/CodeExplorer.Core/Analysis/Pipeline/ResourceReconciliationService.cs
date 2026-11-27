@@ -1,6 +1,4 @@
 using System.Collections.Concurrent;
-using System.Text.RegularExpressions;
-using CodeExplorer.Cypher.Common;
 
 namespace CodeExplorer.Core.Analysis;
 

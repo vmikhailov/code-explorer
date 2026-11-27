@@ -33,40 +33,126 @@ public class GoProjectParser : IProjectParser
         return false;
     }
 
-    public async Task<ProducedPackageInfo?> GetProducedPackageAsync(string projectDirectory)
+    public bool TryParse(ProjectParseContext context, out ProjectParseResult? result)
     {
-        var goModPath = Path.Combine(projectDirectory, "go.mod");
-        if (!File.Exists(goModPath)) return null;
-
-        try
+        var activeIndex = context.DirectoryIndex ?? WorkspaceDirectoryIndex.Current;
+        if (activeIndex != null && activeIndex.TryGetCachedProjectParse(this, context.DirectoryPath, out var cached))
         {
-            var lines = PhysicalFileStore.ReadLines(goModPath);
-            var moduleLine = lines.FirstOrDefault(l => l.Trim().StartsWith("module ", StringComparison.Ordinal));
-            if (moduleLine != null)
+            result = cached.Result;
+            return cached.Matched;
+        }
+
+        var dir = context.DirectoryPath;
+        var files = context.FilesInDirectory;
+        if (!IsProjectDirectory(dir, files))
+        {
+            activeIndex?.StoreProjectParse(this, dir, false, null);
+            result = null;
+            return false;
+        }
+
+        var goModPath = Path.Combine(dir, "go.mod");
+        var goModText = File.Exists(goModPath) ? FileStreamReader.ReadTextOnce(goModPath) : string.Empty;
+        var name = Path.GetFileName(dir.TrimEnd('/', '\\'));
+        var props = ExtractManifestPropertiesFromContent(dir, files, goModText);
+        var produced = ExtractProducedPackageFromContent(dir, goModText);
+        var deps = ExtractDependenciesFromContent(goModText);
+        var meta = produced != null ? new ParsedProjectManifestMetadata(GoModuleName: produced.Name) : null;
+        var additional = GetAdditionalProjects(dir, files);
+
+        List<ParsedProjectDescriptor>? subProjects = null;
+        if (additional.Count > 0)
+        {
+            subProjects = [];
+            foreach (var add in additional)
             {
-                var modName = moduleLine.Trim()["module ".Length..].Trim();
-                if (!string.IsNullOrEmpty(modName))
-                {
-                    var version = "unknown";
-                    var versionFilePath = Path.Combine(projectDirectory, "VERSION");
-                    if (File.Exists(versionFilePath))
-                    {
-                        version = (await PhysicalFileStore.ReadAllTextAsync(versionFilePath)).Trim();
-                    }
-                    return new ProducedPackageInfo(modName, version, "go");
-                }
+                var entryDir = Path.GetDirectoryName(add.EntryPointPath) ?? dir;
+                var relIdOverride = !string.IsNullOrEmpty(context.AbsoluteWorkspacePath)
+                    ? Path.GetRelativePath(context.AbsoluteWorkspacePath, Path.GetFullPath(add.EntryPointPath)).Replace('\\', '/')
+                    : null;
+                subProjects.Add(new ParsedProjectDescriptor(
+                    Name: add.Name,
+                    DirectoryPath: entryDir,
+                    ProjectType: ProjectType,
+                    ManifestProperties: add.Properties,
+                    EntryPointPaths: [add.EntryPointPath],
+                    LocalDependencyPaths: add.LocalDependencyPaths,
+                    RelativeIdPathOverride: relIdOverride));
             }
         }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+
+        result = new ProjectParseResult(
+            Project: new ParsedProjectDescriptor(
+                Name: name,
+                DirectoryPath: dir,
+                ProjectType: ProjectType,
+                ManifestProperties: props,
+                SubProjects: subProjects,
+                ProducedPackage: produced,
+                Dependencies: deps,
+                ManifestMetadata: meta,
+                AdditionalTargets: additional.Count > 0 ? additional : null),
+            ClaimMode: ParserClaimMode.AbsorbSecondaryInDirectory);
+        activeIndex?.StoreProjectParse(this, dir, true, result);
+        return true;
+    }
+
+    public ParsedProjectManifestMetadata? InspectDirectoryManifestMetadata(ProjectParseContext context)
+    {
+        var activeIndex = context.DirectoryIndex ?? WorkspaceDirectoryIndex.Current;
+        if (activeIndex != null && activeIndex.TryGetCachedProjectParse(this, context.DirectoryPath, out var cached) && cached.Result != null)
         {
-            // Ignore
+            return cached.Result.Project.ManifestMetadata;
         }
 
+        var goModPath = Path.Combine(context.DirectoryPath, "go.mod");
+        if (!File.Exists(goModPath)) return null;
+        var produced = ExtractProducedPackageFromContent(context.DirectoryPath, FileStreamReader.ReadTextOnce(goModPath));
+        return produced != null ? new ParsedProjectManifestMetadata(GoModuleName: produced.Name) : null;
+    }
+
+    public Task<ProducedPackageInfo?> GetProducedPackageAsync(string projectDirectory)
+    {
+        var goModPath = Path.Combine(projectDirectory, "go.mod");
+        if (!File.Exists(goModPath)) return Task.FromResult<ProducedPackageInfo?>(null);
+        return Task.FromResult(ExtractProducedPackageFromContent(projectDirectory, FileStreamReader.ReadTextOnce(goModPath)));
+    }
+
+    private static ProducedPackageInfo? ExtractProducedPackageFromContent(string projectDirectory, string goModText)
+    {
+        if (string.IsNullOrEmpty(goModText)) return null;
+        foreach (var rawLine in goModText.Split(['\r', '\n'], StringSplitOptions.RemoveEmptyEntries))
+        {
+            var trimmed = rawLine.Trim();
+            if (!trimmed.StartsWith("module ", StringComparison.Ordinal)) continue;
+            var modName = trimmed["module ".Length..].Trim();
+            if (string.IsNullOrEmpty(modName)) continue;
+
+            var version = "unknown";
+            var versionFilePath = Path.Combine(projectDirectory, "VERSION");
+            if (File.Exists(versionFilePath))
+            {
+                version = FileStreamReader.ReadTextOnce(versionFilePath).Trim();
+            }
+            const string goEcosystem = "go";
+            return new ProducedPackageInfo(modName, version, goEcosystem);
+        }
         return null;
     }
 
     public Dictionary<string, string> ExtractManifestProperties(string directoryPath, string[] filesInDirectory)
     {
+        var goModPath = Path.Combine(directoryPath, "go.mod");
+        var content = File.Exists(goModPath) ? FileStreamReader.ReadTextOnce(goModPath) : string.Empty;
+        return ExtractManifestPropertiesFromContent(directoryPath, filesInDirectory, content);
+    }
+
+    private static Dictionary<string, string> ExtractManifestPropertiesFromContent(
+        string directoryPath,
+        string[] filesInDirectory,
+        string goModContent)
+    {
+        const string mainGoFileName = "main.go";
         var props = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
 
         var normPath = "/" + directoryPath.Replace('\\', '/').Trim('/') + "/";
@@ -86,13 +172,13 @@ public class GoProjectParser : IProjectParser
 
         var goFiles = filesInDirectory.Where(f => f.EndsWith(".go", StringComparison.OrdinalIgnoreCase)).ToList();
         var hasNonTestGo = goFiles.Any(f => !f.EndsWith("_test.go", StringComparison.OrdinalIgnoreCase));
-        var hasMainGo = goFiles.Any(f => Path.GetFileName(f).Equals("main.go", StringComparison.OrdinalIgnoreCase));
+        var hasMainGo = goFiles.Any(f => Path.GetFileName(f).Equals(mainGoFileName, StringComparison.OrdinalIgnoreCase));
         if (!hasMainGo)
         {
             var cmdDir = Path.Combine(directoryPath, "cmd");
             if (Directory.Exists(cmdDir))
             {
-                hasMainGo = Directory.EnumerateFiles(cmdDir, "main.go", SearchOption.AllDirectories).Any();
+                hasMainGo = Directory.EnumerateFiles(cmdDir, mainGoFileName, SearchOption.AllDirectories).Any();
             }
         }
 
@@ -103,40 +189,31 @@ public class GoProjectParser : IProjectParser
             return props;
         }
 
-        var goModPath = Path.Combine(directoryPath, "go.mod");
         var hasGrpc = false;
         var hasWeb = false;
         var hasCobraOrCli = false;
 
-        if (File.Exists(goModPath))
+        if (!string.IsNullOrEmpty(goModContent))
         {
-            try
+            if (goModContent.Contains("github.com/spf13/cobra") ||
+                goModContent.Contains("github.com/urfave/cli") ||
+                goModContent.Contains("github.com/spf13/pflag"))
             {
-                var content = PhysicalFileStore.ReadAllText(goModPath);
-                if (content.Contains("github.com/spf13/cobra") ||
-                    content.Contains("github.com/urfave/cli") ||
-                    content.Contains("github.com/spf13/pflag"))
-                {
-                    hasCobraOrCli = true;
-                }
-                if (content.Contains("google.golang.org/grpc"))
-                {
-                    hasGrpc = true;
-                    props["has_grpc"] = "true";
-                }
-                if (content.Contains("github.com/gin-gonic/gin") ||
-                    content.Contains("github.com/labstack/echo") ||
-                    content.Contains("github.com/gofiber/fiber") ||
-                    content.Contains("github.com/go-chi/chi") ||
-                    content.Contains("github.com/beego/beego") ||
-                    content.Contains("github.com/astaxie/beego"))
-                {
-                    hasWeb = true;
-                }
+                hasCobraOrCli = true;
             }
-            catch
+            if (goModContent.Contains("google.golang.org/grpc"))
             {
-                // ignored: unreadable go.mod falls back to directory heuristic
+                hasGrpc = true;
+                props["has_grpc"] = "true";
+            }
+            if (goModContent.Contains("github.com/gin-gonic/gin") ||
+                goModContent.Contains("github.com/labstack/echo") ||
+                goModContent.Contains("github.com/gofiber/fiber") ||
+                goModContent.Contains("github.com/go-chi/chi") ||
+                goModContent.Contains("github.com/beego/beego") ||
+                goModContent.Contains("github.com/astaxie/beego"))
+            {
+                hasWeb = true;
             }
         }
 
@@ -193,24 +270,30 @@ public class GoProjectParser : IProjectParser
         return props;
     }
 
-    public async Task<ProjectDependencyInfo> ParseDependenciesAsync(string projectDirectory)
+    public Task<ProjectDependencyInfo> ParseDependenciesAsync(string projectDirectory)
+    {
+        var goModPath = Path.Combine(projectDirectory, "go.mod");
+        if (!File.Exists(goModPath))
+        {
+            return Task.FromResult(new ProjectDependencyInfo([], []));
+        }
+        return Task.FromResult(ExtractDependenciesFromContent(FileStreamReader.ReadTextOnce(goModPath)));
+    }
+
+    private static ProjectDependencyInfo ExtractDependenciesFromContent(string goModText)
     {
         var localProjectPaths = new List<string>();
         var externalPackages = new List<ProducedPackageInfo>();
-
-        var goModPath = Path.Combine(projectDirectory, "go.mod");
-        if (!File.Exists(goModPath))
+        if (string.IsNullOrEmpty(goModText))
         {
             return new ProjectDependencyInfo(localProjectPaths, externalPackages);
         }
 
-        try
-        {
-            var lines = PhysicalFileStore.ReadLines(goModPath);
-            var inRequireBlock = false;
-            var inReplaceBlock = false;
+        var lines = goModText.Split(['\r', '\n'], StringSplitOptions.RemoveEmptyEntries);
+        var inRequireBlock = false;
+        var inReplaceBlock = false;
 
-            foreach (var rawLine in lines)
+        foreach (var rawLine in lines)
             {
                 var line = rawLine.Trim();
                 if (string.IsNullOrEmpty(line) || line.StartsWith("//", StringComparison.Ordinal)) continue;
@@ -253,13 +336,15 @@ public class GoProjectParser : IProjectParser
                 // Handle single-line require
                 if (line.StartsWith("require ", StringComparison.Ordinal) && !line.EndsWith('('))
                 {
+                    const string goEco = "go";
+                    const string defaultVer = "1.0.0";
                     var content = line["require ".Length..].Trim();
                     var parts = content.Split([' ', '\t'], StringSplitOptions.RemoveEmptyEntries);
                     if (parts.Length >= 1)
                     {
                         var name = parts[0];
-                        var version = parts.Length >= 2 ? parts[1] : "1.0.0";
-                        externalPackages.Add(new ProducedPackageInfo(name, version, "go"));
+                        var version = parts.Length >= 2 ? parts[1] : defaultVer;
+                        externalPackages.Add(new ProducedPackageInfo(name, version, goEco));
                     }
                 }
                 else if (line.StartsWith("require (", StringComparison.Ordinal))
@@ -272,23 +357,19 @@ public class GoProjectParser : IProjectParser
                 }
                 else if (inRequireBlock)
                 {
-                    // Line inside require block
+                    const string goEco = "go";
+                    const string defaultVer = "1.0.0";
                     var parts = line.Split([' ', '\t'], StringSplitOptions.RemoveEmptyEntries);
                     if (parts.Length >= 1)
                     {
                         var name = parts[0];
-                        var version = parts.Length >= 2 ? parts[1] : "1.0.0";
-                        externalPackages.Add(new ProducedPackageInfo(name, version, "go"));
+                        var version = parts.Length >= 2 ? parts[1] : defaultVer;
+                        externalPackages.Add(new ProducedPackageInfo(name, version, goEco));
                     }
                 }
             }
-        }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
-        {
-            // Ignore
-        }
 
-        return await Task.FromResult(new ProjectDependencyInfo(localProjectPaths, externalPackages));
+        return new ProjectDependencyInfo(localProjectPaths, externalPackages);
     }
 
     public IReadOnlyList<AdditionalProjectDescriptor> GetAdditionalProjects(string directoryPath, string[] filesInDirectory)
@@ -357,7 +438,7 @@ public class GoProjectParser : IProjectParser
             foreach (var goFile in Directory.EnumerateFiles(dir, GoSearchPattern, SearchOption.TopDirectoryOnly))
             {
                 if (goFile.EndsWith("_test.go", StringComparison.OrdinalIgnoreCase)) continue;
-                var text = PhysicalFileStore.ReadAllText(goFile);
+                var text = FileStreamReader.ReadTextOnce(goFile);
                 if (text.Contains("package main") && text.Contains("func main()"))
                 {
                     return goFile;

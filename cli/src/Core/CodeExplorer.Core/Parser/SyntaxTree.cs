@@ -161,11 +161,12 @@ public class SyntaxTree : IDisposable
         string parentNodeId,
         IFileParser fileParser,
         string workspaceId,
-        string absoluteWorkspacePath)
+        string absoluteWorkspacePath,
+        string? preloadedContent = null)
     {
         filePath = filePath.Replace('\\', '/');
         relativePath = relativePath.Replace('\\', '/');
-        var sourceText = await PhysicalFileStore.ConsumeFileTextAsync(filePath);
+        var sourceText = preloadedContent ?? await FileStreamReader.ReadTextOnceAsync(filePath);
         var document = fileParser.ParseDocument(sourceText, filePath, relativePath);
 
         var fileNodeId = $"{workspaceId}:{OntologyConstants.IdPrefixes.File}:{relativePath}";

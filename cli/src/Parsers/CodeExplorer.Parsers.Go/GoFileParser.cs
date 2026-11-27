@@ -116,10 +116,15 @@ public class GoFileParser : IFileParser
         );
     }
 
-    public async Task<SyntaxTree> ParseAsync(string filePath, string parentNodeId, string workspaceId, string absoluteWorkspacePath)
+    public async Task<SyntaxTree> ParseAsync(
+        string filePath,
+        string parentNodeId,
+        string workspaceId,
+        string absoluteWorkspacePath,
+        string? preloadedContent = null)
     {
         var relativePath = Path.GetRelativePath(absoluteWorkspacePath, filePath).Replace('\\', '/');
-        return await SyntaxTree.ParseAsync(filePath, relativePath, parentNodeId, this, workspaceId, absoluteWorkspacePath);
+        return await SyntaxTree.ParseAsync(filePath, relativePath, parentNodeId, this, workspaceId, absoluteWorkspacePath, preloadedContent);
     }
 
     private readonly ConcurrentDictionary<string, string> _goModCache = new(StringComparer.OrdinalIgnoreCase);
@@ -175,7 +180,7 @@ public class GoFileParser : IFileParser
     {
         try
         {
-            var lines = PhysicalFileStore.ReadLines(goModFile);
+            var lines = FileStreamReader.ReadLinesOnce(goModFile);
             foreach (var line in lines)
             {
                 var trimmed = line.Trim();

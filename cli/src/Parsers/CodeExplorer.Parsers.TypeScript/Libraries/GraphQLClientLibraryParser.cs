@@ -1,4 +1,3 @@
-using CodeExplorer.Cypher.Common;
 using Node = CodeExplorer.Core.Parser.Syntax.SyntaxNode;
 
 namespace CodeExplorer.Parsers.TypeScript.Libraries;
@@ -43,7 +42,7 @@ public class GraphQLClientLibraryParser : DeclarativeSemanticExtension
 
     public override IReadOnlyList<CustomAstRule> CustomAstRules => Rules;
 
-    private static string? MapNodeTypeCore(Node node, ParsingContext ctx)
+    private static string? MapNodeTypeCore(Node node, SemanticParseContext ctx)
     {
         if (!node.IsValid()) return null;
 
@@ -74,7 +73,7 @@ public class GraphQLClientLibraryParser : DeclarativeSemanticExtension
         return null;
     }
 
-    private static string? ExtractIdentifierCore(Node node, ParsingContext ctx)
+    private static string? ExtractIdentifierCore(Node node, SemanticParseContext ctx)
     {
         if (!node.IsValid()) return null;
 
@@ -134,9 +133,9 @@ public class GraphQLClientLibraryParser : DeclarativeSemanticExtension
     private const string GraphQlOperationPropKey = "graphql_operation";
     private const string OperationTypePropKey = "operation_type";
 
-    private static void EnrichSymbolCore(Node node, SyntacticSymbol symbol, ParsingContext ctx)
+    private static void EnrichSymbolCore(Node node, SyntacticSymbol symbol, SemanticParseContext ctx)
     {
-        if (symbol.Kind == CodeExplorer.Cypher.Common.SyntacticSymbolKind.Function &&
+        if (symbol.Kind == SyntacticSymbolKind.Function &&
             node.Is(TreeSitterSyntax.TypeScript.VariableDeclarator) &&
             TryExtractDocumentOperationsFromDeclarator(node, out var ops) &&
             ops.Count > 0)
@@ -188,7 +187,7 @@ public class GraphQLClientLibraryParser : DeclarativeSemanticExtension
         }
     }
 
-    private static void CollectReferencesCore(Node node, string scopeSymbolId, List<Reference> references, ParsingContext ctx)
+    private static void CollectReferencesCore(Node node, string scopeSymbolId, List<Reference> references, SemanticParseContext ctx)
     {
         if (!node.IsValid()) return;
 

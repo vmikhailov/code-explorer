@@ -10,7 +10,7 @@ public partial class Layer5AnalysisParser
     private const string ParamTargetPrefix = "$param:";
 
     private void ResolveGlobalReferencesBatch(
-        ParsingContext ctx,
+        Layer5Context ctx,
         SymbolLookups symbols,
         BindingLookups bindings,
         ImportLookups imports,
@@ -81,7 +81,7 @@ public partial class Layer5AnalysisParser
 
     private void ResolveStatelessReference(
         Reference refItem,
-        ParsingContext ctx,
+        Layer5Context ctx,
         SymbolLookups symbols,
         BindingLookups bindings,
         ImportLookups imports,
@@ -119,13 +119,14 @@ public partial class Layer5AnalysisParser
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
+            ctx.Layer5Log.ReferenceResolutionFailed(refItem.TargetName, refItem.ScopeSymbolId, ex);
             ctx.RecordScanIssue(Layer5GlobalSource, ReferenceErrorCode, refItem.ScopeSymbolId, $"Failed to resolve reference '{refItem.TargetName}': {ex.Message}", name: ReferenceErrorName, exception: ex, isFileParent: false);
         }
     }
 
     private void ResolveStatefulReference(
         Reference refItem,
-        ParsingContext ctx,
+        Layer5Context ctx,
         SymbolLookups symbols,
         BindingLookups bindings,
         List<TopicNode> newTopicNodes,
@@ -159,6 +160,7 @@ public partial class Layer5AnalysisParser
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
+            ctx.Layer5Log.ReferenceResolutionFailed(refItem.TargetName, refItem.ScopeSymbolId, ex);
             ctx.RecordScanIssue(Layer5GlobalSource, ReferenceErrorCode, refItem.ScopeSymbolId, $"Failed to resolve reference '{refItem.TargetName}': {ex.Message}", name: ReferenceErrorName, exception: ex, isFileParent: false);
         }
     }
@@ -170,7 +172,7 @@ public partial class Layer5AnalysisParser
     private static readonly System.Text.RegularExpressions.Regex ConstantStyleTopicRegex = new(@"^[A-Z][A-Z0-9_]*$|^[A-Z][A-Za-z0-9_]*\.[A-Za-z0-9_]+$", System.Text.RegularExpressions.RegexOptions.Compiled, Layer5RegexTimeout);
     private static readonly System.Text.RegularExpressions.Regex UpperConstTopicRegex = new(@"^[A-Z0-9_]{3,}$", System.Text.RegularExpressions.RegexOptions.Compiled, Layer5RegexTimeout);
 
-    private static ImportLookups BuildImportLookups(ParsingContext ctx, Layer4Result? l4Result)
+    private static ImportLookups BuildImportLookups(Layer5Context ctx, Layer4Result? l4Result)
     {
         const string wildcardImportSymbol = "*";
         var fileImports = new Dictionary<(string FilePath, string LocalName), ImportedSymbolEntry>();
@@ -223,7 +225,7 @@ public partial class Layer5AnalysisParser
         }
 
         var workspacePackages = new Dictionary<string, PackageTargetInfo>(StringComparer.OrdinalIgnoreCase);
-        var inMemoryProjects = l4Result?.Prev.Prev.Projects ?? ctx.ProjectsStructure?.Children.OfType<CodeExplorer.Core.Common.Nodes.Layer2_Boundaries.ProjectNode>().ToList();
+        var inMemoryProjects = ctx.Projects;
         if (inMemoryProjects != null && inMemoryProjects.Count > 0)
         {
             foreach (var proj in inMemoryProjects)
@@ -327,7 +329,7 @@ public partial class Layer5AnalysisParser
         string? methodName,
         string? normCallerFile,
         SymbolScopeInfo callerScope,
-        ParsingContext ctx,
+        Layer5Context ctx,
         SymbolLookups symbols,
         BindingLookups bindings,
         List<Relationship> referenceRelationships)
@@ -438,7 +440,7 @@ public partial class Layer5AnalysisParser
 
     private static void ResolveDeferredParamMessagingReferences(
         List<Reference> deferredRefs,
-        ParsingContext ctx,
+        Layer5Context ctx,
         SymbolLookups symbols,
         BindingLookups bindings,
         List<TopicNode> newTopicNodes,

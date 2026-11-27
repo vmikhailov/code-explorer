@@ -1,7 +1,5 @@
-using AwesomeAssertions;
 using CodeExplorer.Core.Analysis.GraphProjection;
 using CodeExplorer.Core.Protocol;
-using CodeExplorer.Cypher.Common;
 using NUnit.Framework;
 
 namespace CodeExplorer.Tests;

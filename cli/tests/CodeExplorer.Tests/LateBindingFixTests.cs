@@ -23,7 +23,7 @@ public class LateBindingFixTests
         _parser = new Layer5AnalysisParser();
         _matchPathsMethod = typeof(Layer5AnalysisParser).GetMethod("MatchPaths", BindingFlags.NonPublic | BindingFlags.Instance, [typeof(string), typeof(string)])!;
         _isMatchEndpointMethod = typeof(Layer5AnalysisParser).GetMethod("IsMatch", BindingFlags.NonPublic | BindingFlags.Instance, [typeof(ExternalServiceNode), typeof(EndpointNode)])!;
-        _isMatchEndpointWithProjectMethod = typeof(Layer5AnalysisParser).GetMethod("IsMatch", BindingFlags.NonPublic | BindingFlags.Instance, [typeof(ExternalServiceNode), typeof(EndpointNode), typeof(CodeExplorer.Core.Common.Nodes.Layer2_Boundaries.ProjectNode)])!;
+        _isMatchEndpointWithProjectMethod = typeof(Layer5AnalysisParser).GetMethod("IsMatch", BindingFlags.NonPublic | BindingFlags.Instance, [typeof(ExternalServiceNode), typeof(EndpointNode), typeof(Core.Common.Nodes.Layer2_Boundaries.ProjectNode)])!;
     }
 
     [TearDown]
@@ -43,7 +43,7 @@ public class LateBindingFixTests
         return (bool)_isMatchEndpointMethod.Invoke(_parser, [extService, endpoint])!;
     }
 
-    private bool InvokeIsMatch(ExternalServiceNode extService, EndpointNode endpoint, CodeExplorer.Core.Common.Nodes.Layer2_Boundaries.ProjectNode? targetProj)
+    private bool InvokeIsMatch(ExternalServiceNode extService, EndpointNode endpoint, Core.Common.Nodes.Layer2_Boundaries.ProjectNode? targetProj)
     {
         return (bool)_isMatchEndpointWithProjectMethod.Invoke(_parser, [extService, endpoint, targetProj])!;
     }
@@ -120,8 +120,8 @@ public class LateBindingFixTests
 
         var prepExt = Layer5AnalysisParser.PrepareExternalService(pingService, null);
 
-        var projA = new CodeExplorer.Core.Common.Nodes.Layer2_Boundaries.ProjectNode("ws:p:service-a:", "service-a", "src/services/a", "ts");
-        var projB = new CodeExplorer.Core.Common.Nodes.Layer2_Boundaries.ProjectNode("ws:p:service-b:", "service-b", "src/services/b", "ts");
+        var projA = new Core.Common.Nodes.Layer2_Boundaries.ProjectNode("ws:p:service-a:", "service-a", "src/services/a", "ts");
+        var projB = new Core.Common.Nodes.Layer2_Boundaries.ProjectNode("ws:p:service-b:", "service-b", "src/services/b", "ts");
 
         var epA = Layer5AnalysisParser.PrepareEndpoint(
             new EndpointNode("5:ep:a", "GET /ping", "a.ts", "GET", "/ping"), projA);
@@ -149,7 +149,7 @@ public class LateBindingFixTests
 
         var prepExt = Layer5AnalysisParser.PrepareExternalService(bundleService, null);
 
-        var bundleProj = new CodeExplorer.Core.Common.Nodes.Layer2_Boundaries.ProjectNode("ws:p:bundle:", "bundle-service", "src/services/bundle", "ts");
+        var bundleProj = new Core.Common.Nodes.Layer2_Boundaries.ProjectNode("ws:p:bundle:", "bundle-service", "src/services/bundle", "ts");
         var epBundle = Layer5AnalysisParser.PrepareEndpoint(
             new EndpointNode("5:ep:bundle", "GET /ping", "bundle.ts", "GET", "/ping"), bundleProj);
 
@@ -174,7 +174,7 @@ public class LateBindingFixTests
 
         var prepExt = Layer5AnalysisParser.PrepareExternalService(uniqueService, null);
 
-        var ordersProj = new CodeExplorer.Core.Common.Nodes.Layer2_Boundaries.ProjectNode("ws:p:orders:", "orders-service", "src/services/orders", "ts");
+        var ordersProj = new Core.Common.Nodes.Layer2_Boundaries.ProjectNode("ws:p:orders:", "orders-service", "src/services/orders", "ts");
         var epOrders = Layer5AnalysisParser.PrepareEndpoint(
             new EndpointNode("5:ep:orders", "GET /api/v1/orders/unique-report", "orders.ts", "GET", "/api/v1/orders/unique-report"), ordersProj);
 
@@ -204,13 +204,13 @@ public class LateBindingFixTests
             "GET",
             "/ping");
 
-        var bundleProject = new CodeExplorer.Core.Common.Nodes.Layer2_Boundaries.ProjectNode(
+        var bundleProject = new Core.Common.Nodes.Layer2_Boundaries.ProjectNode(
             "ws:p:bundle:",
             "bundle-service",
             "src/services/bundle",
             "ts");
 
-        var otherProject = new CodeExplorer.Core.Common.Nodes.Layer2_Boundaries.ProjectNode(
+        var otherProject = new Core.Common.Nodes.Layer2_Boundaries.ProjectNode(
             "ws:p:other:",
             "other-service",
             "src/services/other",
@@ -289,13 +289,13 @@ public class LateBindingFixTests
         };
         """;
 
-        Core.Parser.RouteDictionaryRegistry.ScanAndRegister(code);
+        RouteDictionaryRegistry.ScanAndRegister(code);
 
-        Core.Parser.RouteDictionaryRegistry.TryResolve("SINGLE_STAGE", out var path, out var service).Should().BeTrue();
+        RouteDictionaryRegistry.TryResolve("SINGLE_STAGE", out var path, out var service).Should().BeTrue();
         path.Should().Be("/api/bundles/:bundleId/single-stages");
         service.Should().Be("bundles");
 
-        Core.Parser.RouteDictionaryRegistry.TryResolve("BUY_DOMAIN", out var buyPath, out var buyService).Should().BeTrue();
+        RouteDictionaryRegistry.TryResolve("BUY_DOMAIN", out var buyPath, out var buyService).Should().BeTrue();
         buyPath.Should().Be("/api/v1/domains/buy-domain");
         buyService.Should().Be("domain-v2");
     }
@@ -320,13 +320,13 @@ public class LateBindingFixTests
             "GET",
             "/api/v1/bundles");
 
-        var cpmProject = new CodeExplorer.Core.Common.Nodes.Layer2_Boundaries.ProjectNode(
+        var cpmProject = new Core.Common.Nodes.Layer2_Boundaries.ProjectNode(
             "ws:p:cpm-streaming-aggregator:",
             "cpm-streaming-aggregator",
             "cpm-streaming-aggregator",
             "go");
 
-        var bffProject = new CodeExplorer.Core.Common.Nodes.Layer2_Boundaries.ProjectNode(
+        var bffProject = new Core.Common.Nodes.Layer2_Boundaries.ProjectNode(
             "ws:p:bff:",
             "internal-service-bff",
             "bff",
@@ -357,7 +357,7 @@ public class LateBindingFixTests
             "GET",
             "/namespaces");
 
-        var cfGatewayProj = new CodeExplorer.Core.Common.Nodes.Layer2_Boundaries.ProjectNode(
+        var cfGatewayProj = new Core.Common.Nodes.Layer2_Boundaries.ProjectNode(
             "ws:p:cf-gateway:",
             "internal-service-cf-gateway",
             "cf-gateway",

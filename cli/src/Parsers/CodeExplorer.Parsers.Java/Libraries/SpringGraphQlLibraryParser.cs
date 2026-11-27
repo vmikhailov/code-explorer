@@ -34,7 +34,7 @@ public class SpringGraphQlLibraryParser : DeclarativeSemanticExtension
         ];
     }
 
-    private static string? MapNodeTypeCore(Node node, ParsingContext ctx) =>
+    private static string? MapNodeTypeCore(Node node, SemanticParseContext ctx) =>
         IsGraphQlAnnotation(node) ? OntologyConstants.NodeLabels.EntryPoint : null;
 
     private static string? ExtractIdentifierCore(Node node)
@@ -67,7 +67,7 @@ public class SpringGraphQlLibraryParser : DeclarativeSemanticExtension
         return null;
     }
 
-    private static void EnrichSymbolCore(Node node, SyntacticSymbol symbol, ParsingContext ctx)
+    private static void EnrichSymbolCore(Node node, SyntacticSymbol symbol, SemanticParseContext ctx)
     {
         if (!IsGraphQlAnnotation(node)) return;
 
@@ -75,9 +75,9 @@ public class SpringGraphQlLibraryParser : DeclarativeSemanticExtension
         var annotName = GetAnnotationName(node);
         symbol.OperationType = annotName switch
         {
-            "MutationMapping" => CodeExplorer.Cypher.Common.OperationType.Mutation,
-            "SubscriptionMapping" => CodeExplorer.Cypher.Common.OperationType.Subscription,
-            _ => CodeExplorer.Cypher.Common.OperationType.Query
+            "MutationMapping" => OperationType.Mutation,
+            "SubscriptionMapping" => OperationType.Subscription,
+            _ => OperationType.Query
         };
 
         var parentDecl = node.Parent;

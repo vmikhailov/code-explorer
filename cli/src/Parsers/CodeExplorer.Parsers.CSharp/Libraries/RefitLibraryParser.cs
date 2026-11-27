@@ -64,7 +64,7 @@ public class RefitLibraryParser : DeclarativeSemanticExtension
         }
 
         var current = node.Parent;
-        string interfaceName = "api-client";
+        var interfaceName = "api-client";
         string? basePath = null;
 
         while (current.IsValid())

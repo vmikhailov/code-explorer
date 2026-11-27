@@ -26,6 +26,7 @@ import { MermaidDiagramView } from './components/MermaidDiagramView';
 import { SettingsView, AiSettings, ModelDescriptor, ModelStatus } from './components/SettingsView';
 import { GateEditorView } from './components/GateEditorView';
 import { ProjectMapView } from './components/ProjectMapView';
+import { ProjectDependenciesView } from './components/ProjectDependenciesView';
 import { OntologyExplorerView } from './components/OntologyExplorerView';
 import {
   CommandManager,
@@ -1369,7 +1370,7 @@ export const App: React.FC = () => {
   return (
     <CommandProvider manager={commandManager}>
       <div id="app">
-        {viewMode !== 'grid' && viewMode !== 'semantic' && viewMode !== 'matrix' && viewMode !== 'project' && viewMode !== 'settings' && viewMode !== 'gate-editor' && (
+        {viewMode !== 'grid' && viewMode !== 'semantic' && viewMode !== 'matrix' && viewMode !== 'project' && viewMode !== 'project-dependencies' && viewMode !== 'settings' && viewMode !== 'gate-editor' && (
           <Toolbar
             viewMode={viewMode}
             onSwitchViewMode={(m) => handleViewModeChange(m)}
@@ -1519,7 +1520,7 @@ export const App: React.FC = () => {
             (viewMode === 'layers' && !layersGraph && !fullGraph) ||
             ((viewMode === 'semantic' || viewMode === 'matrix') && !domainGraph && !fullGraph) ||
             (viewMode === 'c1' && !c1Graph && !fullGraph) ||
-            (viewMode !== 'flow' && viewMode !== 'contexts' && viewMode !== 'layers' && viewMode !== 'semantic' && viewMode !== 'matrix' && viewMode !== 'project' && viewMode !== 'c1' && viewMode !== 'settings' && viewMode !== 'gate-editor' && !fullGraph)) &&
+            (viewMode !== 'flow' && viewMode !== 'contexts' && viewMode !== 'layers' && viewMode !== 'semantic' && viewMode !== 'matrix' && viewMode !== 'project' && viewMode !== 'project-dependencies' && viewMode !== 'c1' && viewMode !== 'settings' && viewMode !== 'gate-editor' && !fullGraph)) &&
             connectionStatus !== 'error' &&
             connectionStatus !== 'disconnected' &&
             activeError?.code !== 'SCHEMA_OUTDATED' && (
@@ -1595,6 +1596,16 @@ export const App: React.FC = () => {
                 serverHttpUrl={serverHttpUrl}
                 project={projectMapProject}
                 onProjectChange={handleProjectMapProjectChange}
+                onOpenFile={handleOpenFile}
+              />
+            )}
+
+            {viewMode === 'project-dependencies' && (
+              <ProjectDependenciesView
+                serverHttpUrl={serverHttpUrl}
+                scope={projectMapProject}
+                onScopeChange={handleProjectMapProjectChange}
+                onOpenProjectMap={handleOpenProjectMap}
                 onOpenFile={handleOpenFile}
               />
             )}
@@ -1741,8 +1752,8 @@ export const App: React.FC = () => {
           </ErrorBoundary>
         </main>
 
-        {/* Slide-out drawer for node inspection across all views (suppressed in semantic domain view, settings, gate editor, and ontology map) */}
-        {selectedDrawerNode && viewMode !== 'semantic' && viewMode !== 'settings' && viewMode !== 'gate-editor' && viewMode !== 'ontology' && (
+        {/* Slide-out drawer for node inspection across all views (suppressed in semantic domain view, settings, gate editor, ontology map, and project-dependencies) */}
+        {selectedDrawerNode && viewMode !== 'semantic' && viewMode !== 'project-dependencies' && viewMode !== 'settings' && viewMode !== 'gate-editor' && viewMode !== 'ontology' && (
           <aside className="drawer" role="complementary" aria-label="Node Inspector">
             <div className="drawer-header">
               <span className={`badge badge-${(selectedDrawerNode.kind || '').toLowerCase()}`}>

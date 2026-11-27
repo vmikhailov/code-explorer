@@ -22,7 +22,7 @@ public static class NestedSqlParser
     public static bool FastCheckSqlCandidate(ReadOnlySpan<char> text)
     {
         if (text.Length < 6) return false;
-        int i = 0;
+        var i = 0;
         while (i < text.Length)
         {
             while (i < text.Length && (char.IsWhiteSpace(text[i]) || text[i] is '"' or '\'' or '`' or '('))
@@ -45,13 +45,13 @@ public static class NestedSqlParser
             break;
         }
         if (i >= text.Length) return false;
-        char c = char.ToUpperInvariant(text[i]);
+        var c = char.ToUpperInvariant(text[i]);
         if (c is not ('S' or 'I' or 'U' or 'D' or 'M' or 'R' or 'C' or 'A' or 'T' or 'W' or 'E'))
         {
             return false;
         }
 
-        int wordStart = i;
+        var wordStart = i;
         while (i < text.Length && char.IsLetter(text[i]))
         {
             i++;
@@ -368,7 +368,7 @@ public static class NestedSqlParser
         return cleaned;
     }
 
-    public static QueryNode? ParseNestedSql(string rawText, string id, string filePath, ParsingContext? ctx = null, string? customQueryName = null, int startLine = 0, int endLine = 0)
+    public static QueryNode? ParseNestedSql(string rawText, string id, string filePath, SemanticParseContext? ctx = null, string? customQueryName = null, int startLine = 0, int endLine = 0)
     {
         if (!TryParseSql(rawText, out var firstWord, out var cleanedSql))
         {
@@ -566,7 +566,7 @@ public static class NestedSqlParser
         string rawText,
         QueryNode queryNode,
         string filePath,
-        ParsingContext? ctx = null,
+        SemanticParseContext? ctx = null,
         string verb = "SELECT",
         int startLine = 0,
         int endLine = 0)
@@ -597,21 +597,21 @@ public static class NestedSqlParser
         var engine = "default";
         string? concreteDbName = null;
 
-        bool isBigQueryContext =
+        var isBigQueryContext =
             rawText.Contains("_TABLE_SUFFIX", StringComparison.OrdinalIgnoreCase) ||
             rawText.Contains("BigQuery", StringComparison.OrdinalIgnoreCase) ||
             rawText.Contains("bq.driver", StringComparison.OrdinalIgnoreCase) ||
             filePath.Contains("bq-", StringComparison.OrdinalIgnoreCase) ||
             filePath.Contains("bigquery", StringComparison.OrdinalIgnoreCase);
 
-        bool isClickHouseContext =
+        var isClickHouseContext =
             rawText.Contains("MergeTree", StringComparison.OrdinalIgnoreCase) ||
             rawText.Contains("clickhouse", StringComparison.OrdinalIgnoreCase) ||
             filePath.Contains("clickhouse", StringComparison.OrdinalIgnoreCase);
 
         const string snowflakeEngineName = "Snowflake";
         const string accountUsageSchema = "account_usage";
-        bool isSnowflakeContext =
+        var isSnowflakeContext =
             rawText.Contains(snowflakeEngineName, StringComparison.OrdinalIgnoreCase) ||
             rawText.Contains(accountUsageSchema, StringComparison.OrdinalIgnoreCase) ||
             filePath.Contains(snowflakeEngineName, StringComparison.OrdinalIgnoreCase) ||
@@ -651,7 +651,7 @@ public static class NestedSqlParser
                     concreteDbName = canonical.Name;
                 }
             }
-            else if (ctx?.ResourceRegistry.AllResources.FirstOrDefault(r => r.Kind == CodeExplorer.Cypher.Common.NodeKind.Database && (r.DbType == CodeExplorer.Cypher.Common.DatabaseType.Relational || r.DbType == CodeExplorer.Cypher.Common.DatabaseType.Analytics)) is { } anyDb)
+            else if (ctx?.ResourceRegistry.AllResources.FirstOrDefault(r => r.Kind == NodeKind.Database && (r.DbType == DatabaseType.Relational || r.DbType == DatabaseType.Analytics)) is { } anyDb)
             {
                 engine = !string.IsNullOrEmpty(anyDb.Engine) && !anyDb.Engine.Equals("Database", StringComparison.OrdinalIgnoreCase)
                     ? anyDb.Engine
@@ -704,10 +704,11 @@ public static class NestedSqlParser
                               : targetEngine.Equals("default", StringComparison.OrdinalIgnoreCase) ? "dbo"
                               : "public";
 
+            if (ResourceNamingHelper.IsSystemCatalogSchema(tableRef.Schema)) continue;
             var isImplicitSchema = string.IsNullOrEmpty(tableRef.Schema) && string.IsNullOrEmpty(concreteDbName);
-            var schemaName = !string.IsNullOrEmpty(tableRef.Schema) ? tableRef.Schema : defaultSchema;
-            var tableName = tableRef.Table;
-            if (!ResourceNamingHelper.IsValidTableIdentifier(tableName)) continue;
+            var schemaName = !string.IsNullOrEmpty(tableRef.Schema) ? tableRef.Schema.Trim() : defaultSchema;
+            var tableName = tableRef.Table.Trim();
+            if (!ResourceNamingHelper.IsValidTableIdentifier(tableRef.Table) || !ResourceNamingHelper.IsValidTableIdentifier(tableName)) continue;
 
             var fullDbName = !string.IsNullOrEmpty(concreteDbName)
                 ? concreteDbName
@@ -875,7 +876,7 @@ public static class NestedSqlParser
         foreach (var procRef in procedures)
         {
             if (addedProcs.Add(procRef.Procedure) &&
-                !references.Any(r => r.Kind == CodeExplorer.Cypher.Common.RelationshipKind.Calls &&
+                !references.Any(r => r.Kind == RelationshipKind.Calls &&
                                      string.Equals(r.TargetName, procRef.Procedure, StringComparison.OrdinalIgnoreCase)))
             {
                 references.Add(new Reference(scopeSymbolId, procRef.Procedure, OntologyConstants.Relationships.Calls));
@@ -894,10 +895,10 @@ public static class NestedSqlParser
                     ? OntologyConstants.Relationships.WritesTo
                     : OntologyConstants.Relationships.ReadsFrom;
                 var accessRelKind = isWriteTable
-                    ? CodeExplorer.Cypher.Common.RelationshipKind.WritesTo
-                    : CodeExplorer.Cypher.Common.RelationshipKind.ReadsFrom;
+                    ? RelationshipKind.WritesTo
+                    : RelationshipKind.ReadsFrom;
 
-                if (!references.Any(r => r.Kind == CodeExplorer.Cypher.Common.RelationshipKind.DependsOn &&
+                if (!references.Any(r => r.Kind == RelationshipKind.DependsOn &&
                                          string.Equals(r.TargetName, tableRef.Table, StringComparison.OrdinalIgnoreCase)))
                 {
                     references.Add(new Reference(scopeSymbolId, tableRef.Table, OntologyConstants.Relationships.DependsOn));
@@ -912,7 +913,7 @@ public static class NestedSqlParser
                 !tableRef.Schema.Equals("dbo", StringComparison.OrdinalIgnoreCase) &&
                 !tableRef.Schema.Equals("public", StringComparison.OrdinalIgnoreCase) &&
                 addedTables.Add(tableRef.Schema) &&
-                !references.Any(r => r.Kind == CodeExplorer.Cypher.Common.RelationshipKind.DependsOn &&
+                !references.Any(r => r.Kind == RelationshipKind.DependsOn &&
                                      string.Equals(r.TargetName, tableRef.Schema, StringComparison.OrdinalIgnoreCase)))
             {
                 references.Add(new Reference(scopeSymbolId, tableRef.Schema, OntologyConstants.Relationships.DependsOn));

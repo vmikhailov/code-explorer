@@ -23,20 +23,62 @@ public enum ParserClaimMode
 }
 
 /// <summary>
+/// Lifecycle or build hook declared inside a project manifest (e.g., npm preinstall/postinstall/build).
+/// </summary>
+public sealed record ManifestHookEntry(
+    string Name,
+    string Command,
+    string EntryType,
+    string HookKind,
+    string ManifestFileName = "package.json");
+
+/// <summary>
+/// Structured, immutable manifest metadata extracted once by the owning <see cref="IProjectParser"/>
+/// so downstream layers and classifiers never re-read or re-parse project manifest files.
+/// </summary>
+public sealed record ParsedProjectManifestMetadata(
+    string? PackageName = null,
+    string? PackageVersion = null,
+    string? Publisher = null,
+    string? MainFile = null,
+    string? ModuleFile = null,
+    string? Description = null,
+    bool HasBin = false,
+    bool HasContributes = false,
+    bool HasVsCodeEngine = false,
+    bool HasNgPackage = false,
+    bool IsWebSdk = false,
+    bool IsWorkerSdk = false,
+    bool IsExecutable = false,
+    string? KeywordsJson = null,
+    string? ExtensionDependenciesJson = null,
+    string? ActivationEvents = null,
+    string? NuspecId = null,
+    string? NuspecVersion = null,
+    IReadOnlyList<ProducedPackageInfo>? NuspecDependencies = null,
+    string? GoModuleName = null,
+    IReadOnlyDictionary<string, string>? TsConfigPaths = null,
+    IReadOnlyList<ManifestHookEntry>? LifecycleHooks = null,
+    IReadOnlyList<string>? ExportTargets = null,
+    string? DatabaseDriverEngine = null,
+    string? DatabaseDriverFamily = null);
+
+/// <summary>
 /// Context passed to <see cref="IProjectParser.TryParse"/> for directory-level project boundary evaluation.
 /// </summary>
 public sealed record ProjectParseContext(
     string DirectoryPath,
     string[] FilesInDirectory,
-    string AbsoluteWorkspacePath = "");
+    string AbsoluteWorkspacePath = "",
+    WorkspaceDirectoryIndex? DirectoryIndex = null);
 
 /// <summary>
-/// Describes a single parsed project boundary and its optional nested subprojects, absorbed subpaths, and excluded asset subpaths.
+/// Describes a single parsed project boundary and all metadata, packages, and dependencies extracted once from its manifests.
 /// </summary>
 public sealed record ParsedProjectDescriptor(
     string Name,
     string DirectoryPath,
-    CodeExplorer.Cypher.Common.ProjectLanguage ProjectType,
+    ProjectLanguage ProjectType,
     IReadOnlyDictionary<string, string> ManifestProperties,
     IReadOnlyList<string>? SourceRoots = null,
     IReadOnlyList<string>? AbsorbedSubpaths = null,
@@ -44,7 +86,11 @@ public sealed record ParsedProjectDescriptor(
     IReadOnlyList<string>? EntryPointPaths = null,
     IReadOnlyList<ParsedProjectDescriptor>? SubProjects = null,
     IReadOnlyCollection<string>? LocalDependencyPaths = null,
-    string? RelativeIdPathOverride = null)
+    string? RelativeIdPathOverride = null,
+    ProducedPackageInfo? ProducedPackage = null,
+    ProjectDependencyInfo? Dependencies = null,
+    ParsedProjectManifestMetadata? ManifestMetadata = null,
+    IReadOnlyList<AdditionalProjectDescriptor>? AdditionalTargets = null)
 {
     public ParsedProjectDescriptor(
         string Name,
@@ -57,8 +103,27 @@ public sealed record ParsedProjectDescriptor(
         IReadOnlyList<string>? EntryPointPaths = null,
         IReadOnlyList<ParsedProjectDescriptor>? SubProjects = null,
         IReadOnlyCollection<string>? LocalDependencyPaths = null,
-        string? RelativeIdPathOverride = null)
-        : this(Name, DirectoryPath, CodeExplorer.Cypher.Common.TaxonomyEnumExtendedExtensions.ParseProjectLanguage(ProjectType), ManifestProperties, SourceRoots, AbsorbedSubpaths, ExcludedSubpaths, EntryPointPaths, SubProjects, LocalDependencyPaths, RelativeIdPathOverride)
+        string? RelativeIdPathOverride = null,
+        ProducedPackageInfo? ProducedPackage = null,
+        ProjectDependencyInfo? Dependencies = null,
+        ParsedProjectManifestMetadata? ManifestMetadata = null,
+        IReadOnlyList<AdditionalProjectDescriptor>? AdditionalTargets = null)
+        : this(
+            Name,
+            DirectoryPath,
+            TaxonomyEnumExtendedExtensions.ParseProjectLanguage(ProjectType),
+            ManifestProperties,
+            SourceRoots,
+            AbsorbedSubpaths,
+            ExcludedSubpaths,
+            EntryPointPaths,
+            SubProjects,
+            LocalDependencyPaths,
+            RelativeIdPathOverride,
+            ProducedPackage,
+            Dependencies,
+            ManifestMetadata,
+            AdditionalTargets)
     {
     }
 }
@@ -103,16 +168,16 @@ public sealed record AdditionalProjectDescriptor(
 public sealed record ProjectEnrichmentContext(
     string WorkspaceId,
     string AbsoluteWorkspacePath,
-    CodeExplorer.Core.Common.Nodes.Layer2_Boundaries.ProjectNode Project,
+    Common.Nodes.Layer2_Boundaries.ProjectNode Project,
     IReadOnlyList<SyntaxTree> ProjectTrees,
-    IReadOnlyList<CodeExplorer.Core.Common.Nodes.Layer2_Boundaries.ProjectNode> AllProjects,
+    IReadOnlyList<Common.Nodes.Layer2_Boundaries.ProjectNode> AllProjects,
     IReadOnlyDictionary<string, List<SyntaxTree>> TreesByProjectId,
-    IReadOnlyList<CodeExplorer.Core.Common.Nodes.Layer1_Physical.FileNode> AllFiles);
+    IReadOnlyList<Common.Nodes.Layer1_Physical.FileNode> AllFiles);
 
 public sealed record ProjectEnrichmentResult(
-    IReadOnlyList<CodeExplorer.Core.Common.Nodes.IOntologyNode> SemanticNodes,
-    IReadOnlyList<CodeExplorer.Core.Database.Relationship> SemanticRelationships,
-    IReadOnlyList<CodeExplorer.Core.Database.Relationship> GlobalRelationships)
+    IReadOnlyList<Common.Nodes.IOntologyNode> SemanticNodes,
+    IReadOnlyList<Database.Relationship> SemanticRelationships,
+    IReadOnlyList<Database.Relationship> GlobalRelationships)
 {
     public static readonly ProjectEnrichmentResult Empty = new([], [], []);
 }
@@ -189,12 +254,12 @@ public interface IProjectParser
     /// <summary>
     /// Inspects files discovered in a directory to record dialect-specific binary/native artifacts on the workspace node.
     /// </summary>
-    void InspectDirectoryFiles(string directoryPath, FileInfo[] files, CodeExplorer.Core.Common.Nodes.WorkspaceNode workspace) { }
+    void InspectDirectoryFiles(string directoryPath, FileInfo[] files, Common.Nodes.WorkspaceNode workspace) { }
 
     /// <summary>
     /// Allocation-free overload inspecting discovered file paths in a directory without <see cref="FileInfo"/> wrappers.
     /// </summary>
-    void InspectDirectoryFilePaths(string directoryPath, string[] filePaths, CodeExplorer.Core.Common.Nodes.WorkspaceNode workspace) { }
+    void InspectDirectoryFilePaths(string directoryPath, string[] filePaths, Common.Nodes.WorkspaceNode workspace) { }
 
     /// <summary>
     /// Indicates whether a directory name represents a bundled/compiled distribution directory for this dialect
@@ -251,6 +316,9 @@ public interface IProjectParser
         }
 
         var props = ExtractManifestProperties(context.DirectoryPath, context.FilesInDirectory);
+        var produced = GetProducedPackageAsync(context.DirectoryPath).GetAwaiter().GetResult();
+        var deps = ParseDependenciesAsync(context.DirectoryPath).GetAwaiter().GetResult();
+        var meta = InspectDirectoryManifestMetadata(context);
         var additional = GetAdditionalProjects(context.DirectoryPath, context.FilesInDirectory);
         List<ParsedProjectDescriptor>? subProjects = null;
         if (additional.Count > 0)
@@ -284,10 +352,20 @@ public interface IProjectParser
                 DirectoryPath: context.DirectoryPath,
                 ProjectType: ProjectType,
                 ManifestProperties: props,
-                SubProjects: subProjects),
+                SubProjects: subProjects,
+                ProducedPackage: produced,
+                Dependencies: deps,
+                ManifestMetadata: meta,
+                AdditionalTargets: additional.Count > 0 ? additional : null),
             ClaimMode: claimMode);
         return true;
     }
+
+    /// <summary>
+    /// Extracts directory-level manifest metadata (e.g., virtual Cargo workspace, root package.json, tsconfig.base.json,
+    /// Directory.Build.props, .nuspec) once even when a directory is an umbrella root rather than a standalone project.
+    /// </summary>
+    ParsedProjectManifestMetadata? InspectDirectoryManifestMetadata(ProjectParseContext context) => null;
 
     /// <summary>
     /// Determines whether a child directory <paramref name="childDirectoryPath"/> located inside an already-matched

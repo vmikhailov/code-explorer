@@ -1,4 +1,3 @@
-using CodeExplorer.Cypher.Common;
 using System.Text.Json.Serialization;
 using CodeExplorer.Core.Common.Nodes.Layer1_Physical;
 
@@ -180,5 +179,5 @@ public record ProjectNode(
     /// In-memory only; produced once during project creation and consumed by later layers.
     /// </summary>
     [JsonIgnore]
-    public List<CodeExplorer.Core.Parser.IProjectEnrichment> Enrichments { get; } = [];
+    public List<IProjectEnrichment> Enrichments { get; } = [];
 }

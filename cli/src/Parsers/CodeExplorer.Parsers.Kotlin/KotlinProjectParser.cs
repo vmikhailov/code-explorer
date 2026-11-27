@@ -1,3 +1,4 @@
+using System.Text.Json;
 using System.Text.RegularExpressions;
 using CodeExplorer.Parsers.Android;
 using CodeExplorer.Parsers.Shared.Configuration;
@@ -34,6 +35,43 @@ public class KotlinProjectParser : IProjectParser
     ];
 
     public IReadOnlyList<PackageDescriptor> Packages => KotlinFileParser.DefaultPackages;
+
+    public bool TryParse(ProjectParseContext context, out ProjectParseResult? result)
+    {
+        var activeIndex = context.DirectoryIndex ?? WorkspaceDirectoryIndex.Current;
+        if (activeIndex != null && activeIndex.TryGetCachedProjectParse(this, context.DirectoryPath, out var cached))
+        {
+            result = cached.Result;
+            return cached.Matched;
+        }
+
+        var dir = context.DirectoryPath;
+        var files = context.FilesInDirectory;
+        if (!IsProjectDirectory(dir, files))
+        {
+            activeIndex?.StoreProjectParse(this, dir, false, null);
+            result = null;
+            return false;
+        }
+
+        var name = GetProjectName(dir, files);
+        if (string.IsNullOrEmpty(name)) name = Path.GetFileName(dir.TrimEnd('/', '\\'));
+        var props = ExtractManifestProperties(dir, files);
+        var produced = GetProducedPackageAsync(dir).GetAwaiter().GetResult();
+        var deps = ParseDependenciesAsync(dir).GetAwaiter().GetResult();
+
+        result = new ProjectParseResult(
+            Project: new ParsedProjectDescriptor(
+                Name: name,
+                DirectoryPath: dir,
+                ProjectType: ProjectType,
+                ManifestProperties: props,
+                ProducedPackage: produced,
+                Dependencies: deps),
+            ClaimMode: ParserClaimMode.AbsorbSecondaryInDirectory);
+        activeIndex?.StoreProjectParse(this, dir, true, result);
+        return true;
+    }
 
     public bool IsProjectDirectory(string directoryPath, string[] filesInDirectory)
     {
@@ -83,7 +121,7 @@ public class KotlinProjectParser : IProjectParser
         {
             try
             {
-                var content = PhysicalFileStore.ReadAllText(pomFile);
+                var content = FileStreamReader.ReadTextOnce(pomFile);
                 if (content.Contains("kotlin-maven-plugin", StringComparison.OrdinalIgnoreCase) ||
                     content.Contains("kotlin-stdlib", StringComparison.OrdinalIgnoreCase))
                 {
@@ -182,7 +220,7 @@ public class KotlinProjectParser : IProjectParser
                     if (!string.IsNullOrEmpty(manifest.PackageName)) props["package_name"] = manifest.PackageName;
                     if (manifest.Permissions.Count > 0)
                     {
-                        props["permissions"] = System.Text.Json.JsonSerializer.Serialize(manifest.Permissions);
+                        props["permissions"] = JsonSerializer.Serialize(manifest.Permissions);
                     }
                     if (manifest.DeepLinks.Count > 0)
                     {
@@ -206,7 +244,7 @@ public class KotlinProjectParser : IProjectParser
             {
                 try
                 {
-                    var content = PhysicalFileStore.ReadAllText(gradleFile);
+                    var content = FileStreamReader.ReadTextOnce(gradleFile);
                     if (content.Contains("org.springframework.boot", StringComparison.OrdinalIgnoreCase) ||
                         content.Contains("spring-boot", StringComparison.OrdinalIgnoreCase))
                     {
@@ -239,7 +277,7 @@ public class KotlinProjectParser : IProjectParser
             {
                 try
                 {
-                    var content = PhysicalFileStore.ReadAllText(pomFile);
+                    var content = FileStreamReader.ReadTextOnce(pomFile);
                     if (content.Contains("spring-boot", StringComparison.OrdinalIgnoreCase) ||
                         content.Contains("org.springframework.boot", StringComparison.OrdinalIgnoreCase))
                     {
@@ -308,7 +346,7 @@ public class KotlinProjectParser : IProjectParser
         {
             try
             {
-                var content = PhysicalFileStore.ReadAllText(gradleFile);
+                var content = FileStreamReader.ReadTextOnce(gradleFile);
 
                 // Project dependencies: project(":subproject") or project(':subproject')
                 var projectDepMatches = Regex.Matches(content, @"project\s*\(\s*['""]:?([a-zA-Z0-9_\-.:]+)['""]\s*\)");
@@ -407,7 +445,7 @@ public class KotlinProjectParser : IProjectParser
         var result = new Dictionary<string, ProducedPackageInfo>(StringComparer.OrdinalIgnoreCase);
         try
         {
-            var lines = PhysicalFileStore.ReadAllText(tomlPath).Split('\n');
+            var lines = FileStreamReader.ReadTextOnce(tomlPath).Split('\n');
             var versions = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
             var section = "";
 

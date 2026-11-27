@@ -83,7 +83,7 @@ public sealed class DotNetXmlConfigurationParser : ISharedFileParser
 
         try
         {
-            Collect(XDocument.Parse(PhysicalFileStore.ReadAllText(path)), Path.GetDirectoryName(path) ?? "", values, depth + 1);
+            Collect(XDocument.Parse(FileStreamReader.ReadTextOnce(path)), Path.GetDirectoryName(path) ?? "", values, depth + 1);
         }
         catch
         {

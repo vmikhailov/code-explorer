@@ -94,7 +94,7 @@ public sealed partial class NativeIntentPredictor : IIntentPredictor
                 !m.ModuleName.Equals("ggml-base.dll", StringComparison.OrdinalIgnoreCase) &&
                 !m.ModuleName.Equals("ggml-cpu.dll", StringComparison.OrdinalIgnoreCase));
 
-            string backendName = "GPU";
+            var backendName = "GPU";
             if (ggmlMod != null)
             {
                 var modName = ggmlMod.ModuleName.ToLowerInvariant();

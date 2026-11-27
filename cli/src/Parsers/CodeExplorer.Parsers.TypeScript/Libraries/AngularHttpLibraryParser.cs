@@ -72,7 +72,7 @@ public class AngularHttpLibraryParser : DeclarativeSemanticExtension
         return false;
     }
 
-    private static string? ExtractIdentifierStatic(Node node, ParsingContext ctx, string? projectName)
+    private static string? ExtractIdentifierStatic(Node node, SemanticParseContext ctx, string? projectName)
     {
         if (IsHttpCallNode(node))
         {

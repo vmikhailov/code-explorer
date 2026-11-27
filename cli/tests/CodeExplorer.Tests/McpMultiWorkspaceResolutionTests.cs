@@ -1,7 +1,5 @@
 using CodeExplorer.Configuration;
 using CodeExplorer.Configuration.Adapters;
-using CodeExplorer.Core.Common;
-using CodeExplorer.Cypher.Common;
 using Microsoft.AspNetCore.Http;
 using ModelContextProtocol.Protocol;
 using NUnit.Framework;

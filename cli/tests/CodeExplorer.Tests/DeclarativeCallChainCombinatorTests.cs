@@ -1,8 +1,5 @@
 using System.Collections.Frozen;
 using System.Diagnostics;
-using AwesomeAssertions;
-using CodeExplorer.Core.Common.Relationships;
-using CodeExplorer.Core.Parser;
 using CodeExplorer.Core.Parser.Syntax;
 using CodeExplorer.Parsers.CSharp;
 using CodeExplorer.Parsers.Go;
@@ -20,7 +17,7 @@ public class DeclarativeCallChainCombinatorTests
         ISemanticExtension ext,
         string scopeId,
         List<Reference> refs,
-        ParsingContext ctx)
+        SemanticParseContext ctx)
     {
         ext.CollectReferences(node, scopeId, refs, ctx);
         for (var i = 0; i < node.Children.Count; i++)
@@ -72,7 +69,7 @@ public class DeclarativeCallChainCombinatorTests
         var parser = new TypeScriptFileParser();
         var doc = parser.ParseDocument(tsCode, "order.repo.ts", "order.repo.ts")!;
         var refs = new List<Reference>();
-        var ctx = new ParsingContext("test", ".");
+        var ctx = new SemanticParseContext("test", ".");
 
         WalkAndCollect(doc.RootNode, ext, "OrderRepository.processOrder", refs, ctx);
 
@@ -128,7 +125,7 @@ public class DeclarativeCallChainCombinatorTests
         var csParser = new CSharpFileParser();
         var csDoc = csParser.ParseDocument(csCode, "BillingService.cs", "BillingService.cs")!;
         var csRefs = new List<Reference>();
-        var ctx = new ParsingContext("test", ".");
+        var ctx = new SemanticParseContext("test", ".");
 
         WalkAndCollect(csDoc.RootNode, csExt, "BillingService.RunAsync", csRefs, ctx);
 
@@ -177,7 +174,7 @@ public class DeclarativeCallChainCombinatorTests
         var tsParser = new TypeScriptFileParser();
         var tsDoc = tsParser.ParseDocument(tsRoutes, "routes.ts", "routes.ts")!;
         var tsRefs = new List<Reference>();
-        var ctx = new ParsingContext("test", ".");
+        var ctx = new SemanticParseContext("test", ".");
 
         WalkAndCollect(tsDoc.RootNode, routeExt, "registerRoutes", tsRefs, ctx);
 
@@ -257,7 +254,7 @@ public class DeclarativeCallChainCombinatorTests
         var javaParser = new JavaFileParser();
         var javaDoc = javaParser.ParseDocument(javaCode, "PaymentGateway.java", "PaymentGateway.java")!;
         var javaRefs = new List<Reference>();
-        var ctx = new ParsingContext("test", ".");
+        var ctx = new SemanticParseContext("test", ".");
 
         string? extractedHttpTarget = null;
         void WalkJava(SyntaxNode n)
@@ -328,7 +325,7 @@ public class DeclarativeCallChainCombinatorTests
         var parser = new TypeScriptFileParser();
         var doc = parser.ParseDocument(tsComplexWorkload, "gateway.ts", "gateway.ts")!;
         var allNodes = doc.RootNode.Descendants().ToList();
-        var ctx = new ParsingContext("bench", ".");
+        var ctx = new SemanticParseContext("bench", ".");
 
         DeclarativeSemanticExtension BuildExtension(bool enableSuperpowerCombinators) => new()
         {

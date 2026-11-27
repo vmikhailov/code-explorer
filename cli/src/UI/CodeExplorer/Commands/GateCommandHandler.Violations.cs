@@ -1,7 +1,5 @@
 using System.Text.Json;
-using CodeExplorer.Core.Gates.Engine;
 using CodeExplorer.Core.Gates.Models;
-using CodeExplorer.Core.Gates.Storage;
 using CodeExplorer.Options;
 
 namespace CodeExplorer.Commands;

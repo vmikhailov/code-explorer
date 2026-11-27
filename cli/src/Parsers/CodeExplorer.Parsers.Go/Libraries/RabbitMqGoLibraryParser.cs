@@ -28,7 +28,7 @@ public class RabbitMqGoLibraryParser : DeclarativeSemanticExtension
         ];
     }
 
-    private static void CollectRabbitMqReferences(Node node, string scopeSymbolId, List<Reference> references, ParsingContext ctx)
+    private static void CollectRabbitMqReferences(Node node, string scopeSymbolId, List<Reference> references, SemanticParseContext ctx)
     {
         // 0. Dispatcher index assignment: routes["v1.task.create"] = r.createTask()
         if (GoAstHelper.TryGetIndexAssignment(node, out var operandText, out var indexKey))

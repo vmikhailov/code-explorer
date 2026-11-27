@@ -1,5 +1,4 @@
 using System.Text.RegularExpressions;
-using CodeExplorer.Cypher.Common;
 using Node = CodeExplorer.Core.Parser.Syntax.SyntaxNode;
 
 namespace CodeExplorer.Parsers.Rust.Libraries;
@@ -42,7 +41,7 @@ public class AwsSdkRustLibraryParser : DeclarativeSemanticExtension
         yield return new PackageDescriptor(Id, Name, LibraryRole, Type, SupportedPatterns);
     }
 
-    private static void CollectReferencesCore(Node node, string scopeSymbolId, List<Reference> references, ParsingContext ctx)
+    private static void CollectReferencesCore(Node node, string scopeSymbolId, List<Reference> references, SemanticParseContext ctx)
     {
         if (IsAwsSdkCall(node, out var topic, out var brokerType, out var isPublish) && !string.IsNullOrEmpty(topic))
         {
@@ -54,7 +53,7 @@ public class AwsSdkRustLibraryParser : DeclarativeSemanticExtension
         }
     }
 
-    private static void EnrichSymbolCore(Node node, SyntacticSymbol symbol, ParsingContext ctx)
+    private static void EnrichSymbolCore(Node node, SyntacticSymbol symbol, SemanticParseContext ctx)
     {
         if (IsAwsSdkCall(node, out _, out var brokerType, out var isPublish))
         {
@@ -88,9 +87,9 @@ public class AwsSdkRustLibraryParser : DeclarativeSemanticExtension
             return false;
         }
 
-        bool hasReceiveMessage = false;
-        bool hasSendMessage = false;
-        bool hasPublish = false;
+        var hasReceiveMessage = false;
+        var hasSendMessage = false;
+        var hasPublish = false;
         Node? queueOrTopicArg = null;
 
         var current = node;
@@ -398,7 +397,7 @@ public class AwsSdkRustLibraryParser : DeclarativeSemanticExtension
     private sealed record CloudResourceRule(
         string IdSuffix,
         string Name,
-        CodeExplorer.Cypher.Common.CloudResourceType ResourceType,
+        CloudResourceType ResourceType,
         string Role,
         Regex FieldPattern,
         Regex ReadPattern,
@@ -419,7 +418,7 @@ public class AwsSdkRustLibraryParser : DeclarativeSemanticExtension
         new(
             "aws:s3:encrypted-shares",
             "AWS S3: Encrypted Shares Bucket",
-            CodeExplorer.Cypher.Common.CloudResourceType.S3Bucket,
+            CloudResourceType.S3Bucket,
             "encrypted_shares",
             EncryptedSharesFieldRegex,
             S3ReadRegex,
@@ -428,7 +427,7 @@ public class AwsSdkRustLibraryParser : DeclarativeSemanticExtension
         new(
             "aws:s3:database-chunks",
             "AWS S3: Database Chunks & WAL Bucket",
-            CodeExplorer.Cypher.Common.CloudResourceType.S3Bucket,
+            CloudResourceType.S3Bucket,
             "database_chunks",
             DbChunksFieldRegex,
             S3ReadRegex,
@@ -437,7 +436,7 @@ public class AwsSdkRustLibraryParser : DeclarativeSemanticExtension
         new(
             "aws:s3:graph-checkpoints",
             "AWS S3: HNSW Graph Checkpoint Bucket",
-            CodeExplorer.Cypher.Common.CloudResourceType.S3Bucket,
+            CloudResourceType.S3Bucket,
             "graph_checkpoints",
             GraphCheckpointFieldRegex,
             S3ReadRegex,
@@ -446,7 +445,7 @@ public class AwsSdkRustLibraryParser : DeclarativeSemanticExtension
         new(
             "aws:kms:share-encryption-keys",
             "AWS KMS: Share Encryption Keys",
-            CodeExplorer.Cypher.Common.CloudResourceType.KmsKeySet,
+            CloudResourceType.KmsKeySet,
             "share_encryption_keys",
             KmsFieldRegex,
             KmsReadRegex,
@@ -463,14 +462,14 @@ public class AwsSdkRustLibraryParser : DeclarativeSemanticExtension
             .ToArray();
 
     public override void SynthesizeCloudResources(
-        CodeExplorer.Core.Common.Nodes.Layer2_Boundaries.ProjectNode project,
+        Core.Common.Nodes.Layer2_Boundaries.ProjectNode project,
         string effectiveSource,
         IReadOnlySet<string> packageNames,
         string? workloadId,
-        CodeExplorer.Core.Common.Nodes.Layer4_Semantic.SemanticStructureNode semanticStructureNode,
-        List<CodeExplorer.Core.Database.Relationship> semanticRelationships,
+        Core.Common.Nodes.Layer4_Semantic.SemanticStructureNode semanticStructureNode,
+        List<Core.Database.Relationship> semanticRelationships,
         HashSet<(string From, string To, string Kind)> existingRelKeys,
-        ParsingContext ctx)
+        SemanticParseContext ctx)
     {
         var detectedRoles = DetectAwsResourceRoles(effectiveSource, packageNames).ToList();
         if (detectedRoles.Count == 0)
@@ -486,7 +485,7 @@ public class AwsSdkRustLibraryParser : DeclarativeSemanticExtension
         var awsCloudId = CloudProviderHelper.BuildCloudNodeId(ctx.WorkspaceId, awsProviderId);
         if (!semanticStructureNode.Children.Any(child => child.Id.Equals(awsCloudId, StringComparison.OrdinalIgnoreCase)))
         {
-            semanticStructureNode.Children.Add(new CodeExplorer.Core.Common.Nodes.Layer4_Semantic.CloudNode(
+            semanticStructureNode.Children.Add(new Core.Common.Nodes.Layer4_Semantic.CloudNode(
                 awsCloudId,
                 awsDisplayName,
                 project.Path)
@@ -503,7 +502,7 @@ public class AwsSdkRustLibraryParser : DeclarativeSemanticExtension
             var resourceId = $"{ctx.WorkspaceId}:{OntologyConstants.IdPrefixes.ExternalService}:aws:{resource.IdSuffix}";
             if (!semanticStructureNode.Children.Any(child => child.Id.Equals(resourceId, StringComparison.OrdinalIgnoreCase)))
             {
-                semanticStructureNode.Children.Add(new CodeExplorer.Core.Common.Nodes.Layer4_Semantic.ExternalServiceNode(
+                semanticStructureNode.Children.Add(new Core.Common.Nodes.Layer4_Semantic.ExternalServiceNode(
                     resourceId,
                     resource.Name,
                     sdkProtocol,
@@ -579,7 +578,7 @@ public class AwsSdkRustLibraryParser : DeclarativeSemanticExtension
 
     private static void AddCloudRelationship(
         CodeExplorer.Core.Database.Relationship relationship,
-        List<CodeExplorer.Core.Database.Relationship> semanticRelationships,
+        List<Core.Database.Relationship> semanticRelationships,
         HashSet<(string From, string To, string Kind)> existingRelKeys)
     {
         if (existingRelKeys.Add((relationship.From, relationship.To, relationship.Kind.ToCypherType())))

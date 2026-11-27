@@ -1,4 +1,3 @@
-using CodeExplorer.Core.Database;
 using System.Threading.Channels;
 using CodeExplorer.Core.Common.Nodes;
 using CodeExplorer.Core.Common.Nodes.Layer4_Semantic;
@@ -42,7 +41,7 @@ public class FastApiParserTests
 
             var channel = Channel.CreateUnbounded<Func<Task>>();
             var client = new InMemoryGraphRepository();
-            var ctx = new ParsingContext(tempDir, tempDir, client, channel);
+            var ctx = new SemanticParseContext(tempDir);
 
             using var syntaxTree = await parser.ParseAsync(filePath, "parent-id", ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
             Layer3SyntacticParser.ProcessVisitor(syntaxTree, ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
@@ -206,12 +205,12 @@ public class FastApiParserTests
         {
             var channel = Channel.CreateUnbounded<Func<Task>>();
             await using var client = new InMemoryGraphRepository();
-            var ctx = new ParsingContext(tempDir, tempDir, client, channel);
+            var ctx = new SemanticParseContext(tempDir);
 
             // Layer 3 order: declarations (mount discovery) from main.py first,
             // then the router module is visited and its endpoints enriched.
             using var mainTree = await _parser.ParseAsync(mainPath, "parent-id", ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
-            ((CodeExplorer.Core.Parser.IFileParser)_parser).DiscoverDeclarations(mainTree.Tree!.RootNode, "app/main.py", "fastapi-x-service", ctx);
+            ((IFileParser)_parser).DiscoverDeclarations(mainTree.Tree!.RootNode, "app/main.py", "fastapi-x-service", ctx);
 
             using var routerTree = await _parser.ParseAsync(routerPath, "parent-id", ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
             Layer3SyntacticParser.ProcessVisitor(routerTree, ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
@@ -268,10 +267,10 @@ public class FastApiParserTests
         {
             var channel = Channel.CreateUnbounded<Func<Task>>();
             await using var client = new InMemoryGraphRepository();
-            var ctx = new ParsingContext(tempDir, tempDir, client, channel);
+            var ctx = new SemanticParseContext(tempDir);
 
             using var mainTree = await _parser.ParseAsync(mainPath, "parent-id", ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
-            ((CodeExplorer.Core.Parser.IFileParser)_parser).DiscoverDeclarations(mainTree.Tree!.RootNode, "main.py", "fastapi-rel-service", ctx);
+            ((IFileParser)_parser).DiscoverDeclarations(mainTree.Tree!.RootNode, "main.py", "fastapi-rel-service", ctx);
 
             using var routerTree = await _parser.ParseAsync(routerPath, "parent-id", ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
             Layer3SyntacticParser.ProcessVisitor(routerTree, ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);

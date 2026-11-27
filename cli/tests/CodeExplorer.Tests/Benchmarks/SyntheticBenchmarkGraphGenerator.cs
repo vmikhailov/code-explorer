@@ -1,6 +1,5 @@
 using System.Diagnostics;
 using System.Text;
-using CodeExplorer.Cypher.Common;
 using Microsoft.Data.Sqlite;
 
 namespace CodeExplorer.Tests.Benchmarks;
@@ -168,7 +167,7 @@ public static class SyntheticBenchmarkGraphGenerator
         // 2. File Nodes (10,000)
         var fileIds = new string[fileCount];
 
-        for (int i = 0; i < fileCount; i++)
+        for (var i = 0; i < fileCount; i++)
         {
             var p = i / 100;
             var m = i / 10;
@@ -183,7 +182,7 @@ public static class SyntheticBenchmarkGraphGenerator
         var classIds = new string[classCount];
         var classSymbols = new string[classCount];
 
-        for (int i = 0; i < classCount; i++)
+        for (var i = 0; i < classCount; i++)
         {
             var fileIdx = i % fileCount;
             var filePath = $"src/Project_{fileIdx / 100}/Module_{fileIdx / 10}/File_{fileIdx}.cs";
@@ -210,7 +209,7 @@ public static class SyntheticBenchmarkGraphGenerator
 
         // 4. Special Benchmark Nodes
         // 4a. find_symbol Target (50 methods matching WellKnownSearchSymbol to satisfy LIMIT 50 early)
-        for (int m = 0; m < 50; m++)
+        for (var m = 0; m < 50; m++)
         {
             var mName = m == 0 ? WellKnownSearchSymbol : $"{WellKnownSearchSymbol}_{m}";
             var searchSymId = $"{workspaceId}:func:special:{mName}";
@@ -227,7 +226,7 @@ public static class SyntheticBenchmarkGraphGenerator
         };
         var stepIds = new string[5];
 
-        for (int i = 0; i < 5; i++)
+        for (var i = 0; i < 5; i++)
         {
             var id = $"{workspaceId}:func:workflow:Step{i}";
             stepIds[i] = id;
@@ -268,7 +267,7 @@ public static class SyntheticBenchmarkGraphGenerator
         // 5. Function Nodes (70,000)
         var methodIds = new string[methodCount];
 
-        for (int i = 0; i < methodCount; i++)
+        for (var i = 0; i < methodCount; i++)
         {
             var classIdx = i % classCount;
             var fileIdx = classIdx % fileCount;
@@ -291,7 +290,7 @@ public static class SyntheticBenchmarkGraphGenerator
         // 6. Additional Tables & Queries (99 more)
         const int additionalTables = 99;
 
-        for (int t = 1; t <= additionalTables; t++)
+        for (var t = 1; t <= additionalTables; t++)
         {
             var tId = $"{workspaceId}:table:table_{t}";
             nodeBatcher.Add(tId, "Table", $"{{\"name\":\"table_{t}\"}}");

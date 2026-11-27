@@ -238,7 +238,7 @@ public partial class AspNetCoreLibraryParser
         }
 
         var current = node.Parent;
-        string interfaceName = "api-client";
+        var interfaceName = "api-client";
         while (current.IsValid())
         {
             if (current.Is(TreeSitterSyntax.CSharp.InterfaceDeclaration))

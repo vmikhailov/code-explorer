@@ -31,7 +31,7 @@ public class DramatiqLibraryParser : DeclarativeSemanticExtension
         ];
     }
 
-    private static void CollectDramatiqReferences(Node node, string scopeSymbolId, List<Reference> references, ParsingContext ctx)
+    private static void CollectDramatiqReferences(Node node, string scopeSymbolId, List<Reference> references, SemanticParseContext ctx)
     {
         if (IsDramatiqActorDecorator(node, out var actorName))
         {

@@ -53,7 +53,7 @@ public class EfCoreLibraryParser : DeclarativeSemanticExtension
         ];
     }
 
-    private static void CollectEfCoreReferences(Node node, string scopeSymbolId, List<Reference> references, ParsingContext ctx)
+    private static void CollectEfCoreReferences(Node node, string scopeSymbolId, List<Reference> references, SemanticParseContext ctx)
     {
         if (IsTableAttribute(node))
         {
@@ -97,7 +97,7 @@ public class EfCoreLibraryParser : DeclarativeSemanticExtension
                  TryExtractEfCoreDbSetAccess(node, out var dbSetTarget, out var isWriteAccess))
         {
             var relKind = isWriteAccess ? OntologyConstants.Relationships.WritesTo : OntologyConstants.Relationships.ReadsFrom;
-            var relEnum = isWriteAccess ? CodeExplorer.Cypher.Common.RelationshipKind.WritesTo : CodeExplorer.Cypher.Common.RelationshipKind.ReadsFrom;
+            var relEnum = isWriteAccess ? RelationshipKind.WritesTo : RelationshipKind.ReadsFrom;
             if (!references.Any(r => r.Kind == relEnum && string.Equals(r.TargetName, dbSetTarget, StringComparison.OrdinalIgnoreCase)))
             {
                 references.Add(new Reference(scopeSymbolId, dbSetTarget, relKind, node.StartPosition.Row + 1, node.StartPosition.Column + 1));
@@ -105,7 +105,7 @@ public class EfCoreLibraryParser : DeclarativeSemanticExtension
         }
     }
 
-    private static void EnrichEfCoreSymbol(Node node, SyntacticSymbol symbol, ParsingContext ctx)
+    private static void EnrichEfCoreSymbol(Node node, SyntacticSymbol symbol, SemanticParseContext ctx)
     {
         if (node.Is(TreeSitterSyntax.CSharp.ClassDeclaration))
         {

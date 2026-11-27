@@ -281,7 +281,7 @@ internal static class GoBindingExtractor
         SyntacticSymbol currentScope,
         IReadOnlyList<RawImport>? fileImports = null)
     {
-        if (currentScope.Kind == CodeExplorer.Cypher.Common.SyntacticSymbolKind.File) return;
+        if (currentScope.Kind == SyntacticSymbolKind.File) return;
 
         var typeNode = compositeLitNode.GetChildForField(TreeSitterSyntax.Fields.Type);
         if (!typeNode.IsValid() && compositeLitNode.Children.Count > 0 && IsGoTypeNode(compositeLitNode.Children[0]))
@@ -539,13 +539,13 @@ internal static class GoBindingExtractor
     private static void AddUniqueUsesTypeReference(SyntacticSymbol targetSymbol, string targetName, int line, int col)
     {
         if (!targetSymbol.References.Any(r =>
-                r.Kind == CodeExplorer.Cypher.Common.RelationshipKind.UsesType &&
+                r.Kind == RelationshipKind.UsesType &&
                 string.Equals(r.TargetName, targetName, StringComparison.Ordinal)))
         {
             targetSymbol.References.Add(new Reference(
                 string.Empty,
                 targetName,
-                CodeExplorer.Cypher.Common.RelationshipKind.UsesType,
+                RelationshipKind.UsesType,
                 line,
                 col));
         }

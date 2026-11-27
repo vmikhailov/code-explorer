@@ -1,7 +1,5 @@
 using System.Collections.Concurrent;
-using System.Collections.Frozen;
 using System.Text.RegularExpressions;
-using CodeExplorer.Core.Common.Nodes;
 using CodeExplorer.Core.Common.Nodes.Layer1_Physical;
 using CodeExplorer.Core.Common.Nodes.Layer2_Boundaries;
 using CodeExplorer.Core.Common.Nodes.Layer3_Syntactic;
@@ -84,7 +82,7 @@ public partial class ResourceSemanticAnalyzer
         SyntaxTree syntaxTree,
         ProjectNode projectNode,
         IFileParser parser,
-        ParsingContext ctx,
+        SemanticParseContext ctx,
         IOntologyNode? workloadNode = null)
     {
         var (extensions, registry) = _parserRegistryCache.GetOrAdd(parser, static p =>
@@ -125,7 +123,7 @@ public partial class ResourceSemanticAnalyzer
         public bool IsImplemented => false;
     }
 
-    private static string ResolveWorkloadId(ProjectNode projectNode, ParsingContext ctx, IOntologyNode? workloadNode)
+    private static string ResolveWorkloadId(ProjectNode projectNode, SemanticParseContext ctx, IOntologyNode? workloadNode)
     {
         if (workloadNode != null) return workloadNode.Id;
 
@@ -156,7 +154,7 @@ public partial class ResourceSemanticAnalyzer
         string? schema,
         bool isImplicitSchema,
         bool isOrm,
-        ParsingContext ctx,
+        SemanticParseContext ctx,
         bool attachSymbolAccessedBy = true)
     {
         var declaredRel = Relationship.FromRelationship(new DeclaredInRelationship(resourceId, fileNode.Id)
@@ -231,7 +229,7 @@ public partial class ResourceSemanticAnalyzer
         return primaryGroundingRel;
     }
 
-    public virtual async Task EnrichAsync(ProjectNode projectNode, ParsingContext ctx, IOntologyNode? workloadNode = null)
+    public virtual async Task EnrichAsync(ProjectNode projectNode, SemanticParseContext ctx, IOntologyNode? workloadNode = null)
     {
         ArgumentNullException.ThrowIfNull(projectNode);
         var workloadId = ResolveWorkloadId(projectNode, ctx, workloadNode);
@@ -375,7 +373,7 @@ public partial class ResourceSemanticAnalyzer
                     if (declaredSchemas.Count == 0 && ctx.ResourceRegistry != null)
                     {
                         var projRes = ctx.ResourceRegistry.AllResources
-                            .FirstOrDefault(r => r.Kind == CodeExplorer.Cypher.Common.NodeKind.Database &&
+                            .FirstOrDefault(r => r.Kind == NodeKind.Database &&
                                                  (string.IsNullOrEmpty(targetEngine) || string.Equals(r.Engine, targetEngine, StringComparison.OrdinalIgnoreCase)) &&
                                                  r.BelongsToProject(projectNode.Id) &&
                                                  !r.Name.Equals(targetEngine, StringComparison.OrdinalIgnoreCase) &&
@@ -891,9 +889,9 @@ public partial class ResourceSemanticAnalyzer
 
         var fileSignals = fileNode.TryGetSignals();
         var hasSqlClientCallShape = (fileSignals?.HasSqlClientCallShape == true) ||
-                                    CodeExplorer.Core.Parser.Layers.Layer3FileSignalEnricher.HasStandardSqlClientCallShape(_syntaxTree);
+                                    Layers.Layer3FileSignalEnricher.HasStandardSqlClientCallShape(_syntaxTree);
         var hasSqlLiteralEvidence = (fileSignals?.HasSqlLiteralEvidence == true) ||
-                                    CodeExplorer.Core.Parser.Layers.Layer3FileSignalEnricher.HasSqlShapedStringLiterals(_syntaxTree);
+                                    Layers.Layer3FileSignalEnricher.HasSqlShapedStringLiterals(_syntaxTree);
         var projectHasSqlLiterals = projectNode.Signals().HasSqlLiteralEvidence;
 
         if ((!hasDatabaseImportSignal && !hasSqlClientCallShape && !hasSqlLiteralEvidence) ||
@@ -946,7 +944,7 @@ public partial class ResourceSemanticAnalyzer
         }
 
         return HasQueryOrDbRef(fileNode) ||
-               CodeExplorer.Core.Parser.Layers.Layer3FileSignalEnricher.HasSqlShapedStringLiterals(syntaxTree);
+               Layers.Layer3FileSignalEnricher.HasSqlShapedStringLiterals(syntaxTree);
     }
 
     private static string InferRelationalEngineName(IEnumerable<RawImport> imports)

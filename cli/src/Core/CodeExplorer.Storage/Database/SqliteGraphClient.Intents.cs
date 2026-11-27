@@ -1,5 +1,4 @@
 using System.Text.Json;
-using CodeExplorer.Cypher.Common;
 using Dapper;
 using Microsoft.Data.Sqlite;
 using Microsoft.Extensions.Logging;

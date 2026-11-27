@@ -87,7 +87,7 @@ public class WorkspaceFileFilter
     public IFileParser? GetFileParser(string fileName)
     {
         var ext = Path.GetExtension(fileName);
-        for (int i = 0; i < _fileParsers.Count; i++)
+        for (var i = 0; i < _fileParsers.Count; i++)
         {
             var fp = _fileParsers[i];
             if ((!string.IsNullOrEmpty(ext) && fp.CanParse(ext)) || fp.CanParseFile(fileName))
@@ -148,7 +148,7 @@ public class WorkspaceFileFilter
         string[] dirFilePaths,
         bool includeFallback)
     {
-        var hasCachedChildDirs = PhysicalFileStore.HasCachedDirectChildDirectories(currentDir);
+        var hasCachedChildDirs = WorkspaceDirectoryIndex.HasCachedChildDirsInCurrent(currentDir);
         if (!includeFallback && dirFiles.Count == 0 && !hasCachedChildDirs)
         {
             var parentDir = Path.GetDirectoryName(currentDir.TrimEnd('/', '\\'));
@@ -162,7 +162,7 @@ public class WorkspaceFileFilter
         if (!includeFallback && dirFiles.Count > 0 && !hasCachedChildDirs)
         {
             var hasTrigger = false;
-            for (int f = 0; f < dirFiles.Count; f++)
+            for (var f = 0; f < dirFiles.Count; f++)
             {
                 var fn = dirFiles[f].Name;
                 if (IsManifestFile(fn) || NonManifestProjectTriggerExtensions.Contains(dirFiles[f].Extension))
@@ -183,7 +183,7 @@ public class WorkspaceFileFilter
         }
 
         List<IProjectParser>? matched = null;
-        for (int p = 0; p < _projectParsers.Count; p++)
+        for (var p = 0; p < _projectParsers.Count; p++)
         {
             var parser = _projectParsers[p];
             if (parser.IsFallback != includeFallback)
@@ -192,7 +192,7 @@ public class WorkspaceFileFilter
             }
 
             var hasManifest = false;
-            for (int f = 0; f < dirFiles.Count; f++)
+            for (var f = 0; f < dirFiles.Count; f++)
             {
                 if (parser.IsManifestFile(dirFiles[f].Name))
                 {
@@ -221,7 +221,7 @@ public class WorkspaceFileFilter
         }
 
         List<IProjectParser>? matched = null;
-        for (int p = 0; p < _projectParsers.Count; p++)
+        for (var p = 0; p < _projectParsers.Count; p++)
         {
             var parser = _projectParsers[p];
             if (parser.IsFallback != includeFallback)
@@ -229,7 +229,7 @@ public class WorkspaceFileFilter
                 continue;
             }
 
-            for (int f = 0; f < dirFiles.Count; f++)
+            for (var f = 0; f < dirFiles.Count; f++)
             {
                 var fn = dirFiles[f].Name;
                 var ext = dirFiles[f].Extension;
@@ -278,7 +278,7 @@ public class WorkspaceFileFilter
     {
         if (dirFiles.Count == 0) return [];
         var paths = new string[dirFiles.Count];
-        for (int i = 0; i < dirFiles.Count; i++)
+        for (var i = 0; i < dirFiles.Count; i++)
         {
             paths[i] = dirFiles[i].FullName;
         }
@@ -288,7 +288,7 @@ public class WorkspaceFileFilter
     public bool? CheckDirectoryExclusion(string dirName, string? fullPath = null, IReadOnlyList<IProjectParser>? activeParsers = null)
     {
         var parsers = activeParsers is { Count: > 0 } ? activeParsers : _projectParsers;
-        for (int i = 0; i < parsers.Count; i++)
+        for (var i = 0; i < parsers.Count; i++)
         {
             var decision = parsers[i].CheckDirectoryExclusion(dirName, fullPath);
             if (decision.HasValue)
@@ -317,7 +317,7 @@ public class WorkspaceFileFilter
 
         if (IncludeDistAndMinifiedArtifacts)
         {
-            for (int i = 0; i < parsers.Count; i++)
+            for (var i = 0; i < parsers.Count; i++)
             {
                 if (parsers[i].IsDistOutputDirectory(dirName))
                 {
@@ -328,7 +328,7 @@ public class WorkspaceFileFilter
 
         if (activeParsers is { Count: > 0 })
         {
-            for (int i = 0; i < activeParsers.Count; i++)
+            for (var i = 0; i < activeParsers.Count; i++)
             {
                 if (activeParsers[i].ExcludedFolders.Contains(dirName, StringComparer.OrdinalIgnoreCase))
                 {
@@ -609,11 +609,6 @@ public class WorkspaceFileFilter
 
     public static bool IsMinifiedContent(string filePath)
     {
-        if (PhysicalFileStore.TryGetFileText(filePath, out var cachedText))
-        {
-            return !string.IsNullOrEmpty(cachedText) && IsMinifiedText(cachedText.AsSpan(), maxLineLength: 1000);
-        }
-
         try
         {
             using var stream = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);

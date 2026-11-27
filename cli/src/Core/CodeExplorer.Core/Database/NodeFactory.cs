@@ -4,7 +4,6 @@ using System.Reflection;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using CodeExplorer.Core.Common.Nodes;
-using CodeExplorer.Cypher.Common;
 
 namespace CodeExplorer.Core.Database;
 

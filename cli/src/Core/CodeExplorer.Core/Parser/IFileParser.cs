@@ -61,9 +61,9 @@ public interface IFileParser
     /// Enriches file-level and project-level semantic signals from the in-memory source text during Layer 3.
     /// </summary>
     void EnrichFileSignals(
-        CodeExplorer.Core.Common.Nodes.Layer1_Physical.FileNode fileNode,
+        Common.Nodes.Layer1_Physical.FileNode fileNode,
         SyntaxTree syntaxTree,
-        CodeExplorer.Core.Common.Nodes.Layer2_Boundaries.ProjectNode? project,
+        Common.Nodes.Layer2_Boundaries.ProjectNode? project,
         string sourceText)
     {
     }
@@ -81,8 +81,15 @@ public interface IFileParser
 
     /// <summary>
     /// Parses the file and returns a rich SyntaxTree with the AST and child symbols.
+    /// When <paramref name="preloadedContent"/> is supplied by the Layer 3 project streamer,
+    /// the parser consumes it directly in memory without reading from disk or touching any global store.
     /// </summary>
-    Task<SyntaxTree> ParseAsync(string filePath, string parentNodeId, string workspaceId, string absoluteWorkspacePath);
+    Task<SyntaxTree> ParseAsync(
+        string filePath,
+        string parentNodeId,
+        string workspaceId,
+        string absoluteWorkspacePath,
+        string? preloadedContent = null);
 
     /// <summary>
     /// Creates a language-specific AST visitor to traverse and extract symbols, references, and semantic data.
@@ -122,7 +129,7 @@ public interface IFileParser
     /// <summary>
     /// Invokes DiscoverDeclarations across active semantic extensions for this dialect.
     /// </summary>
-    void DiscoverDeclarations(string filePath, string content, string? projectName, ParsingContext? ctx)
+    void DiscoverDeclarations(string filePath, string content, string? projectName, SemanticParseContext? ctx)
     {
         foreach (var ext in SemanticExtensions)
         {
@@ -133,7 +140,7 @@ public interface IFileParser
     /// <summary>
     /// Invokes AST-level DiscoverDeclarations across active semantic extensions for this dialect.
     /// </summary>
-    void DiscoverDeclarations(Node rootNode, string relativePath, string? projectName, ParsingContext? ctx)
+    void DiscoverDeclarations(Node rootNode, string relativePath, string? projectName, SemanticParseContext? ctx)
     {
         foreach (var ext in SemanticExtensions)
         {

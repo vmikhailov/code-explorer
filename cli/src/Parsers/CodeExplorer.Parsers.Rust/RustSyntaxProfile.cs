@@ -37,8 +37,8 @@ public static class RustSyntaxProfile
             TreeSitterSyntax.Rust.EnumItem
         }.ToFrozenSet(),
 
-        DefaultEnumKind = CodeExplorer.Cypher.Common.SyntacticSymbolKind.Enum,
-        DefaultStructKind = CodeExplorer.Cypher.Common.SyntacticSymbolKind.Struct,
+        DefaultEnumKind = SyntacticSymbolKind.Enum,
+        DefaultStructKind = SyntacticSymbolKind.Struct,
 
         ConstantDeclarations = new[]
         {

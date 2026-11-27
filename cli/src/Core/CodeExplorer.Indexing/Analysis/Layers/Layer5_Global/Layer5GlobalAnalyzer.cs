@@ -1,11 +1,10 @@
 using System.Diagnostics;
-using CodeExplorer.Core.Common.Nodes;
 using CodeExplorer.Core.Common.Nodes.Layer2_Boundaries;
+using CodeExplorer.Core.Common.Nodes.Layer3_Syntactic;
 using CodeExplorer.Core.Common.Nodes.Layer4_Semantic;
 using CodeExplorer.Core.Common.Nodes.Layer5_Logical;
 using CodeExplorer.Core.Common.Relationships;
 using CodeExplorer.Core.Parser.Canonical;
-using CodeExplorer.Cypher.Common;
 
 namespace CodeExplorer.Core.Parser.Layers;
 
@@ -19,8 +18,12 @@ public partial class Layer5AnalysisParser
 
     private Layer4Result? _currentL4Result;
 
-    public async Task<Layer5Result> ParseAsync(Layer4Result l4Result, ParsingContext ctx)
+    public Task<Layer5Result> ParseAsync(Layer4Result l4Result, Layer5Context ctx) =>
+        ParseAsync(ctx);
+
+    public async Task<Layer5Result> ParseAsync(Layer5Context ctx)
     {
+        var l4Result = ctx.Layer4;
         var sw = Stopwatch.StartNew();
         _currentL4Result = l4Result;
         ctx.ReportProgress(68, "Layer 5: Global", "Starting late binding, cross-references & post-indexing analysis...");
@@ -30,19 +33,22 @@ public partial class Layer5AnalysisParser
         var belongsToRels = new List<Relationship>();
 
         // Syntactic BelongsTo
-        foreach (var pSyntax in l4Result.Prev.SyntaxStructure.Children)
+        if (ctx.SyntaxStructure != null)
         {
-            var matchedProj = l4Result.Prev.Prev.Projects.FirstOrDefault(p => p.Path == pSyntax.Path);
-            if (matchedProj != null)
+            foreach (var pSyntax in ctx.SyntaxStructure.Children)
             {
-                belongsToRels.Add(Relationship.FromRelationship(new BelongsToRelationship(pSyntax.Id, matchedProj.Id)));
+                var matchedProj = ctx.Projects.FirstOrDefault(p => p.Path == pSyntax.Path);
+                if (matchedProj != null)
+                {
+                    belongsToRels.Add(Relationship.FromRelationship(new BelongsToRelationship(pSyntax.Id, matchedProj.Id)));
+                }
             }
         }
 
         // Semantic BelongsTo
         foreach (var pSem in l4Result.SemanticStructure.Children)
         {
-            var matchedProj = l4Result.Prev.Prev.Projects.FirstOrDefault(p => p.Path == pSem.Path);
+            var matchedProj = ctx.Projects.FirstOrDefault(p => p.Path == pSem.Path);
             if (matchedProj != null)
             {
                 belongsToRels.Add(Relationship.FromRelationship(new BelongsToRelationship(pSem.Id, matchedProj.Id)));
@@ -62,14 +68,14 @@ public partial class Layer5AnalysisParser
         // 3. Resolve and upload global cross-references (like function CALLS)
         var referenceRelationships = await ResolveAndUploadGlobalReferencesAsync(ctx);
         ctx.EvictLayer3ResolutionBuffers();
-        PipelineMemoryEvictor.EvictPostResolutionLeafNodes(l4Result, ctx);
+        PipelineMemoryEvictor.EvictPostResolutionLeafNodes(ctx);
 
         // 4. Perform Late Binding
         var lateBoundRels = await PerformLateBindingAsync(l4Result, ctx, referenceRelationships);
 
         // 4b. Propagate Semantic Arguments & Ground Downward Target Relationships
         await SemanticArgumentPropagator.PropagateAndGroundAsync(l4Result, ctx, referenceRelationships, lateBoundRels);
-        PipelineMemoryEvictor.EvictNonPostIndexLayersBeforePostIndex(l4Result, ctx);
+        PipelineMemoryEvictor.EvictNonPostIndexLayersBeforePostIndex(ctx);
 
         // 5. Run PostIndexAnalyzer
         await ctx.FlushScanIssuesAsync();
@@ -94,10 +100,10 @@ public partial class Layer5AnalysisParser
 
         ctx.EvictPostIndexBuffers();
         ctx.Layer5Log.ScanCompleted(sw.ElapsedMilliseconds);
-        return new Layer5Result(l4Result, lateBoundRels);
+        return new Layer5Result(lateBoundRels);
     }
 
-    private async Task UploadProjectDependenciesAsync(ParsingContext ctx)
+    private async Task UploadProjectDependenciesAsync(Layer5Context ctx)
     {
         if (ctx.GlobalProjectDependencies.Count > 0)
         {
@@ -107,7 +113,7 @@ public partial class Layer5AnalysisParser
         }
     }
 
-    private async Task<List<Relationship>> ResolveAndUploadGlobalReferencesAsync(ParsingContext ctx)
+    private async Task<List<Relationship>> ResolveAndUploadGlobalReferencesAsync(Layer5Context ctx)
     {
         var sw = Stopwatch.StartNew();
         var totalReferences = ctx.GlobalReferences.Count;
@@ -147,7 +153,7 @@ public partial class Layer5AnalysisParser
             ResolveDeferredParamMessagingReferences(deferredParamMessagingRefs, ctx, symbols, bindings, newTopicNodes, createdTopicIds, referenceRelationships);
         }
 
-        Layer5SymbolVisibilityResolver.ResolveSqlTriggerRelationships(_currentL4Result, symbols, referenceRelationships, existingRefRels);
+        Layer5SymbolVisibilityResolver.ResolveSqlTriggerRelationships(_currentL4Result, ctx.FilesStructure, symbols, referenceRelationships, existingRefRels);
 
         await RunSemanticLayerEnrichersAsync(ctx, symbols, bindings, referenceRelationships, existingRefRels);
 
@@ -172,12 +178,12 @@ public partial class Layer5AnalysisParser
 
     private async Task<List<Relationship>> PerformLateBindingAsync(
         Layer4Result l4Result,
-        ParsingContext ctx,
+        Layer5Context ctx,
         List<Relationship>? referenceRelationships = null)
     {
         var sw = Stopwatch.StartNew();
-        var workspaceNode = l4Result.Prev.Prev.Prev.Workspace;
-        var allProjects = l4Result.Prev.Prev.Projects.ToList();
+        var workspaceNode = ctx.Workspace;
+        var allProjects = ctx.Projects.ToList();
 
         var entryPoints = new List<EntryPointNode>();
         var endpoints = new List<EndpointNode>();
@@ -200,7 +206,7 @@ public partial class Layer5AnalysisParser
 
         foreach (var ep in endpoints)
         {
-            foreach (var childFn in ep.Children.OfType<Common.Nodes.Layer3_Syntactic.FunctionNode>())
+            foreach (var childFn in ep.Children.OfType<FunctionNode>())
             {
                 RegisterEndpointHandler(ep.Id, childFn.Id);
             }
@@ -381,6 +387,15 @@ public partial class Layer5AnalysisParser
                 projectMatchCache[key] = matches;
             }
             return matches;
+        }
+
+        var callableProjectIds = new HashSet<string>(projectsWithEndpoints, StringComparer.OrdinalIgnoreCase);
+        foreach (var ep in prepEntryPoints)
+        {
+            if (ep.TargetProj != null)
+            {
+                callableProjectIds.Add(ep.TargetProj.Id);
+            }
         }
 
         var lastReport = Stopwatch.GetTimestamp();
@@ -565,13 +580,14 @@ public partial class Layer5AnalysisParser
                     lateBoundRels);
             }
 
-            // Also match by domain/service name ONLY if no endpoint was matched and a single runnable service matches
+            // Also match by domain/service name ONLY if no endpoint was matched and a single runnable service with endpoints matches
             if (!matchedEndpoint)
             {
                 Layer5RuntimeCallBinder.TryInferServiceCallViaHost(
                     ctx,
                     extService,
                     allProjects,
+                    callableProjectIds,
                     CheckProjectMatch,
                     addedProjectDeps,
                     lateBoundRels);
@@ -845,12 +861,12 @@ public partial class Layer5AnalysisParser
         return IsMatch(prepExt, prepEp, (p, d) => DoesProjectMatchServiceDomain(p, d));
     }
 
-    private async Task MaterializeLogicalStructureAsync(Layer4Result l4Result, ParsingContext ctx)
+    private async Task MaterializeLogicalStructureAsync(Layer4Result l4Result, Layer5Context ctx)
     {
         if (!WorkspaceConventions.DomainDetectionEnabled || l4Result.SemanticStructure == null) return;
         ctx.ReportProgress(86, Layer5GlobalStageName, MaterializeLogicalProgressMsg);
 
-        var workspace = l4Result.Prev.Prev.Prev.Workspace;
+        var workspace = ctx.Workspace;
         var logicalNodeId = $"{ctx.WorkspaceId}:{OntologyConstants.IdPrefixes.LogicalStructure}";
         var logicalStructureNode = new LogicalStructureNode(logicalNodeId, LogicalStructureName, workspace.Path);
 

@@ -14,7 +14,7 @@ public class PythonTestComponentParser : IComponentLibraryParser
 
     public bool CanHandle(ProjectContext context)
     {
-        return context.ProjectType == CodeExplorer.Cypher.Common.ProjectLanguage.Python &&
+        return context.ProjectType == ProjectLanguage.Python &&
                (Libraries.PythonTestLibraryParser.Instance.GetPackageDescriptors().Any(p => p.Matches(context)) ||
                 context.FilesInDirectory.Any(f => Path.GetFileName(f).StartsWith("test_") || Path.GetFileName(f).EndsWith("_test.py")) ||
                 context.ManifestProperties.GetValueOrDefault("manifest_type") == "test" ||
@@ -36,7 +36,7 @@ public class PythonTestComponentParser : IComponentLibraryParser
         };
     }
 
-    public void EnrichWithSyntax(ComponentAnalysisResult? result, SyntaxTree syntaxTree, ParsingContext ctx)
+    public void EnrichWithSyntax(ComponentAnalysisResult? result, SyntaxTree syntaxTree, SemanticParseContext ctx)
     {
         if (syntaxTree.Tree == null) return;
 
@@ -45,7 +45,7 @@ public class PythonTestComponentParser : IComponentLibraryParser
 
         var root = syntaxTree.Tree.RootNode;
 
-        void WalkNode(CodeExplorer.Core.Parser.Syntax.SyntaxNode node)
+        void WalkNode(Core.Parser.Syntax.SyntaxNode node)
         {
             if (node.Is(TreeSitterSyntax.Python.FunctionDefinition))
             {
@@ -60,7 +60,7 @@ public class PythonTestComponentParser : IComponentLibraryParser
                 }
             }
 
-            for (int i = 0; i < node.Children.Count; i++)
+            for (var i = 0; i < node.Children.Count; i++)
             {
                 var child = node.Children[i];
                 if (child.IsValid())

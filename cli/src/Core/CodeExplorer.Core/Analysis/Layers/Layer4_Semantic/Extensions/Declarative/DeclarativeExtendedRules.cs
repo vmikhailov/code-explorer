@@ -38,10 +38,10 @@ public sealed record CustomAstRule
 {
     public IReadOnlyCollection<string> NodeTypes { get; init; } = FrozenSet<string>.Empty;
     public IReadOnlyDictionary<string, NodeSelector>? Selectors { get; init; }
-    public Func<Node, ParsingContext, string?>? MapNodeType { get; init; }
-    public Func<Node, ParsingContext, string?, string?, string?>? ExtractIdentifier { get; init; }
-    public Action<Node, string, List<Reference>, ParsingContext>? CollectReferences { get; init; }
-    public Action<Node, SyntacticSymbol, ParsingContext>? EnrichSymbol { get; init; }
+    public Func<Node, SemanticParseContext, string?>? MapNodeType { get; init; }
+    public Func<Node, SemanticParseContext, string?, string?, string?>? ExtractIdentifier { get; init; }
+    public Action<Node, string, List<Reference>, SemanticParseContext>? CollectReferences { get; init; }
+    public Action<Node, SyntacticSymbol, SemanticParseContext>? EnrichSymbol { get; init; }
 }
 
 internal static class DeclarativeExtendedRuleEvaluator
@@ -92,9 +92,12 @@ internal static class DeclarativeExtendedRuleEvaluator
         {
             superNode = node.FindChildOfType(ArgumentListType);
         }
+        if (!superNode.IsValid())
+        {
+            return false;
+        }
 
-        var searchSpan = superNode.IsValid() ? superNode.AsSpan() : node.AsSpan();
-        if (!DeclarativeUniversalRuleEvaluator.SpanContainsAny(searchSpan, rule.BaseTypeSubstrings))
+        if (!HasExactBaseTypeToken(superNode.AsSpan(), rule.BaseTypeSubstrings))
         {
             return false;
         }
@@ -103,13 +106,34 @@ internal static class DeclarativeExtendedRuleEvaluator
         if (!nameNode.IsValid() || string.IsNullOrEmpty(nameNode.Text)) return false;
 
         var className = rule.LowercaseClassName ? nameNode.Text.ToLowerInvariant() : nameNode.Text;
-        targetName = $"{rule.TargetPrefix}{className}{rule.TargetSuffix}";
+        targetName = $"{rule.TargetPrefix}{className}{rule.TargetSuffix}".Trim();
+        if (rule.EmitTableNode && !ResourceNamingHelper.IsValidTableIdentifier(targetName))
+        {
+            return false;
+        }
         return true;
+    }
+
+    private static bool HasExactBaseTypeToken(ReadOnlySpan<char> superSpan, FrozenSet<string> candidates)
+    {
+        var i = 0;
+        while (i < superSpan.Length)
+        {
+            while (i < superSpan.Length && !(char.IsLetterOrDigit(superSpan[i]) || superSpan[i] == '_')) i++;
+            var start = i;
+            while (i < superSpan.Length && (char.IsLetterOrDigit(superSpan[i]) || superSpan[i] == '_')) i++;
+            if (i > start)
+            {
+                var token = superSpan[start..i].ToString();
+                if (candidates.Contains(token)) return true;
+            }
+        }
+        return false;
     }
 
     internal static string? EvaluateCustomMapNodeType(
         Node node,
-        ParsingContext ctx,
+        SemanticParseContext ctx,
         FrozenDictionary<string, CustomAstRule[]> byNodeType,
         CustomAstRule[] unfiltered)
     {
@@ -150,7 +174,7 @@ internal static class DeclarativeExtendedRuleEvaluator
 
     internal static string? EvaluateCustomExtractIdentifier(
         Node node,
-        ParsingContext ctx,
+        SemanticParseContext ctx,
         string? projectName,
         string? relativePath,
         FrozenDictionary<string, CustomAstRule[]> byNodeType,
@@ -186,7 +210,7 @@ internal static class DeclarativeExtendedRuleEvaluator
         return null;
     }
 
-    private static bool MatchesRuleOrSelectors(Node node, ParsingContext ctx, CustomAstRule rule)
+    private static bool MatchesRuleOrSelectors(Node node, SemanticParseContext ctx, CustomAstRule rule)
     {
         if (rule.Selectors != null)
         {
@@ -202,7 +226,7 @@ internal static class DeclarativeExtendedRuleEvaluator
         Node node,
         string scopeSymbolId,
         List<Reference> references,
-        ParsingContext ctx,
+        SemanticParseContext ctx,
         FrozenDictionary<string, CustomAstRule[]> byNodeType,
         CustomAstRule[] unfiltered)
     {
@@ -224,7 +248,7 @@ internal static class DeclarativeExtendedRuleEvaluator
     internal static void EvaluateCustomEnrichSymbol(
         Node node,
         SyntacticSymbol symbol,
-        ParsingContext ctx,
+        SemanticParseContext ctx,
         FrozenDictionary<string, CustomAstRule[]> byNodeType,
         CustomAstRule[] unfiltered)
     {

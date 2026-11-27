@@ -30,7 +30,7 @@ public class SequelizeLibraryParser : DeclarativeSemanticExtension
 
     public override IReadOnlyList<CustomAstRule> CustomAstRules => Rules;
 
-    private static string? MapNodeTypeCore(Node node, ParsingContext ctx)
+    private static string? MapNodeTypeCore(Node node, SemanticParseContext ctx)
     {
         if (IsSequelizeCall(node))
         {
@@ -43,7 +43,7 @@ public class SequelizeLibraryParser : DeclarativeSemanticExtension
         return null;
     }
 
-    private static string? ExtractIdentifierCore(Node node, ParsingContext ctx)
+    private static string? ExtractIdentifierCore(Node node, SemanticParseContext ctx)
     {
         if (IsSequelizeCall(node))
         {
@@ -77,7 +77,7 @@ public class SequelizeLibraryParser : DeclarativeSemanticExtension
         return null;
     }
 
-    private static void CollectReferencesCore(Node node, string scopeSymbolId, List<Reference> references, ParsingContext ctx)
+    private static void CollectReferencesCore(Node node, string scopeSymbolId, List<Reference> references, SemanticParseContext ctx)
     {
         if (IsSequelizeCall(node))
         {
@@ -108,7 +108,7 @@ public class SequelizeLibraryParser : DeclarativeSemanticExtension
         }
     }
 
-    private static void EnrichSymbolCore(Node node, SyntacticSymbol symbol, ParsingContext ctx)
+    private static void EnrichSymbolCore(Node node, SyntacticSymbol symbol, SemanticParseContext ctx)
     {
         if (node.IsAny(TreeSitterSyntax.TypeScript.ClassDeclaration, TreeSitterSyntax.TypeScript.ClassExpression))
         {

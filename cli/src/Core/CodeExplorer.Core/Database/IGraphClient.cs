@@ -1,7 +1,6 @@
 using CodeExplorer.Core.Common.Nodes.Layer2_Boundaries;
 using CodeExplorer.Core.Common.Nodes.Layer4_Semantic;
 using CodeExplorer.Cypher.Ast;
-using CodeExplorer.Cypher.Common;
 
 namespace CodeExplorer.Core.Database;
 
@@ -214,18 +213,18 @@ public interface IGraphClient : IAsyncDisposable, ICypherQueryExecutor
 
     bool SupportsIdentifierSearch => false;
 
-    Task<IReadOnlyList<Analysis.IdentifierMatch>> SearchIdentifiersAsync(
+    Task<IReadOnlyList<IdentifierMatch>> SearchIdentifiersAsync(
         string query,
         string? kindFilter = null,
         int limit = 20,
         CancellationToken cancellationToken = default) =>
-        Task.FromResult<IReadOnlyList<Analysis.IdentifierMatch>>(Array.Empty<Analysis.IdentifierMatch>());
+        Task.FromResult<IReadOnlyList<IdentifierMatch>>(Array.Empty<IdentifierMatch>());
 
-    Task<Analysis.IdentifierMatch?> ResolveIdentifierAsync(
+    Task<IdentifierMatch?> ResolveIdentifierAsync(
         string query,
         string? kindFilter = null,
         CancellationToken cancellationToken = default) =>
-        Task.FromResult<Analysis.IdentifierMatch?>(null);
+        Task.FromResult<IdentifierMatch?>(null);
 
     Task<Analysis.Testing.TestImpactReport?> AnalyzeTestImpactAsync(
         Analysis.Testing.TestImpactRequest request,
@@ -372,10 +371,10 @@ public record ProjectSignature(
     List<string>? OutboundCalls = null
 );
 
-public record IntentCandidate(string Id, CodeExplorer.Cypher.Common.NodeKind Kind, string Name, string RelativePath, string? FullPath)
+public record IntentCandidate(string Id, NodeKind Kind, string Name, string RelativePath, string? FullPath)
 {
     public IntentCandidate(string Id, string Kind, string Name, string RelativePath, string? FullPath)
-        : this(Id, CodeExplorer.Cypher.Common.EnumExtensions.ParseNodeKind(Kind), Name, RelativePath, FullPath)
+        : this(Id, EnumExtensions.ParseNodeKind(Kind), Name, RelativePath, FullPath)
     {
     }
 }
@@ -386,7 +385,7 @@ public record CodeIntentPredictionResult(
     string? Domain,
     string? Layer,
     string? Pattern,
-    CodeExplorer.Cypher.Common.OperationType? OperationType,
+    OperationType? OperationType,
     string? CapabilityTag,
     string? IntentSummary,
     bool? IsPureDomain,
@@ -406,7 +405,7 @@ public record CodeIntentPredictionResult(
         bool? IsPureDomain,
         List<string>? TargetEntities,
         List<string>? EmittedEvents)
-        : this(Id, FilePath, Domain, Layer, Pattern, CodeExplorer.Cypher.Common.TaxonomyEnumExtendedExtensions.ParseNullableOperationType(OperationType), CapabilityTag, IntentSummary, IsPureDomain, TargetEntities, EmittedEvents)
+        : this(Id, FilePath, Domain, Layer, Pattern, TaxonomyEnumExtendedExtensions.ParseNullableOperationType(OperationType), CapabilityTag, IntentSummary, IsPureDomain, TargetEntities, EmittedEvents)
     {
     }
 }
@@ -420,7 +419,7 @@ public record IntentRecord(
     string? Domain,
     string? Layer,
     string? Pattern,
-    CodeExplorer.Cypher.Common.OperationType? OperationType,
+    OperationType? OperationType,
     string? CapabilityTag,
     string? IntentSummary,
     List<string>? TargetEntities,
@@ -449,7 +448,7 @@ public record IntentRecord(
         int ErrorCount,
         string? LastError,
         DateTime? AnalyzedAtUtc)
-        : this(FilePath, WorkspaceId, FileId, ContentHash, LastModifiedUtc, Domain, Layer, Pattern, CodeExplorer.Cypher.Common.TaxonomyEnumExtendedExtensions.ParseNullableOperationType(OperationType), CapabilityTag, IntentSummary, TargetEntities, EmittedEvents, IsPureDomain, ErrorCount, LastError, AnalyzedAtUtc)
+        : this(FilePath, WorkspaceId, FileId, ContentHash, LastModifiedUtc, Domain, Layer, Pattern, TaxonomyEnumExtendedExtensions.ParseNullableOperationType(OperationType), CapabilityTag, IntentSummary, TargetEntities, EmittedEvents, IsPureDomain, ErrorCount, LastError, AnalyzedAtUtc)
     {
     }
 }
@@ -457,7 +456,7 @@ public record IntentRecord(
 public record CrossDomainInteractionRecord(
     string SourceDomain,
     string TargetDomain,
-    CodeExplorer.Cypher.Common.RelationshipKind EdgeKind,
+    RelationshipKind EdgeKind,
     int InteractionCount
 )
 {
@@ -466,7 +465,7 @@ public record CrossDomainInteractionRecord(
         string TargetDomain,
         string EdgeKind,
         int InteractionCount)
-        : this(SourceDomain, TargetDomain, CodeExplorer.Cypher.Common.EnumExtensions.ParseRelationshipKind(EdgeKind), InteractionCount)
+        : this(SourceDomain, TargetDomain, EnumExtensions.ParseRelationshipKind(EdgeKind), InteractionCount)
     {
     }
 }
@@ -475,8 +474,8 @@ public record DomainInfrastructureLinkRecord(
     string Domain,
     string InfraId,
     string InfraName,
-    CodeExplorer.Cypher.Common.NodeKind InfraKind,
-    CodeExplorer.Cypher.Common.RelationshipKind EdgeKind
+    NodeKind InfraKind,
+    RelationshipKind EdgeKind
 )
 {
     public DomainInfrastructureLinkRecord(
@@ -485,7 +484,7 @@ public record DomainInfrastructureLinkRecord(
         string InfraName,
         string InfraKind,
         string EdgeKind)
-        : this(Domain, InfraId, InfraName, CodeExplorer.Cypher.Common.EnumExtensions.ParseNodeKind(InfraKind), CodeExplorer.Cypher.Common.EnumExtensions.ParseRelationshipKind(EdgeKind))
+        : this(Domain, InfraId, InfraName, EnumExtensions.ParseNodeKind(InfraKind), EnumExtensions.ParseRelationshipKind(EdgeKind))
     {
     }
 }

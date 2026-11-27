@@ -1,8 +1,6 @@
 using CodeExplorer.Core.Common.Nodes.Layer2_Boundaries;
 using CodeExplorer.Core.Common.Relationships;
-using CodeExplorer.Core.Database;
 using CodeExplorer.Core.Parser.Layers;
-using CodeExplorer.Cypher.Common;
 
 namespace CodeExplorer.Core.Parser;
 
@@ -37,8 +35,47 @@ internal static class Layer5RuntimeCallBinder
     {
         "realm", "realms", "auth", "admin", "portal", "agent", "agents", "registry",
         "common", "commons", "core", "audit", "setup", "dashboard", "gateway", "proxy",
-        "ui", "web", "bff", "api", "service", "services", "client", "external", "internal"
+        "ui", "web", "bff", "api", "service", "services", "client", "external", "internal",
+        "prod", "dev", "stage", "staging", "qa", "uat", "roles", "role", "helm",
+        "login", "logout", "key_vault", "keyvault", "config", "configs", "test", "tests",
+        "actions", "github-actions", "workflows", "scripts", "branches", "infra", "terraform", "modules"
     };
+
+    private static readonly HashSet<string> NonCallableProjectLanguages = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "terraform", "hcl", "shell", "bash", "sh", "powershell", "pwsh", "batch", "script", "sql"
+    };
+
+    public static bool IsGenericSingleWordServiceTarget(string? key)
+    {
+        if (string.IsNullOrWhiteSpace(key)) return true;
+        var clean = key.Trim();
+        return AmbiguousBareHostStems.Contains(clean);
+    }
+
+    public static bool IsCallableServiceTarget(ProjectNode? targetProj)
+    {
+        if (targetProj == null || targetProj.IsLibrary || targetProj.IsTest)
+        {
+            return false;
+        }
+        if (targetProj.EntityKind is ProjectEntityKind.Library or ProjectEntityKind.Test or ProjectEntityKind.ScriptProject or ProjectEntityKind.CliTool)
+        {
+            return false;
+        }
+        var projectType = targetProj.ProjectType.ToCanonicalString();
+        if (!string.IsNullOrWhiteSpace(projectType) && NonCallableProjectLanguages.Contains(projectType.Trim()))
+        {
+            return false;
+        }
+        var normPath = (targetProj.Path ?? string.Empty).Replace('\\', '/');
+        if (normPath.Contains("/tf/modules/", StringComparison.OrdinalIgnoreCase) ||
+            normPath.StartsWith("tf/modules/", StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+        return true;
+    }
 
     public static bool CanEmitRuntimeServiceCall(ProjectNode? callerProj, ProjectNode? targetProj)
     {
@@ -50,11 +87,7 @@ internal static class Layer5RuntimeCallBinder
         {
             return false;
         }
-        if (targetProj.IsLibrary || targetProj.IsTest || targetProj.EntityKind == ProjectEntityKind.Test)
-        {
-            return false;
-        }
-        return true;
+        return IsCallableServiceTarget(targetProj);
     }
 
     private static readonly HashSet<string> SingleRepoTierFolders = new(StringComparer.OrdinalIgnoreCase)
@@ -106,7 +139,7 @@ internal static class Layer5RuntimeCallBinder
     }
 
     public static void EmitServiceCallViaEntryPoint(
-        ParsingContext ctx,
+        Layer5Context ctx,
         ProjectNode? callerProj,
         ProjectNode? targetProj,
         string entryPointName,
@@ -133,7 +166,7 @@ internal static class Layer5RuntimeCallBinder
     }
 
     public static void EmitServiceCallViaEndpoint(
-        ParsingContext ctx,
+        Layer5Context ctx,
         ProjectNode? callerProj,
         ProjectNode? targetProj,
         string? routeTemplate,
@@ -172,9 +205,10 @@ internal static class Layer5RuntimeCallBinder
     }
 
     public static void TryInferServiceCallViaHost(
-        ParsingContext ctx,
+        Layer5Context ctx,
         Layer5AnalysisParser.PreparedExternalService extService,
         IReadOnlyList<ProjectNode> allProjects,
+        IReadOnlySet<string> callableProjectIds,
         Func<ProjectNode, string, bool> checkProjectMatch,
         HashSet<(string From, string To)> addedServiceCalls,
         List<Relationship> lateBoundRels)
@@ -208,7 +242,7 @@ internal static class Layer5RuntimeCallBinder
         var matches = new List<ProjectNode>();
         foreach (var proj in allProjects)
         {
-            if (!CanEmitRuntimeServiceCall(callerProj, proj))
+            if (!CanEmitRuntimeServiceCall(callerProj, proj) || !callableProjectIds.Contains(proj.Id))
             {
                 continue;
             }

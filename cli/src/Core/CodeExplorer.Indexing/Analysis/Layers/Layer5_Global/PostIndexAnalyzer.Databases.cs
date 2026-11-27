@@ -1,5 +1,3 @@
-using CodeExplorer.Cypher.Common;
-
 namespace CodeExplorer.Core.Parser;
 
 public partial class PostIndexAnalyzer
@@ -108,7 +106,7 @@ public partial class PostIndexAnalyzer
                 var resolvedCaller = workloadToProject.GetValueOrDefault(callerSrc, callerSrc);
                 // Resolve owning project
                 string? projId = null;
-                string projName = "";
+                var projName = "";
                 var exactProj = projectList.FirstOrDefault(p => p.Id == resolvedCaller);
 
                 if (!string.IsNullOrEmpty(exactProj.Id))
@@ -319,11 +317,11 @@ public partial class PostIndexAnalyzer
                 if (cfgNodes.Count > 1)
                 {
                     // Check if one has clean stem (ordering) and another has db suffix (orderingdb)
-                    for (int i = 0; i < cfgNodes.Count; i++)
+                    for (var i = 0; i < cfgNodes.Count; i++)
                     {
                         var n1 = cfgNodes[i];
                         var s1Stem = ResourceReconciliationService.StripDatabaseSuffix(n1.schema);
-                        for (int j = 0; j < cfgNodes.Count; j++)
+                        for (var j = 0; j < cfgNodes.Count; j++)
                         {
                             if (i == j) continue;
                             var n2 = cfgNodes[j];

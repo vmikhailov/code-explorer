@@ -1,4 +1,3 @@
-using CodeExplorer.Core.Database;
 using System.Threading.Channels;
 using CodeExplorer.Core.Common.Nodes;
 using CodeExplorer.Core.Common.Nodes.Layer4_Semantic;
@@ -26,7 +25,7 @@ public class TsArrowCallerAttributionTests
             var filePath = Path.Combine(tempDir, fileName);
             await File.WriteAllTextAsync(filePath, code);
             var channel = Channel.CreateUnbounded<Func<Task>>();
-            var ctx = new ParsingContext(tempDir, tempDir, new InMemoryGraphRepository(), channel);
+            var ctx = new SemanticParseContext(tempDir);
             using var syntaxTree = await new TypeScriptFileParser().ParseAsync(filePath, "parent-id", ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
             Layer3SyntacticParser.ProcessVisitor(syntaxTree, ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
             var result = new List<ExternalServiceNode>();

@@ -29,7 +29,7 @@ public class ClickHouseLibraryParser : DeclarativeSemanticExtension
 
     public override IReadOnlyList<CustomAstRule> CustomAstRules => Rules;
 
-    private static string? ExtractIdentifierCore(Node node, ParsingContext ctx)
+    private static string? ExtractIdentifierCore(Node node, SemanticParseContext ctx)
     {
         if (IsClickHouseCall(node))
         {
@@ -55,7 +55,7 @@ public class ClickHouseLibraryParser : DeclarativeSemanticExtension
         return null;
     }
 
-    private static void CollectReferencesCore(Node node, string scopeSymbolId, List<Reference> references, ParsingContext ctx)
+    private static void CollectReferencesCore(Node node, string scopeSymbolId, List<Reference> references, SemanticParseContext ctx)
     {
         if (IsClickHouseCall(node))
         {

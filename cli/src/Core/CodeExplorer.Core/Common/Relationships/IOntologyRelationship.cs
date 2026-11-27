@@ -1,5 +1,4 @@
 using System.Text.Json.Serialization;
-using CodeExplorer.Cypher.Common;
 
 namespace CodeExplorer.Core.Common.Relationships;
 

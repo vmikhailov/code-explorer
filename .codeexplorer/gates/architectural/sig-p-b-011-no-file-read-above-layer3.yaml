@@ -16,10 +16,12 @@ query: |
   WHERE (caller.path CONTAINS 'Layer4_' OR caller.path CONTAINS 'Layer5_')
     AND NOT coalesce(caller.is_test, false)
     AND (
-      target.path CONTAINS 'PhysicalFileStore'
+      target.path CONTAINS 'FileStreamReader'
+      OR target.path CONTAINS 'PhysicalFileStore'
       OR target.path CONTAINS 'WorkspaceFileFilter'
       OR target.path CONTAINS 'SharedFileParserRegistry'
       OR target.name IN [
+        'ReadTextOnce', 'ReadTextOnceAsync', 'ReadLinesOnce',
         'ReadAllText', 'ReadAllTextAsync',
         'ReadAllBytes', 'ReadAllBytesAsync',
         'ReadAllLines', 'ReadAllLinesAsync',

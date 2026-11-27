@@ -1,5 +1,4 @@
 using NUnit.Framework;
-using Superpower;
 using Superpower.Parsers;
 using Superpower.Tokenizers;
 

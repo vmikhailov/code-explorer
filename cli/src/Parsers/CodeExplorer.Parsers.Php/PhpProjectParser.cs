@@ -1,8 +1,4 @@
 using System.Text.Json;
-using System.Text.RegularExpressions;
-using CodeExplorer.Core.Common;
-using CodeExplorer.Core.Common.Nodes.Layer2_Boundaries;
-using CodeExplorer.Core.Parser;
 
 [assembly: ParserAssembly]
 
@@ -93,6 +89,74 @@ public class PhpProjectParser : IProjectParser
                ext.Equals(IniExt, StringComparison.OrdinalIgnoreCase);
     }
 
+    public bool TryParse(ProjectParseContext context, out ProjectParseResult? result)
+    {
+        var activeIndex = context.DirectoryIndex ?? WorkspaceDirectoryIndex.Current;
+        if (activeIndex != null && activeIndex.TryGetCachedProjectParse(this, context.DirectoryPath, out var cached))
+        {
+            result = cached.Result;
+            return cached.Matched;
+        }
+
+        var dir = context.DirectoryPath;
+        var files = context.FilesInDirectory;
+        if (!IsProjectDirectory(dir, files))
+        {
+            activeIndex?.StoreProjectParse(this, dir, false, null);
+            result = null;
+            return false;
+        }
+
+        var composerPath = Path.Combine(dir, ComposerJsonFile);
+        var composerText = WorkspaceDirectoryIndex.FileExistsInCurrentOrDisk(composerPath) && File.Exists(composerPath)
+            ? FileStreamReader.ReadTextOnce(composerPath)
+            : null;
+        JsonDocument? composerDoc = null;
+        if (!string.IsNullOrEmpty(composerText))
+        {
+            try
+            {
+                composerDoc = JsonDocument.Parse(composerText);
+            }
+            catch (JsonException)
+            {
+                // ignored: malformed composer.json falls back to folder heuristics
+            }
+        }
+
+        using (composerDoc)
+        {
+            var composerName = composerDoc != null ? TryReadComposerNameFromDoc(composerDoc) : null;
+            var folderName = Path.GetFileName(dir.TrimEnd(PathTrimChars));
+            var name = !string.IsNullOrWhiteSpace(composerName)
+                ? composerName
+                : (string.IsNullOrWhiteSpace(folderName) ? DefaultPhpProjectName : folderName);
+
+            var props = BuildManifestPropertiesFromComposer(dir, files, composerText);
+            var produced = !string.IsNullOrWhiteSpace(composerName)
+                ? new ProducedPackageInfo(composerName, DefaultVersion, ComposerManifest)
+                : null;
+            var packages = new List<ProducedPackageInfo>();
+            if (composerDoc != null)
+            {
+                ReadPackageSection(composerDoc.RootElement, RequireProp, packages);
+                ReadPackageSection(composerDoc.RootElement, RequireDevProp, packages);
+            }
+
+            result = new ProjectParseResult(
+                Project: new ParsedProjectDescriptor(
+                    Name: name,
+                    DirectoryPath: dir,
+                    ProjectType: ProjectType,
+                    ManifestProperties: props,
+                    ProducedPackage: produced,
+                    Dependencies: new ProjectDependencyInfo([], packages)),
+                ClaimMode: ParserClaimMode.AbsorbSecondaryInDirectory);
+            activeIndex?.StoreProjectParse(this, dir, true, result);
+            return true;
+        }
+    }
+
     private static readonly HashSet<string> InternalPhpSubfolders = new(StringComparer.OrdinalIgnoreCase)
     {
         "application", "app", "src", "public", "www", "htdocs", "web", "html", "site", "kirby",
@@ -132,8 +196,8 @@ public class PhpProjectParser : IProjectParser
         string[] childFiles,
         IProjectParser candidateChildParser)
     {
-        if (PhysicalFileStore.TryGetConfiguredProject(childDirectoryPath, out _) ||
-            (PhysicalFileStore.IsGitRepositoryRoot(childDirectoryPath) && !PhysicalFileStore.HasChildGitRepositories(childDirectoryPath)))
+        if (WorkspaceDirectoryIndex.TryGetConfiguredProjectInCurrent(childDirectoryPath, out _) ||
+            (WorkspaceDirectoryIndex.IsGitRepoRootInCurrent(childDirectoryPath) && !WorkspaceDirectoryIndex.HasChildGitReposInCurrent(childDirectoryPath)))
         {
             return true;
         }
@@ -176,8 +240,8 @@ public class PhpProjectParser : IProjectParser
             return !HasAncestorPhpProject(directoryPath);
         }
 
-        if (PhysicalFileStore.HasChildGitRepositories(directoryPath) ||
-            PhysicalFileStore.HasChildConfiguredProjects(directoryPath))
+        if (WorkspaceDirectoryIndex.HasChildGitReposInCurrent(directoryPath) ||
+            WorkspaceDirectoryIndex.HasChildConfiguredProjectsInCurrent(directoryPath))
         {
             return false;
         }
@@ -195,7 +259,7 @@ public class PhpProjectParser : IProjectParser
     public string GetProjectName(string directoryPath, string[] filesInDirectory)
     {
         var composerPath = Path.Combine(directoryPath, ComposerJsonFile);
-        if (PhysicalFileStore.FileExistsInCachedDirectory(composerPath))
+        if (WorkspaceDirectoryIndex.FileExistsInCurrentOrDisk(composerPath))
         {
             var composerName = TryReadComposerName(composerPath);
             if (!string.IsNullOrWhiteSpace(composerName))
@@ -211,7 +275,7 @@ public class PhpProjectParser : IProjectParser
     public Task<ProducedPackageInfo?> GetProducedPackageAsync(string projectDirectory)
     {
         var composerPath = Path.Combine(projectDirectory, ComposerJsonFile);
-        if (PhysicalFileStore.FileExistsInCachedDirectory(composerPath))
+        if (WorkspaceDirectoryIndex.FileExistsInCurrentOrDisk(composerPath))
         {
             var name = TryReadComposerName(composerPath);
             if (!string.IsNullOrWhiteSpace(name))
@@ -227,7 +291,7 @@ public class PhpProjectParser : IProjectParser
     {
         var packages = new List<ProducedPackageInfo>();
         var composerPath = Path.Combine(projectDirectory, ComposerJsonFile);
-        if (PhysicalFileStore.FileExistsInCachedDirectory(composerPath))
+        if (WorkspaceDirectoryIndex.FileExistsInCurrentOrDisk(composerPath))
         {
             TryExtractComposerPackages(composerPath, packages);
         }
@@ -236,6 +300,18 @@ public class PhpProjectParser : IProjectParser
     }
 
     public Dictionary<string, string> ExtractManifestProperties(string directoryPath, string[] filesInDirectory)
+    {
+        var composerPath = Path.Combine(directoryPath, ComposerJsonFile);
+        var composerText = WorkspaceDirectoryIndex.FileExistsInCurrentOrDisk(composerPath) && File.Exists(composerPath)
+            ? FileStreamReader.ReadTextOnce(composerPath)
+            : null;
+        return BuildManifestPropertiesFromComposer(directoryPath, filesInDirectory, composerText);
+    }
+
+    private static Dictionary<string, string> BuildManifestPropertiesFromComposer(
+        string directoryPath,
+        string[] filesInDirectory,
+        string? composerText)
     {
         var hasComposer = HasComposerManifest(filesInDirectory);
         var folderName = Path.GetFileName(directoryPath.TrimEnd(PathTrimChars));
@@ -254,10 +330,9 @@ public class PhpProjectParser : IProjectParser
             [ProjectTypeKey] = LangPhp
         };
 
-        var composerPath = Path.Combine(directoryPath, ComposerJsonFile);
-        if (PhysicalFileStore.FileExistsInCachedDirectory(composerPath))
+        if (!string.IsNullOrEmpty(composerText))
         {
-            EnrichFromComposer(composerPath, props);
+            EnrichFromComposerText(composerText, props);
         }
 
         return props;
@@ -287,14 +362,14 @@ public class PhpProjectParser : IProjectParser
 
     private static bool HasPhpWebEntrypoint(string directoryPath)
     {
-        return PhysicalFileStore.FileExistsInCachedDirectory(Path.Combine(directoryPath, "public", "index.php")) ||
-               PhysicalFileStore.FileExistsInCachedDirectory(Path.Combine(directoryPath, "www", "index.php")) ||
-               PhysicalFileStore.FileExistsInCachedDirectory(Path.Combine(directoryPath, "htdocs", "index.php")) ||
-               PhysicalFileStore.FileExistsInCachedDirectory(Path.Combine(directoryPath, "web", "index.php")) ||
-               PhysicalFileStore.FileExistsInCachedDirectory(Path.Combine(directoryPath, "html", "index.php")) ||
-               PhysicalFileStore.FileExistsInCachedDirectory(Path.Combine(directoryPath, "application", "Bootstrap.php")) ||
-               PhysicalFileStore.FileExistsInCachedDirectory(Path.Combine(directoryPath, "application", "configs", "application.ini")) ||
-               PhysicalFileStore.FileExistsInCachedDirectory(Path.Combine(directoryPath, "artisan"));
+        return WorkspaceDirectoryIndex.FileExistsInCurrentOrDisk(Path.Combine(directoryPath, "public", "index.php")) ||
+               WorkspaceDirectoryIndex.FileExistsInCurrentOrDisk(Path.Combine(directoryPath, "www", "index.php")) ||
+               WorkspaceDirectoryIndex.FileExistsInCurrentOrDisk(Path.Combine(directoryPath, "htdocs", "index.php")) ||
+               WorkspaceDirectoryIndex.FileExistsInCurrentOrDisk(Path.Combine(directoryPath, "web", "index.php")) ||
+               WorkspaceDirectoryIndex.FileExistsInCurrentOrDisk(Path.Combine(directoryPath, "html", "index.php")) ||
+               WorkspaceDirectoryIndex.FileExistsInCurrentOrDisk(Path.Combine(directoryPath, "application", "Bootstrap.php")) ||
+               WorkspaceDirectoryIndex.FileExistsInCurrentOrDisk(Path.Combine(directoryPath, "application", "configs", "application.ini")) ||
+               WorkspaceDirectoryIndex.FileExistsInCurrentOrDisk(Path.Combine(directoryPath, "artisan"));
     }
 
     private static bool HasPythonServiceManifest(string directoryPath, string[] filesInDirectory)
@@ -312,7 +387,7 @@ public class PhpProjectParser : IProjectParser
             }
         }
 
-        return PhysicalFileStore.FileExistsInCachedDirectory(Path.Combine(directoryPath, "requirements", "requirements.txt"));
+        return WorkspaceDirectoryIndex.FileExistsInCurrentOrDisk(Path.Combine(directoryPath, "requirements", "requirements.txt"));
     }
 
     private static bool IsPhpApplicationOrContainerRoot(string directoryPath, string[] filesInDirectory)
@@ -322,7 +397,7 @@ public class PhpProjectParser : IProjectParser
             return true;
         }
 
-        if (!PhysicalFileStore.HasCachedDirectory(directoryPath))
+        if (!WorkspaceDirectoryIndex.HasCachedDirectoryInCurrent(directoryPath))
         {
             return false;
         }
@@ -330,7 +405,7 @@ public class PhpProjectParser : IProjectParser
         var folderName = Path.GetFileName(directoryPath.TrimEnd(PathTrimChars));
         var parentDir = Directory.GetParent(directoryPath);
         if (parentDir != null &&
-            PhysicalFileStore.HasCachedDirectory(parentDir.FullName) &&
+            WorkspaceDirectoryIndex.HasCachedDirectoryInCurrent(parentDir.FullName) &&
             (InternalPhpSubfolders.Contains(folderName) || IsVendoredSubfolderName(folderName)))
         {
             return false;
@@ -341,15 +416,15 @@ public class PhpProjectParser : IProjectParser
             return false;
         }
 
-        if (PhysicalFileStore.IsGitRepositoryRoot(directoryPath) &&
-            !PhysicalFileStore.HasChildGitRepositories(directoryPath) &&
+        if (WorkspaceDirectoryIndex.IsGitRepoRootInCurrent(directoryPath) &&
+            !WorkspaceDirectoryIndex.HasChildGitReposInCurrent(directoryPath) &&
             !SubtreeHasOtherPrimaryManifests(directoryPath))
         {
             var phpCount = 0;
             var pyCount = 0;
             var perlCount = 0;
             var otherCodeCount = 0;
-            foreach (var file in PhysicalFileStore.EnumerateCachedFilesInSubtree(directoryPath))
+            foreach (var file in WorkspaceDirectoryIndex.EnumerateSubtreeInCurrent(directoryPath))
             {
                 if (IsPhpSourceFile(file)) phpCount++;
                 else if (file.EndsWith(".py", StringComparison.OrdinalIgnoreCase)) pyCount++;
@@ -366,7 +441,7 @@ public class PhpProjectParser : IProjectParser
             }
         }
 
-        var childDirs = PhysicalFileStore.GetCachedDirectChildDirectories(directoryPath);
+        var childDirs = WorkspaceDirectoryIndex.GetCachedChildDirsInCurrent(directoryPath);
         if (childDirs.Count == 0)
         {
             return false;
@@ -382,7 +457,7 @@ public class PhpProjectParser : IProjectParser
                 continue;
             }
 
-            if (PhysicalFileStore.EnumerateCachedFilesInSubtree(childDirs[i].DirectoryPath).Any(IsPhpSourceFile))
+            if (WorkspaceDirectoryIndex.EnumerateSubtreeInCurrent(childDirs[i].DirectoryPath).Any(IsPhpSourceFile))
             {
                 internalPhpChildCount++;
                 if (PhpPrimaryAppSubfolders.Contains(childName))
@@ -417,7 +492,7 @@ public class PhpProjectParser : IProjectParser
 
     private static bool SubtreeHasOtherPrimaryManifests(string directoryPath)
     {
-        foreach (var file in PhysicalFileStore.EnumerateCachedFilesInSubtree(directoryPath))
+        foreach (var file in WorkspaceDirectoryIndex.EnumerateSubtreeInCurrent(directoryPath))
         {
             var fn = Path.GetFileName(file);
             var lowerFn = fn.ToLowerInvariant();
@@ -446,30 +521,30 @@ public class PhpProjectParser : IProjectParser
 
     private static bool HasAncestorPhpProject(string directoryPath)
     {
-        if ((PhysicalFileStore.IsGitRepositoryRoot(directoryPath) && !PhysicalFileStore.HasChildGitRepositories(directoryPath)) ||
-            (PhysicalFileStore.HasAnyConfiguredProjects && PhysicalFileStore.TryGetConfiguredProject(directoryPath, out _)))
+        if ((WorkspaceDirectoryIndex.IsGitRepoRootInCurrent(directoryPath) && !WorkspaceDirectoryIndex.HasChildGitReposInCurrent(directoryPath)) ||
+            (WorkspaceDirectoryIndex.HasAnyConfiguredProjectsInCurrent && WorkspaceDirectoryIndex.TryGetConfiguredProjectInCurrent(directoryPath, out _)))
         {
             return false;
         }
 
-        var useCacheBound = PhysicalFileStore.HasCachedDirectory(directoryPath);
+        var useCacheBound = WorkspaceDirectoryIndex.HasCachedDirectoryInCurrent(directoryPath);
         var current = Directory.GetParent(directoryPath);
         var depth = 0;
         while (current != null && depth < 16)
         {
             depth++;
-            if (useCacheBound && !PhysicalFileStore.HasCachedDirectory(current.FullName))
+            if (useCacheBound && !WorkspaceDirectoryIndex.HasCachedDirectoryInCurrent(current.FullName))
             {
                 break;
             }
 
-            if (PhysicalFileStore.HasChildGitRepositories(current.FullName) ||
-                PhysicalFileStore.HasChildConfiguredProjects(current.FullName))
+            if (WorkspaceDirectoryIndex.HasChildGitReposInCurrent(current.FullName) ||
+                WorkspaceDirectoryIndex.HasChildConfiguredProjectsInCurrent(current.FullName))
             {
                 break;
             }
 
-            var parentFiles = PhysicalFileStore.GetDirectoryFiles(current.FullName);
+            var parentFiles = WorkspaceDirectoryIndex.GetDirectoryFilesOrFallback(current.FullName);
             if (HasComposerManifest(parentFiles) ||
                 parentFiles.Any(IsPhpSourceFile) ||
                 parentFiles.Any(f => f.EndsWith(".py", StringComparison.OrdinalIgnoreCase) || f.EndsWith(".pl", StringComparison.OrdinalIgnoreCase) || f.EndsWith(".pm", StringComparison.OrdinalIgnoreCase)) ||
@@ -479,7 +554,7 @@ public class PhpProjectParser : IProjectParser
                 return true;
             }
 
-            if (PhysicalFileStore.IsGitRepositoryRoot(current.FullName))
+            if (WorkspaceDirectoryIndex.IsGitRepoRootInCurrent(current.FullName))
             {
                 break;
             }
@@ -489,34 +564,41 @@ public class PhpProjectParser : IProjectParser
         return false;
     }
 
+    private static string? TryReadComposerNameFromDoc(JsonDocument doc)
+    {
+        if (doc.RootElement.TryGetProperty(NameProp, out var nameEl) &&
+            nameEl.ValueKind == JsonValueKind.String)
+        {
+            var raw = nameEl.GetString();
+            if (!string.IsNullOrWhiteSpace(raw))
+            {
+                return raw.Trim();
+            }
+        }
+        return null;
+    }
+
     private static string? TryReadComposerName(string composerPath)
     {
         try
         {
-            var json = PhysicalFileStore.ReadAllText(composerPath);
+            var json = FileStreamReader.ReadTextOnce(composerPath);
+            if (string.IsNullOrEmpty(json)) return null;
             using var doc = JsonDocument.Parse(json);
-            if (doc.RootElement.TryGetProperty(NameProp, out var nameEl) &&
-                nameEl.ValueKind == JsonValueKind.String)
-            {
-                var raw = nameEl.GetString();
-                if (!string.IsNullOrWhiteSpace(raw))
-                {
-                    return raw.Trim();
-                }
-            }
+            return TryReadComposerNameFromDoc(doc);
         }
         catch (Exception ex) when (ex is IOException or JsonException or UnauthorizedAccessException)
         {
             return null;
         }
-        return null;
     }
 
     private static void TryExtractComposerPackages(string composerPath, List<ProducedPackageInfo> packages)
     {
         try
         {
-            var json = PhysicalFileStore.ReadAllText(composerPath);
+            var json = FileStreamReader.ReadTextOnce(composerPath);
+            if (string.IsNullOrEmpty(json)) return;
             using var doc = JsonDocument.Parse(json);
             ReadPackageSection(doc.RootElement, RequireProp, packages);
             ReadPackageSection(doc.RootElement, RequireDevProp, packages);
@@ -546,44 +628,36 @@ public class PhpProjectParser : IProjectParser
         }
     }
 
-    private static void EnrichFromComposer(string composerPath, Dictionary<string, string> props)
+    private static void EnrichFromComposerText(string content, Dictionary<string, string> props)
     {
-        try
+        if (content.Contains(SymfonyKeyword, StringComparison.OrdinalIgnoreCase))
         {
-            var content = PhysicalFileStore.ReadAllText(composerPath);
-            if (content.Contains(SymfonyKeyword, StringComparison.OrdinalIgnoreCase))
-            {
-                props[FrameworkKey] = SymfonyFramework;
-            }
-            else if (content.Contains(ZendKeyword, StringComparison.OrdinalIgnoreCase) ||
-                     content.Contains(ZendClassPrefix, StringComparison.OrdinalIgnoreCase))
-            {
-                props[FrameworkKey] = ZendFramework;
-            }
-            else if (content.Contains(KirbyKeyword, StringComparison.OrdinalIgnoreCase) ||
-                     content.Contains(KirbyCmsKeyword, StringComparison.OrdinalIgnoreCase))
-            {
-                props[FrameworkKey] = KirbyFramework;
-            }
-            else if (content.Contains(LaravelKeyword, StringComparison.OrdinalIgnoreCase) ||
-                     content.Contains(IlluminateKeyword, StringComparison.OrdinalIgnoreCase))
-            {
-                props[FrameworkKey] = LaravelFramework;
-            }
-
-            if (content.Contains(DoctrineKeyword, StringComparison.OrdinalIgnoreCase) ||
-                content.Contains(DoctrineDbalKeyword, StringComparison.OrdinalIgnoreCase))
-            {
-                props[OrmKey] = DoctrineOrmName;
-            }
-            else if (content.Contains(NetteDbKeyword, StringComparison.OrdinalIgnoreCase))
-            {
-                props[OrmKey] = NetteDbName;
-            }
+            props[FrameworkKey] = SymfonyFramework;
         }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        else if (content.Contains(ZendKeyword, StringComparison.OrdinalIgnoreCase) ||
+                 content.Contains(ZendClassPrefix, StringComparison.OrdinalIgnoreCase))
         {
-            // Ignore IO errors during enrichment
+            props[FrameworkKey] = ZendFramework;
+        }
+        else if (content.Contains(KirbyKeyword, StringComparison.OrdinalIgnoreCase) ||
+                 content.Contains(KirbyCmsKeyword, StringComparison.OrdinalIgnoreCase))
+        {
+            props[FrameworkKey] = KirbyFramework;
+        }
+        else if (content.Contains(LaravelKeyword, StringComparison.OrdinalIgnoreCase) ||
+                 content.Contains(IlluminateKeyword, StringComparison.OrdinalIgnoreCase))
+        {
+            props[FrameworkKey] = LaravelFramework;
+        }
+
+        if (content.Contains(DoctrineKeyword, StringComparison.OrdinalIgnoreCase) ||
+            content.Contains(DoctrineDbalKeyword, StringComparison.OrdinalIgnoreCase))
+        {
+            props[OrmKey] = DoctrineOrmName;
+        }
+        else if (content.Contains(NetteDbKeyword, StringComparison.OrdinalIgnoreCase))
+        {
+            props[OrmKey] = NetteDbName;
         }
     }
 }

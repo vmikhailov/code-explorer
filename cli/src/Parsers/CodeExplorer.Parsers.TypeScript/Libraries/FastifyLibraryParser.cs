@@ -27,7 +27,7 @@ public class FastifyLibraryParser : DeclarativeSemanticExtension
 
     public override IReadOnlyList<CustomAstRule> CustomAstRules => Rules;
 
-    private static string? ExtractIdentifierCore(Node node, ParsingContext ctx)
+    private static string? ExtractIdentifierCore(Node node, SemanticParseContext ctx)
     {
         if (!IsFastifyRouteCall(node)) return null;
 

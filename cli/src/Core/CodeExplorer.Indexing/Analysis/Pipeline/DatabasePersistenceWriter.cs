@@ -2,19 +2,21 @@ namespace CodeExplorer.Core.Parser;
 
 public sealed class DatabasePersistenceWriter : IAsyncDisposable
 {
-    private readonly ParsingContext _ctx;
+    private readonly GraphWriteSink _sink;
     private readonly Task _consumerTask;
 
-    public DatabasePersistenceWriter(ParsingContext ctx)
+    public DatabasePersistenceWriter(GraphWriteSink sink)
     {
-        _ctx = ctx;
-        _ctx.PipelineLog.PersistenceLoopStarted();
+        _sink = sink;
+        _sink.PipelineLog.PersistenceLoopStarted();
         _consumerTask = Task.Run(ConsumeChannelAsync);
     }
 
     private async Task ConsumeChannelAsync()
     {
-        await foreach (var writeFunc in _ctx.SharedChannel.Reader.ReadAllAsync())
+        if (_sink.SharedChannel == null) return;
+
+        await foreach (var writeFunc in _sink.SharedChannel.Reader.ReadAllAsync())
         {
             try
             {
@@ -22,23 +24,23 @@ public sealed class DatabasePersistenceWriter : IAsyncDisposable
             }
             catch (Exception ex)
             {
-                _ctx.PipelineLog.DatabaseWriteFailed(ex);
+                _sink.PipelineLog.DatabaseWriteFailed(ex);
             }
         }
     }
 
     public async ValueTask DisposeAsync()
     {
-        _ctx.SharedChannel.Writer.Complete();
+        _sink.SharedChannel?.Writer.TryComplete();
 
         try
         {
             await _consumerTask;
-            _ctx.FlushPersistenceProgressReport();
+            _sink.FlushPersistenceProgressReport();
         }
         catch (Exception ex)
         {
-            _ctx.PipelineLog.ConsumerTaskFailed(ex);
+            _sink.PipelineLog.ConsumerTaskFailed(ex);
         }
     }
 }

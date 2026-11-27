@@ -204,11 +204,11 @@ public class ProjectMapBuilderTests
             Files = [F("p/a/1.cs"), F("p/b/1.cs"), F("p/c/1.cs")],
             SymbolEdges = [Call("p/a/1.cs", "p/b/1.cs"), Call("p/b/1.cs", "p/a/1.cs")]
         };
-        var graph = new CodeExplorer.Core.Protocol.GraphDataDto { Metadata = new Dictionary<string, string>() };
+        var graph = new Core.Protocol.GraphDataDto { Metadata = new Dictionary<string, string>() };
 
         ProjectMapGraphMapper.Populate(graph, ProjectMapBuilder.Build(input));
 
-        graph.Nodes.Should().OnlyContain(n => n.Kind == CodeExplorer.Cypher.Common.NodeKind.Folder);
+        graph.Nodes.Should().OnlyContain(n => n.Kind == NodeKind.Folder);
         graph.Metadata!["cycle_count"].Should().Be("1");
         graph.Metadata["granularity"].Should().Be("module");
         graph.Edges.Should().OnlyContain(e => e.Properties!["is_circular"] == "true");
@@ -582,9 +582,9 @@ public class ProjectMapBuilderTests
         result.Modules.Select(m => m.Name).Should().BeEquivalentTo(
             "index.ts", "config.ts", "proxy.ts", "connections", "services", "utils");
         result.Modules.Should().NotContain(m => m.Name == "src" || m.Name == "(root files)");
-        result.Modules.Single(m => m.Name == "index.ts").NodeKindOverride.Should().Be(CodeExplorer.Cypher.Common.NodeKind.File);
-        result.Modules.Single(m => m.Name == "config.ts").NodeKindOverride.Should().Be(CodeExplorer.Cypher.Common.NodeKind.File);
-        result.Modules.Single(m => m.Name == "proxy.ts").NodeKindOverride.Should().Be(CodeExplorer.Cypher.Common.NodeKind.File);
+        result.Modules.Single(m => m.Name == "index.ts").NodeKindOverride.Should().Be(NodeKind.File);
+        result.Modules.Single(m => m.Name == "config.ts").NodeKindOverride.Should().Be(NodeKind.File);
+        result.Modules.Single(m => m.Name == "proxy.ts").NodeKindOverride.Should().Be(NodeKind.File);
     }
 
     [Test]

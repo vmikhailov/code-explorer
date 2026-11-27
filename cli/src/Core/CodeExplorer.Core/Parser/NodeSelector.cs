@@ -17,7 +17,7 @@ public class NodeSelector
 
     public NodeSelector HasType(string type)
     {
-        return new NodeSelector([.. _steps, node => CodeExplorer.Core.Parser.Syntax.SyntaxKindResolver.Matches(node, type) ? node : null]);
+        return new NodeSelector([.. _steps, node => Syntax.SyntaxKindResolver.Matches(node, type) ? node : null]);
     }
 
     public NodeSelector FirstChild => new([.. _steps, node =>

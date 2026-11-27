@@ -1,4 +1,3 @@
-using CodeExplorer.Core.Database;
 using CodeExplorer.Core.Common.Nodes;
 using CodeExplorer.Core.Common.Nodes.Layer1_Physical;
 using CodeExplorer.Core.Common.Nodes.Layer2_Boundaries;
@@ -6,7 +5,6 @@ using CodeExplorer.Core.Common.Nodes.Layer3_Syntactic;
 using CodeExplorer.Core.Gates.Engine;
 using CodeExplorer.Core.Gates.Storage;
 using CodeExplorer.Core.Parser.Layers;
-using CodeExplorer.Cypher.Common;
 using CodeExplorer.Parsers.CSharp;
 using NUnit.Framework;
 
@@ -434,21 +432,19 @@ public class SemanticRuntimeParityGateTests
                 }
                 """);
 
-            var channel = System.Threading.Channels.Channel.CreateUnbounded<Func<Task>>();
-            await using var client = new InMemoryGraphRepository();
-            var ctx = new ParsingContext(tempWorkspace, tempWorkspace, client, channel);
-            ctx.SemanticStructure = new CodeExplorer.Core.Common.Nodes.Layer4_Semantic.SemanticStructureNode("ws:semantic_structure", "root", tempWorkspace);
+            var ctx = new SemanticParseContext(tempWorkspace);
+            ctx.SemanticStructure = new Core.Common.Nodes.Layer4_Semantic.SemanticStructureNode("ws:semantic_structure", "root", tempWorkspace);
 
             var csharpParser = new CSharpFileParser();
             using var syntaxTree = await csharpParser.ParseAsync(file, "parent-id", ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
-            Core.Parser.Layers.Layer3SyntacticParser.ProcessVisitor(syntaxTree, ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
+            Layer3SyntacticParser.ProcessVisitor(syntaxTree, ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
 
-            var projectNode = new CodeExplorer.Core.Common.Nodes.Layer2_Boundaries.ProjectNode("workspace:project:MyApp", "MyApp", appDir, "csharp", new Dictionary<string, string>());
+            var projectNode = new ProjectNode("workspace:project:MyApp", "MyApp", appDir, "csharp", new Dictionary<string, string>());
 
             await ResourceSemanticAnalyzer.EnrichAsync(syntaxTree, projectNode, csharpParser, ctx);
 
             // Assert NO DatabaseNode created under SemanticStructure
-            var dbs = ctx.SemanticStructure.Children.OfType<CodeExplorer.Core.Common.Nodes.Layer4_Semantic.DatabaseNode>().ToList();
+            var dbs = ctx.SemanticStructure.Children.OfType<Core.Common.Nodes.Layer4_Semantic.DatabaseNode>().ToList();
             dbs.Should().BeEmpty("Mere imports of EF Core or Npgsql without declared schema or config must not create a Database node");
         }
         finally
@@ -466,8 +462,6 @@ public class SemanticRuntimeParityGateTests
         try
         {
             await using var client = new InMemoryGraphRepository();
-            var channel = System.Threading.Channels.Channel.CreateUnbounded<Func<Task>>();
-            var ctx = new ParsingContext(tempWorkspace, tempWorkspace, client, channel);
 
             var wsNode = new WorkspaceNode(wsId, "TestWs", tempWorkspace);
             var filesStructure = new FilesStructureNode($"{wsId}:files", "Files", tempWorkspace);
@@ -486,12 +480,13 @@ public class SemanticRuntimeParityGateTests
             var depLibToPkg = new Relationship(libProj.Id, pkgNode.Id, OntologyConstants.Relationships.DependsOn, new() { ["dependency_type"] = "package" });
             var depTestToSvc = new Relationship(testProj.Id, svcProj.Id, OntologyConstants.Relationships.DependsOn, new() { ["dependency_type"] = "tests" });
 
-            var l2 = new Layer2Result(l1, projStructure, [svcProj, libProj, testProj], [pkgNode], [depSvcToLib, depLibToPkg, depTestToSvc]);
+            var l2 = new Layer2Result(projStructure, [svcProj, libProj, testProj], [pkgNode], [depSvcToLib, depLibToPkg, depTestToSvc]);
             var syntaxStructure = new SyntaxStructureNode($"{wsId}:syntax", "Syntax", tempWorkspace);
-            var l3 = new Layer3Result(l2, syntaxStructure, [], [], [], [], [], new());
+            var l3 = new Layer3Result(syntaxStructure, [], [], [], [], [], new());
+            var ctx = new Layer4Context(l1, l2, l3, tempWorkspace, wsId, client);
 
             var analyzer = new Layer4SemanticParser();
-            var l4 = await analyzer.ParseAsync(l3, ctx);
+            var l4 = await analyzer.ParseAsync(ctx);
 
             var semRels = l4.SemanticRelationships;
 
@@ -655,10 +650,10 @@ public class SemanticRuntimeParityGateTests
         // 3. Also verify that when DomainDetectionEnabled is explicitly enabled, Level 5 hierarchy materializes cleanly with zero upward edges
         var dbEnabledPath = Path.Combine(_tempDir, "layer5_enabled_test.db").Replace('\\', '/');
         await using var enabledClient = new SqliteGraphClient(dbEnabledPath);
-        var prevDomainFlag = CodeExplorer.Core.Common.WorkspaceConventions.DomainDetectionEnabled;
+        var prevDomainFlag = WorkspaceConventions.DomainDetectionEnabled;
         try
         {
-            CodeExplorer.Core.Common.WorkspaceConventions.DomainDetectionEnabled = true;
+            WorkspaceConventions.DomainDetectionEnabled = true;
             var enabledIndexer = new WorkspaceIndexer(enabledClient);
             await enabledIndexer.IndexAsync(_tempDir, _tempDir, clear: true);
 
@@ -668,7 +663,7 @@ public class SemanticRuntimeParityGateTests
         }
         finally
         {
-            CodeExplorer.Core.Common.WorkspaceConventions.DomainDetectionEnabled = prevDomainFlag;
+            WorkspaceConventions.DomainDetectionEnabled = prevDomainFlag;
         }
     }
 }

@@ -340,12 +340,12 @@ public partial class WebSocketServerHandler
                         nextGates.Add(updatedGate);
                     }
 
-                    int passed = 0;
-                    int warning = 0;
-                    int failed = 0;
-                    int newViolations = 0;
-                    int toleratedViolations = 0;
-                    int ratchetOpportunities = 0;
+                    var passed = 0;
+                    var warning = 0;
+                    var failed = 0;
+                    var newViolations = 0;
+                    var toleratedViolations = 0;
+                    var ratchetOpportunities = 0;
 
                     foreach (var g in nextGates)
                     {
@@ -419,7 +419,7 @@ public partial class WebSocketServerHandler
         }
 
         var suite = await engine.CheckSuiteAsync(targetGates, cancellationToken: cancellationToken);
-        int updated = 0;
+        var updated = 0;
 
         foreach (var res in suite.Results)
         {
@@ -732,7 +732,7 @@ public partial class WebSocketServerHandler
     {
         try
         {
-            var ast = CodeExplorer.Cypher.Parser.CypherQueryParser.Parse(query);
+            var ast = Cypher.Parser.CypherQueryParser.Parse(query);
             var result = new List<string>(ast.Return.Items.Count);
             foreach (var item in ast.Return.Items)
             {
@@ -740,20 +740,20 @@ public partial class WebSocketServerHandler
                 {
                     result.Add(item.Alias.Trim());
                 }
-                else if (item.Expression is CodeExplorer.Cypher.Ast.PropertyAccessExpression prop)
+                else if (item.Expression is Cypher.Ast.PropertyAccessExpression prop)
                 {
                     result.Add(prop.PropertyName);
                 }
-                else if (item.Expression is CodeExplorer.Cypher.Ast.IdentifierExpression id)
+                else if (item.Expression is Cypher.Ast.IdentifierExpression id)
                 {
                     result.Add(id.Name);
                 }
-                else if (item.Expression is CodeExplorer.Cypher.Ast.WildcardExpression)
+                else if (item.Expression is Cypher.Ast.WildcardExpression)
                 {
                     const string wildcardColumn = "*";
                     result.Add(wildcardColumn);
                 }
-                else if (item.Expression is CodeExplorer.Cypher.Ast.FunctionCallExpression fn)
+                else if (item.Expression is Cypher.Ast.FunctionCallExpression fn)
                 {
                     result.Add(fn.FunctionName);
                 }
@@ -771,7 +771,7 @@ public partial class WebSocketServerHandler
     {
         try
         {
-            var ast = CodeExplorer.Cypher.Parser.CypherQueryParser.Parse(query);
+            var ast = Cypher.Parser.CypherQueryParser.Parse(query);
             var boundNodeVars = new HashSet<string>(StringComparer.Ordinal);
             foreach (var match in ast.Matches)
             {
@@ -793,11 +793,11 @@ public partial class WebSocketServerHandler
 
             foreach (var item in ast.Return.Items)
             {
-                if (item.Expression is CodeExplorer.Cypher.Ast.WildcardExpression)
+                if (item.Expression is Cypher.Ast.WildcardExpression)
                 {
                     return true;
                 }
-                if (item.Expression is CodeExplorer.Cypher.Ast.IdentifierExpression id &&
+                if (item.Expression is Cypher.Ast.IdentifierExpression id &&
                     boundNodeVars.Contains(id.Name))
                 {
                     return true;

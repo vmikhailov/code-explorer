@@ -14,7 +14,7 @@ public static class JavaDeclarationExtractor
 
     private static void ExtractInternal(Node node, string? currentScope, Action<string, Node?, string?> register)
     {
-        if (node is CodeExplorer.Core.Parser.Syntax.TypeDeclSyntax { Kind: CodeExplorer.Core.Parser.Syntax.TypeSyntaxKind.Class } classDecl)
+        if (node is Core.Parser.Syntax.TypeDeclSyntax { Kind: Core.Parser.Syntax.TypeSyntaxKind.Class } classDecl)
         {
             var nameNode = node.GetChildForField(TreeSitterSyntax.Fields.Name);
             var className = nameNode.IsValid() ? nameNode.Text : (!string.IsNullOrEmpty(classDecl.Name) ? classDecl.Name : currentScope);
@@ -26,7 +26,7 @@ public static class JavaDeclarationExtractor
             return;
         }
 
-        if (node is CodeExplorer.Core.Parser.Syntax.TypeDeclSyntax { Kind: CodeExplorer.Core.Parser.Syntax.TypeSyntaxKind.Enum } enumDecl)
+        if (node is Core.Parser.Syntax.TypeDeclSyntax { Kind: Core.Parser.Syntax.TypeSyntaxKind.Enum } enumDecl)
         {
             var nameNode = node.GetChildForField(TreeSitterSyntax.Fields.Name);
             var enumName = nameNode.IsValid() ? nameNode.Text : (!string.IsNullOrEmpty(enumDecl.Name) ? enumDecl.Name : "Enum");
@@ -55,11 +55,11 @@ public static class JavaDeclarationExtractor
             return;
         }
 
-        if (node is CodeExplorer.Core.Parser.Syntax.MemberDeclSyntax { Kind: CodeExplorer.Core.Parser.Syntax.MemberSyntaxKind.Field or CodeExplorer.Core.Parser.Syntax.MemberSyntaxKind.Constant } memDecl)
+        if (node is Core.Parser.Syntax.MemberDeclSyntax { Kind: Core.Parser.Syntax.MemberSyntaxKind.Field or Core.Parser.Syntax.MemberSyntaxKind.Constant } memDecl)
         {
-            var isStaticFinal = memDecl.Modifiers.HasFlag(CodeExplorer.Core.Parser.Syntax.SyntaxModifiers.Static) ||
-                                memDecl.Modifiers.HasFlag(CodeExplorer.Core.Parser.Syntax.SyntaxModifiers.Sealed) ||
-                                memDecl.Modifiers.HasFlag(CodeExplorer.Core.Parser.Syntax.SyntaxModifiers.Const);
+            var isStaticFinal = memDecl.Modifiers.HasFlag(Core.Parser.Syntax.SyntaxModifiers.Static) ||
+                                memDecl.Modifiers.HasFlag(Core.Parser.Syntax.SyntaxModifiers.Sealed) ||
+                                memDecl.Modifiers.HasFlag(Core.Parser.Syntax.SyntaxModifiers.Const);
             if (isStaticFinal)
             {
                 var declarators = node.FindDescendantsOfType(TreeSitterSyntax.Java.VariableDeclarator);

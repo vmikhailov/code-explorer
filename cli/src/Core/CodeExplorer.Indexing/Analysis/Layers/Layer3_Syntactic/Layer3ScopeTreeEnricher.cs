@@ -1,9 +1,6 @@
-using CodeExplorer.Core.Common;
-using CodeExplorer.Core.Common.Nodes;
 using CodeExplorer.Core.Common.Nodes.Layer1_Physical;
 using CodeExplorer.Core.Common.Nodes.Layer3_Syntactic;
 using CodeExplorer.Core.Parser.Syntax;
-using CodeExplorer.Cypher.Common;
 
 namespace CodeExplorer.Core.Parser.Layers;
 

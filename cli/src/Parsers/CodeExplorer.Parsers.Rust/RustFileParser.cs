@@ -50,9 +50,9 @@ public class RustFileParser : IFileParser
     private const string TokNccl = "nccl";
 
     public void EnrichFileSignals(
-        CodeExplorer.Core.Common.Nodes.Layer1_Physical.FileNode fileNode,
+        Core.Common.Nodes.Layer1_Physical.FileNode fileNode,
         SyntaxTree syntaxTree,
-        CodeExplorer.Core.Common.Nodes.Layer2_Boundaries.ProjectNode? project,
+        Core.Common.Nodes.Layer2_Boundaries.ProjectNode? project,
         string sourceText)
     {
         if (WorkspaceConventions.IsTestFilePath(fileNode.Path))
@@ -63,14 +63,14 @@ public class RustFileParser : IFileParser
         var fullSummary = BuildRustTopologySummary(sourceText);
         if (!string.IsNullOrEmpty(fullSummary))
         {
-            CodeExplorer.Core.Common.Nodes.AnalysisSignalStore.Signals(fileNode).RustTopologySummary = fullSummary;
-            CodeExplorer.Core.Common.Nodes.AnalysisSignalStore.Signals(syntaxTree.FileNode).RustTopologySummary = fullSummary;
+            Core.Common.Nodes.AnalysisSignalStore.Signals(fileNode).RustTopologySummary = fullSummary;
+            Core.Common.Nodes.AnalysisSignalStore.Signals(syntaxTree.FileNode).RustTopologySummary = fullSummary;
             var bodyOnly = RustDeclarationLinePattern.Replace(sourceText, string.Empty);
             var bodySummary = BuildRustTopologySummary(bodyOnly);
             if (!string.IsNullOrEmpty(bodySummary))
             {
-                CodeExplorer.Core.Common.Nodes.AnalysisSignalStore.Signals(fileNode).RustTopologyBodySummary = bodySummary;
-                CodeExplorer.Core.Common.Nodes.AnalysisSignalStore.Signals(syntaxTree.FileNode).RustTopologyBodySummary = bodySummary;
+                Core.Common.Nodes.AnalysisSignalStore.Signals(fileNode).RustTopologyBodySummary = bodySummary;
+                Core.Common.Nodes.AnalysisSignalStore.Signals(syntaxTree.FileNode).RustTopologyBodySummary = bodySummary;
             }
         }
     }
@@ -175,10 +175,11 @@ public class RustFileParser : IFileParser
         string filePath,
         string parentNodeId,
         string workspaceId,
-        string absoluteWorkspacePath)
+        string absoluteWorkspacePath,
+        string? preloadedContent = null)
     {
         var relativePath = Path.GetRelativePath(absoluteWorkspacePath, filePath).Replace('\\', '/');
-        return await SyntaxTree.ParseAsync(filePath, relativePath, parentNodeId, this, workspaceId, absoluteWorkspacePath);
+        return await SyntaxTree.ParseAsync(filePath, relativePath, parentNodeId, this, workspaceId, absoluteWorkspacePath, preloadedContent);
     }
 
     public ImportType ResolveImportType(string importPath, string filePath, string? absoluteWorkspacePath)

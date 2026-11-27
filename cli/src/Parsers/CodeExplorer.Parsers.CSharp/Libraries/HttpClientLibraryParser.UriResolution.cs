@@ -1,5 +1,4 @@
 using System.Text.RegularExpressions;
-using CodeExplorer.Core.Parser;
 using Node = CodeExplorer.Core.Parser.Syntax.SyntaxNode;
 
 namespace CodeExplorer.Parsers.CSharp.Libraries;
@@ -286,7 +285,7 @@ public partial class HttpClientLibraryParser
             }
         }
 
-        if (expr is CodeExplorer.Core.Parser.Syntax.CallExprSyntax { CallKind: CodeExplorer.Core.Parser.Syntax.CallSyntaxKind.Constructor })
+        if (expr is Core.Parser.Syntax.CallExprSyntax { CallKind: Core.Parser.Syntax.CallSyntaxKind.Constructor })
         {
             var typeNode = expr.GetField(TreeSitterSyntax.Fields.Type)
                            ?? expr.Children.FirstOrDefault(c => c.IsAny(TreeSitterSyntax.CSharp.TypeIdentifier, TreeSitterSyntax.Common.Identifier));

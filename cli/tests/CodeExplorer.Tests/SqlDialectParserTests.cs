@@ -1,6 +1,5 @@
 using CodeExplorer.Core.Parser.Sql;
 using CodeExplorer.Core.Parser.Sql.Ast;
-using CodeExplorer.Core.Parser.Sql.Tokens;
 using NUnit.Framework;
 
 namespace CodeExplorer.Tests;

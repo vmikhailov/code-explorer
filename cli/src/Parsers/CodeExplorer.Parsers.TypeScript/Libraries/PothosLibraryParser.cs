@@ -37,7 +37,7 @@ public class PothosLibraryParser : DeclarativeSemanticExtension
 
     private static readonly char[] QuoteChars = ['\'', '"', '`'];
 
-    private static string? MapNodeTypeCore(Node node, ParsingContext ctx)
+    private static string? MapNodeTypeCore(Node node, SemanticParseContext ctx)
     {
         if (node.Is(TreeSitterSyntax.TypeScript.CallExpression) &&
             TryExtractSingleRootField(node, out _, out _, out _))
@@ -54,7 +54,7 @@ public class PothosLibraryParser : DeclarativeSemanticExtension
         return null;
     }
 
-    private static string? ExtractIdentifierCore(Node node, ParsingContext ctx)
+    private static string? ExtractIdentifierCore(Node node, SemanticParseContext ctx)
     {
         if (node.Is(TreeSitterSyntax.TypeScript.CallExpression) &&
             TryExtractSingleRootField(node, out _, out var opPrefix, out var fieldName))
@@ -71,9 +71,9 @@ public class PothosLibraryParser : DeclarativeSemanticExtension
         return null;
     }
 
-    private static void EnrichSymbolCore(Node node, SyntacticSymbol symbol, ParsingContext ctx)
+    private static void EnrichSymbolCore(Node node, SyntacticSymbol symbol, SemanticParseContext ctx)
     {
-        if (symbol.Kind != CodeExplorer.Cypher.Common.SyntacticSymbolKind.EntryPoint) return;
+        if (symbol.Kind != SyntacticSymbolKind.EntryPoint) return;
 
         if (node.Is(TreeSitterSyntax.TypeScript.CallExpression) &&
             TryExtractSingleRootField(node, out var builderName, out var opPrefix, out var fieldName))
@@ -87,7 +87,7 @@ public class PothosLibraryParser : DeclarativeSemanticExtension
         }
     }
 
-    private static void CollectReferencesCore(Node node, string scopeSymbolId, List<Reference> references, ParsingContext ctx)
+    private static void CollectReferencesCore(Node node, string scopeSymbolId, List<Reference> references, SemanticParseContext ctx)
     {
         if (!node.IsValid() || !node.IsAny(TreeSitterSyntax.TypeScript.CallExpression, TreeSitterSyntax.TypeScript.Pair))
         {
@@ -135,9 +135,9 @@ public class PothosLibraryParser : DeclarativeSemanticExtension
         symbol.Protocol = "GraphQL";
         symbol.OperationType = opPrefix switch
         {
-            "MUTATION" => CodeExplorer.Cypher.Common.OperationType.Mutation,
-            "SUBSCRIPTION" => CodeExplorer.Cypher.Common.OperationType.Subscription,
-            _ => CodeExplorer.Cypher.Common.OperationType.Query
+            "MUTATION" => OperationType.Mutation,
+            "SUBSCRIPTION" => OperationType.Subscription,
+            _ => OperationType.Query
         };
         symbol.Properties["graphql_field"] = fieldName;
         if (!string.IsNullOrEmpty(builderName))

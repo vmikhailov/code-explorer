@@ -1,6 +1,5 @@
 using System.Text.RegularExpressions;
 using CodeExplorer.Core.Protocol;
-using CodeExplorer.Cypher.Common;
 
 namespace CodeExplorer.Core.Analysis;
 
@@ -212,11 +211,11 @@ public partial class ArchitectureViewEngine
             LIMIT 1
             """;
 
-        string dbName = databaseId;
-        string dbEngine = "";
-        string dbSchema = "";
+        var dbName = databaseId;
+        var dbEngine = "";
+        var dbSchema = "";
         string? dbDeclPath = null;
-        string resolvedDbId = databaseId;
+        var resolvedDbId = databaseId;
 
         try
         {
@@ -258,7 +257,7 @@ public partial class ArchitectureViewEngine
         var scope = string.IsNullOrWhiteSpace(serviceId)
             ? null
             : await ResolveServiceScopeAsync(serviceId, ct, scopeCache, warnings);
-        string? serviceName = scope?.Name;
+        var serviceName = scope?.Name;
 
         var items = new List<ArchitectureEvidenceItemDto>();
         var seenKeys = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
@@ -320,13 +319,13 @@ public partial class ArchitectureViewEngine
                     qCaller = fName;
                 }
 
-                int? lineStart = row.GetNullableIntProp("line");
-                int? lineEnd = row.GetNullableIntProp("line_end");
+                var lineStart = row.GetNullableIntProp("line");
+                var lineEnd = row.GetNullableIntProp("line_end");
                 if (lineStart <= 0) lineStart = null;
                 if (lineEnd <= 0) lineEnd = lineStart;
 
                 // Match query to database strictly on schema identifier boundaries:
-                bool queryMatchesDb = false;
+                var queryMatchesDb = false;
                 var confidence = OntologyConstants.EvidenceConfidence.Inferred;
                 if (!string.IsNullOrEmpty(dbSchema) && !dbSchema.Equals("public", StringComparison.OrdinalIgnoreCase) && !dbSchema.Equals("default", StringComparison.OrdinalIgnoreCase))
                 {
@@ -429,8 +428,8 @@ public partial class ArchitectureViewEngine
                     var relIsOrm = rProps.GetValueOrDefault("is_orm") ?? "";
                     var srcService = row.GetStringProp("service");
 
-                    int? line = ParseLineProp(rProps, OntologyConstants.PropertyNames.Line, row, "line");
-                    int? lineEnd = ParseLineProp(rProps, OntologyConstants.PropertyNames.LineEnd, row, "line_end") ?? line;
+                    var line = ParseLineProp(rProps, OntologyConstants.PropertyNames.Line, row, "line");
+                    var lineEnd = ParseLineProp(rProps, OntologyConstants.PropertyNames.LineEnd, row, "line_end") ?? line;
 
                     if (!MatchesService(srcPath, srcService, srcId)) continue;
                     if (string.IsNullOrEmpty(srcPath)) continue;
@@ -493,10 +492,10 @@ public partial class ArchitectureViewEngine
                             : isConfig ? EvidenceKind.Config
                             : isOrm ? EvidenceKind.Orm
                             : EvidenceKind.Table);
-                    string operation = !string.IsNullOrEmpty(relOp)
+                    var operation = !string.IsNullOrEmpty(relOp)
                         ? relOp
                         : (isMigration ? "MIGRATION" : isConfig ? "CONFIG" : isOrm ? "ORM" : "TABLE");
-                    string reason = isMigration ? "Database migration script / snapshot defining tables"
+                    var reason = isMigration ? "Database migration script / snapshot defining tables"
                                   : (isConfig ? "Configuration / connection string declaring database"
                                   : (isOrm ? "ORM entity / repository accessing database" : "Database reference"));
 
@@ -571,8 +570,8 @@ public partial class ArchitectureViewEngine
                         var queryText = row.GetStringProp("query_text");
                         var srcName = row.GetStringProp("name");
 
-                        int? line = ParseLineProp(rProps, OntologyConstants.PropertyNames.Line, row, "line");
-                        int? lineEnd = ParseLineProp(rProps, OntologyConstants.PropertyNames.LineEnd, row, "line_end") ?? line;
+                        var line = ParseLineProp(rProps, OntologyConstants.PropertyNames.Line, row, "line");
+                        var lineEnd = ParseLineProp(rProps, OntologyConstants.PropertyNames.LineEnd, row, "line_end") ?? line;
 
                         var isProcedure = obj.Label == OntologyConstants.NodeLabels.Procedure;
                         var explicitSqlVerb = InferSqlVerb(relOp, null) ?? InferSqlVerb(srcVerb, queryText, srcName);

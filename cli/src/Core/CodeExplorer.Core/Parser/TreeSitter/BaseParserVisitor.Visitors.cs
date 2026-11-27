@@ -54,7 +54,7 @@ public abstract partial class BaseParserVisitor : TreeSitterAstVisitor
         var isConstant = Profile.ConstantDeclarations.Contains(node.Type) || HasProfileConstantModifier(node);
         var scope = SymbolStack.Peek().Kind switch
         {
-            CodeExplorer.Cypher.Common.SyntacticSymbolKind.Class or CodeExplorer.Cypher.Common.SyntacticSymbolKind.Interface or CodeExplorer.Cypher.Common.SyntacticSymbolKind.Struct => "class",
+            SyntacticSymbolKind.Class or SyntacticSymbolKind.Interface or SyntacticSymbolKind.Struct => "class",
             _ => "local"
         };
 
@@ -173,7 +173,7 @@ public abstract partial class BaseParserVisitor : TreeSitterAstVisitor
     protected override void VisitInheritanceClause(Node node, int depth)
     {
         var currentScope = SymbolStack.Peek();
-        if (currentScope.Kind != CodeExplorer.Cypher.Common.SyntacticSymbolKind.File)
+        if (currentScope.Kind != SyntacticSymbolKind.File)
         {
             foreach (var child in node.Children)
             {
@@ -230,7 +230,7 @@ public abstract partial class BaseParserVisitor : TreeSitterAstVisitor
     {
         var currentScope = SymbolStack.Peek();
         var cleanedLiteral = CleanStringLiteral(ExtractFullStringText(node));
-        if (currentScope.Kind == CodeExplorer.Cypher.Common.SyntacticSymbolKind.Query)
+        if (currentScope.Kind == SyntacticSymbolKind.Query)
         {
             if ((string.IsNullOrEmpty(currentScope.Text) || !NestedSqlParser.TryParseSql(currentScope.Text, out _, out _)) &&
                 NestedSqlParser.TryParseSql(cleanedLiteral, out _, out _))
@@ -240,12 +240,12 @@ public abstract partial class BaseParserVisitor : TreeSitterAstVisitor
             if (!WorkspaceConventions.IsFrontendFilePath(RelativePath))
             {
                 NestedSqlParser.TryDetectSqlDependencies(cleanedLiteral, "", currentScope.References);
-                var enclosingFunc = SymbolStack.FirstOrDefault(s => s.Kind == CodeExplorer.Cypher.Common.SyntacticSymbolKind.Function);
+                var enclosingFunc = SymbolStack.FirstOrDefault(s => s.Kind == SyntacticSymbolKind.Function);
                 if (enclosingFunc != null)
                 {
                     foreach (var r in currentScope.References)
                     {
-                        if (r.Kind == CodeExplorer.Cypher.Common.RelationshipKind.DependsOn && !enclosingFunc.References.Contains(r))
+                        if (r.Kind == RelationshipKind.DependsOn && !enclosingFunc.References.Contains(r))
                         {
                             enclosingFunc.References.Add(r);
                         }
@@ -268,9 +268,9 @@ public abstract partial class BaseParserVisitor : TreeSitterAstVisitor
 
             if (!string.IsNullOrEmpty(tableName))
             {
-                var enclosingFunc = SymbolStack.FirstOrDefault(s => s.Kind == CodeExplorer.Cypher.Common.SyntacticSymbolKind.Function);
+                var enclosingFunc = SymbolStack.FirstOrDefault(s => s.Kind == SyntacticSymbolKind.Function);
                 if (enclosingFunc != null &&
-                    !enclosingFunc.References.Any(r => r.Kind == CodeExplorer.Cypher.Common.RelationshipKind.QueriesDb && r.TargetName == tableName))
+                    !enclosingFunc.References.Any(r => r.Kind == RelationshipKind.QueriesDb && r.TargetName == tableName))
                 {
                     enclosingFunc.References.Add(new Reference("", tableName, OntologyConstants.Relationships.QueriesDb));
                 }
@@ -278,7 +278,7 @@ public abstract partial class BaseParserVisitor : TreeSitterAstVisitor
         }
         else
         {
-            if (currentScope.Kind != CodeExplorer.Cypher.Common.SyntacticSymbolKind.File && !WorkspaceConventions.IsFrontendFilePath(RelativePath))
+            if (currentScope.Kind != SyntacticSymbolKind.File && !WorkspaceConventions.IsFrontendFilePath(RelativePath))
             {
                 NestedSqlParser.TryDetectSqlDependencies(cleanedLiteral, "", currentScope.References);
             }
@@ -300,7 +300,7 @@ public abstract partial class BaseParserVisitor : TreeSitterAstVisitor
 
             var callName = FindCallName(node);
 
-            if (!string.IsNullOrEmpty(callName) && currentScope.Kind != CodeExplorer.Cypher.Common.SyntacticSymbolKind.File)
+            if (!string.IsNullOrEmpty(callName) && currentScope.Kind != SyntacticSymbolKind.File)
             {
                 var isSyntheticRequire = callName.StartsWith("__req_", StringComparison.Ordinal);
                 var callRef = new Reference(string.Empty, callName, CallsRelationshipKind,
@@ -309,9 +309,9 @@ public abstract partial class BaseParserVisitor : TreeSitterAstVisitor
                     receiverName: isSyntheticRequire ? null : (node as CallExprSyntax)?.ExplicitReceiverPath,
                     memberName: isSyntheticRequire ? null : ((node as CallExprSyntax) is { MethodName.Length: > 0 } ce ? ce.MethodName : null));
                 currentScope.References.Add(callRef);
-                if (currentScope.Kind != CodeExplorer.Cypher.Common.SyntacticSymbolKind.Function)
+                if (currentScope.Kind != SyntacticSymbolKind.Function)
                 {
-                    var enclosingFunc = SymbolStack.FirstOrDefault(s => s.Kind == CodeExplorer.Cypher.Common.SyntacticSymbolKind.Function);
+                    var enclosingFunc = SymbolStack.FirstOrDefault(s => s.Kind == SyntacticSymbolKind.Function);
                     if (enclosingFunc != null && !enclosingFunc.References.Contains(callRef))
                     {
                         enclosingFunc.References.Add(callRef);
@@ -384,7 +384,7 @@ public abstract partial class BaseParserVisitor : TreeSitterAstVisitor
                 {
                     var displayName = cleaned.Length > 80 ? cleaned[..77] + "..." : cleaned;
 
-                    var literalSymbol = new SyntacticSymbol(CodeExplorer.Cypher.Common.SyntacticSymbolKind.CallLiteral, displayName, exprNode)
+                    var literalSymbol = new SyntacticSymbol(SyntacticSymbolKind.CallLiteral, displayName, exprNode)
                     {
                         Text = cleaned,
                         Callee = callName ?? "",
@@ -484,9 +484,9 @@ public abstract partial class BaseParserVisitor : TreeSitterAstVisitor
 
         var isEmpty = statementCount == 0;
         var currentScope = SymbolStack.Peek();
-        var catchSymbol = new SyntacticSymbol(CodeExplorer.Cypher.Common.SyntacticSymbolKind.Scope, exType ?? "catch", node)
+        var catchSymbol = new SyntacticSymbol(SyntacticSymbolKind.Scope, exType ?? "catch", node)
         {
-            ScopeKind = CodeExplorer.Cypher.Common.ScopeKind.Catch,
+            ScopeKind = ScopeKind.Catch,
             RequestType = exType ?? "",
             IsEmptyCatch = isEmpty,
             HasCatchComment = hasComment,

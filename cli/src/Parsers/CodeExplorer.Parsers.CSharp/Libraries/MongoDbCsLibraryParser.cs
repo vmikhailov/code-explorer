@@ -36,7 +36,7 @@ public class MongoDbCsLibraryParser : DeclarativeSemanticExtension
         ];
     }
 
-    private static string? MapNodeTypeCore(Node node, ParsingContext ctx)
+    private static string? MapNodeTypeCore(Node node, SemanticParseContext ctx)
     {
         if (IsGetCollectionCall(node) || IsMongoCollectionProperty(node))
         {
@@ -76,7 +76,7 @@ public class MongoDbCsLibraryParser : DeclarativeSemanticExtension
         return null;
     }
 
-    private static void CollectReferencesCore(Node node, string scopeSymbolId, List<Reference> references, ParsingContext ctx)
+    private static void CollectReferencesCore(Node node, string scopeSymbolId, List<Reference> references, SemanticParseContext ctx)
     {
         if (IsGetCollectionCall(node))
         {

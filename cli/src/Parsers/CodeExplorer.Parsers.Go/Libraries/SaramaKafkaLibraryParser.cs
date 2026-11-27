@@ -1,6 +1,5 @@
 using System.Collections.Frozen;
 using System.Text.RegularExpressions;
-using CodeExplorer.Core.Parser;
 using Node = CodeExplorer.Core.Parser.Syntax.SyntaxNode;
 
 namespace CodeExplorer.Parsers.Go.Libraries;
@@ -30,7 +29,7 @@ public class SaramaKafkaLibraryParser : DeclarativeSemanticExtension
         ];
     }
 
-    private static void CollectSaramaReferences(Node node, string scopeSymbolId, List<Reference> references, ParsingContext ctx)
+    private static void CollectSaramaReferences(Node node, string scopeSymbolId, List<Reference> references, SemanticParseContext ctx)
     {
         if (node.Is(TreeSitterSyntax.Go.CompositeLiteral))
         {

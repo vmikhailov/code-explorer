@@ -89,7 +89,7 @@ internal static class TreeSitterSyntaxPopulator
 
         if (imp.IsReExport)
         {
-            for (int i = 0; i < imp.Children.Count; i++)
+            for (var i = 0; i < imp.Children.Count; i++)
             {
                 if (imp.Children[i] is DeclarationSyntax childDecl && childDecl is not AnnotationSyntax)
                 {
@@ -157,7 +157,7 @@ internal static class TreeSitterSyntaxPopulator
         }
 
         fn.Body = fn.GetChildForField(SyntaxFields.Body) as BlockStmtSyntax ?? fn.FirstChildOfType<BlockStmtSyntax>();
-        for (int i = 0; i < fn.Children.Count; i++)
+        for (var i = 0; i < fn.Children.Count; i++)
         {
             if (fn.Children[i] is ExprSyntax exprChild && exprChild is not IdentifierExprSyntax)
             {
@@ -189,7 +189,7 @@ internal static class TreeSitterSyntaxPopulator
         {
             id.Role = IdentifierRole.Self;
         }
-        for (int i = 0; i < node.Children.Count; i++)
+        for (var i = 0; i < node.Children.Count; i++)
         {
             MarkReceiverIdentifiersRecursive(node.Children[i], recvNameSpan);
         }
@@ -233,7 +233,7 @@ internal static class TreeSitterSyntaxPopulator
         if (paramsContainer != null)
         {
             List<ParameterDeclSyntax>? paramList = null;
-            for (int i = 0; i < paramsContainer.Children.Count; i++)
+            for (var i = 0; i < paramsContainer.Children.Count; i++)
             {
                 var c = paramsContainer.Children[i];
                 if (c is ParameterDeclSyntax p)
@@ -256,7 +256,7 @@ internal static class TreeSitterSyntaxPopulator
         }
 
         List<ParameterDeclSyntax>? directParams = null;
-        for (int i = 0; i < owner.Children.Count; i++)
+        for (var i = 0; i < owner.Children.Count; i++)
         {
             if (owner.Children[i] is ParameterDeclSyntax dp && dp.FieldRole != SyntaxFields.Receiver)
             {
@@ -288,7 +288,7 @@ internal static class TreeSitterSyntaxPopulator
             }
         }
 
-        for (int i = 0; i < ann.Children.Count; i++)
+        for (var i = 0; i < ann.Children.Count; i++)
         {
             if (ann.Children[i] is SyntaxList { Kind: SyntaxListKind.General } innerAttr)
             {
@@ -311,7 +311,7 @@ internal static class TreeSitterSyntaxPopulator
         var argsContainer = owner.GetChildForField(SyntaxFields.Arguments);
         if (argsContainer == null)
         {
-            for (int i = 0; i < owner.Children.Count; i++)
+            for (var i = 0; i < owner.Children.Count; i++)
             {
                 if (owner.Children[i] is SyntaxList { Kind: SyntaxListKind.Arguments } or CollectionExprSyntax { Kind: CollectionSyntaxKind.Tuple })
                 {
@@ -324,7 +324,7 @@ internal static class TreeSitterSyntaxPopulator
         if (argsContainer != null)
         {
             List<ArgumentSyntax>? args = null;
-            for (int i = 0; i < argsContainer.Children.Count; i++)
+            for (var i = 0; i < argsContainer.Children.Count; i++)
             {
                 var child = argsContainer.Children[i];
                 if (child is ArgumentSyntax arg)
@@ -361,7 +361,7 @@ internal static class TreeSitterSyntaxPopulator
         }
 
         List<ArgumentSyntax>? directArgs = null;
-        for (int i = 0; i < owner.Children.Count; i++)
+        for (var i = 0; i < owner.Children.Count; i++)
         {
             if (owner.Children[i] is ArgumentSyntax da)
             {
@@ -395,7 +395,7 @@ internal static class TreeSitterSyntaxPopulator
             return;
         }
 
-        for (int i = 0; i < argSyntax.Children.Count; i++)
+        for (var i = 0; i < argSyntax.Children.Count; i++)
         {
             if (argSyntax.Children[i] is ExprSyntax exprChild && !ReferenceEquals(exprChild, argName))
             {
@@ -422,7 +422,7 @@ internal static class TreeSitterSyntaxPopulator
             return;
         }
 
-        for (int i = 0; i < idx.Children.Count; i++)
+        for (var i = 0; i < idx.Children.Count; i++)
         {
             var c = idx.Children[i];
             if (c is SyntaxList { Kind: SyntaxListKind.Arguments } || (c.Children.Count > 0 && c.SpanStartsWith(OpenBracketToken)))
@@ -467,7 +467,7 @@ internal static class TreeSitterSyntaxPopulator
     {
         if (col.Children.Count == 0) return;
         var elements = new List<ExprSyntax>(col.Children.Count);
-        for (int i = 0; i < col.Children.Count; i++)
+        for (var i = 0; i < col.Children.Count; i++)
         {
             var c = col.Children[i];
             if (c is ExprSyntax expr)
@@ -520,7 +520,7 @@ internal static class TreeSitterSyntaxPopulator
                 SyntaxNode? finallyNode = cf.GetChildForField(SyntaxFields.Finalizer);
                 if (finallyNode == null)
                 {
-                    for (int i = 0; i < cf.Children.Count; i++)
+                    for (var i = 0; i < cf.Children.Count; i++)
                     {
                         var c = cf.Children[i];
                         if (c.FieldRole is SyntaxFields.Finalizer or KindFinallyClause || c is SyntaxList { Kind: SyntaxListKind.Clauses })
@@ -548,7 +548,7 @@ internal static class TreeSitterSyntaxPopulator
         var typeNode = owner.GetChildForField(SyntaxFields.Type);
         if (typeNode == null)
         {
-            for (int i = 0; i < owner.Children.Count; i++)
+            for (var i = 0; i < owner.Children.Count; i++)
             {
                 var c = owner.Children[i];
                 if (c is TypeRefSyntax { Kind: TypeRefKind.Annotation } annTr)
@@ -573,7 +573,7 @@ internal static class TreeSitterSyntaxPopulator
             return ConvertNodeToTypeRef(directType, catchClause);
         }
 
-        for (int i = 0; i < catchClause.Children.Count; i++)
+        for (var i = 0; i < catchClause.Children.Count; i++)
         {
             var c = catchClause.Children[i];
             if (c is BlockStmtSyntax) continue;
@@ -627,7 +627,7 @@ internal static class TreeSitterSyntaxPopulator
             return nestedVal;
         }
 
-        for (int i = 0; i < param.Children.Count; i++)
+        for (var i = 0; i < param.Children.Count; i++)
         {
             var c = param.Children[i];
             if (c is SyntaxList { Kind: SyntaxListKind.Initializer } && c.FirstChildOfType<ExprSyntax>() is { } eqVal)
@@ -651,7 +651,7 @@ internal static class TreeSitterSyntaxPopulator
         else if (varDecl.Children.Count >= 2)
         {
             var vdNameSpan = varDecl.NameSpan;
-            for (int i = varDecl.Children.Count - 1; i >= 1; i--)
+            for (var i = varDecl.Children.Count - 1; i >= 1; i--)
             {
                 if (varDecl.Children[i] is SyntaxList { Kind: SyntaxListKind.Initializer, Children.Count: > 0 } initClause &&
                     initClause.Children[^1] is ExprSyntax initExpr)
@@ -672,7 +672,7 @@ internal static class TreeSitterSyntaxPopulator
         {
             varDecl.IsConstant = true;
         }
-        for (int i = 0; i < varDecl.Children.Count; i++)
+        for (var i = 0; i < varDecl.Children.Count; i++)
         {
             if (varDecl.Children[i] is VariableDeclSyntax childVd)
             {
@@ -687,7 +687,7 @@ internal static class TreeSitterSyntaxPopulator
         var memInitNode = memDecl.GetChildForField(SyntaxFields.Value);
         if (memInitNode == null)
         {
-            for (int i = 0; i < memDecl.Children.Count; i++)
+            for (var i = 0; i < memDecl.Children.Count; i++)
             {
                 if (memDecl.Children[i] is SyntaxList { Kind: SyntaxListKind.Initializer })
                 {
@@ -707,7 +707,7 @@ internal static class TreeSitterSyntaxPopulator
         else if (memDecl.Children.Count >= 2)
         {
             var mdNameSpan = memDecl.NameSpan;
-            for (int i = memDecl.Children.Count - 1; i >= 1; i--)
+            for (var i = memDecl.Children.Count - 1; i >= 1; i--)
             {
                 if (memDecl.Children[i] is ExprSyntax exprCandidate &&
                     exprCandidate.FieldRole is not (SyntaxFields.Name or SyntaxFields.Type or SyntaxFields.Pattern or SyntaxFields.Left) &&
@@ -720,13 +720,13 @@ internal static class TreeSitterSyntaxPopulator
         }
         if (memDecl.Modifiers.HasFlag(SyntaxModifiers.Const) || memDecl.Modifiers.HasFlag(SyntaxModifiers.ReadOnly))
         {
-            for (int i = 0; i < memDecl.Children.Count; i++)
+            for (var i = 0; i < memDecl.Children.Count; i++)
             {
                 if (memDecl.Children[i] is VariableDeclSyntax childVd)
                 {
                     childVd.IsConstant = true;
                     childVd.Modifiers |= memDecl.Modifiers & (SyntaxModifiers.Const | SyntaxModifiers.ReadOnly | SyntaxModifiers.Static);
-                    for (int j = 0; j < childVd.Children.Count; j++)
+                    for (var j = 0; j < childVd.Children.Count; j++)
                     {
                         if (childVd.Children[j] is VariableDeclSyntax subVd)
                         {
@@ -890,7 +890,7 @@ internal static class TreeSitterSyntaxPopulator
         }
         child.Modifiers |= parent.Modifiers;
         child.VariableType ??= parent.VariableType;
-        for (int i = 0; i < child.Children.Count; i++)
+        for (var i = 0; i < child.Children.Count; i++)
         {
             if (child.Children[i] is VariableDeclSyntax grandChild)
             {
@@ -905,7 +905,7 @@ internal static class SyntaxAnnotationPopulator
     internal static IReadOnlyList<AnnotationSyntax> ExtractAnnotations(DeclarationSyntax decl)
     {
         List<AnnotationSyntax>? list = null;
-        for (int i = 0; i < decl.Children.Count; i++)
+        for (var i = 0; i < decl.Children.Count; i++)
         {
             var child = decl.Children[i];
             if (child is AnnotationSyntax directAnn)
@@ -914,7 +914,7 @@ internal static class SyntaxAnnotationPopulator
             }
             else if (child is SyntaxList { Kind: SyntaxListKind.Attributes or SyntaxListKind.General })
             {
-                for (int j = 0; j < child.Children.Count; j++)
+                for (var j = 0; j < child.Children.Count; j++)
                 {
                     if (child.Children[j] is AnnotationSyntax nestedAnn)
                     {
@@ -930,7 +930,7 @@ internal static class SyntaxAnnotationPopulator
     {
         if (container.Children.Count < 2) return;
         List<AnnotationSyntax>? pending = null;
-        for (int i = 0; i < container.Children.Count; i++)
+        for (var i = 0; i < container.Children.Count; i++)
         {
             var child = container.Children[i];
             if (child is AnnotationSyntax ann)

@@ -96,7 +96,7 @@ public class AngularOidcLibraryParser : DeclarativeSemanticExtension
     private const string IdentityServiceKey = "identity";
     private const string AuthServiceKey = "auth";
 
-    private static string? ExtractIdentifierCore(Node node, ParsingContext ctx)
+    private static string? ExtractIdentifierCore(Node node, SemanticParseContext ctx)
     {
         if (!IsOidcTarget(node)) return null;
 

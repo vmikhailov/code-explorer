@@ -1,5 +1,4 @@
 using CodeExplorer.Core.Protocol;
-using CodeExplorer.Cypher.Common;
 using NUnit.Framework;
 
 namespace CodeExplorer.Tests;
@@ -637,7 +636,7 @@ public class ArchitectureViewEngineTests
         callEdge.Should().NotBeNull();
         if (callEdge != null)
         {
-            callEdge.InteractionType.Should().Be(CodeExplorer.Cypher.Common.BoundedContextInteractionType.ServiceCall);
+            callEdge.InteractionType.Should().Be(BoundedContextInteractionType.ServiceCall);
         }
 
         // 4. Verify Graph Projection (GraphDataDto)

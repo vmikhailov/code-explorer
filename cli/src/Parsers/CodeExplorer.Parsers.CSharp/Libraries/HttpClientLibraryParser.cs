@@ -263,7 +263,7 @@ public partial class HttpClientLibraryParser : DeclarativeSemanticExtension
             // If argument is a CancellationToken, try subsequent arguments
             if (IsCancellationToken(text))
             {
-                for (int i = 1; i < args.Count; i++)
+                for (var i = 1; i < args.Count; i++)
                 {
                     var nextVal = args[i].Children.FirstOrDefault();
                     if (nextVal.IsValid())

@@ -1,10 +1,7 @@
-using CodeExplorer.Core.Common;
-using CodeExplorer.Core.Common.Nodes;
 using CodeExplorer.Core.Common.Nodes.Layer1_Physical;
 using CodeExplorer.Core.Common.Nodes.Layer3_Syntactic;
 using CodeExplorer.Core.Common.Nodes.Layer4_Semantic;
 using CodeExplorer.Core.Common.Relationships;
-using CodeExplorer.Cypher.Common;
 
 namespace CodeExplorer.Core.Parser.Layers;
 
@@ -53,7 +50,7 @@ internal static class ScheduledJobEnricher
 
     public static JobEnrichmentOutput EnrichJobs(
         Layer4Result? l4Result,
-        ParsingContext ctx,
+        Layer5Context ctx,
         Dictionary<string, List<Reference>> refsByScopeId,
         HashSet<(string From, string To, string Kind)> existingRefRels)
     {
@@ -61,10 +58,10 @@ internal static class ScheduledJobEnricher
         var rels = new List<Relationship>();
         if (l4Result == null) return new JobEnrichmentOutput([], rels);
 
-        var syntaxStruct = l4Result.Prev?.SyntaxStructure ?? ctx.SyntaxStructure;
+        var syntaxStruct = ctx.SyntaxStructure;
         if (syntaxStruct == null) return new JobEnrichmentOutput([], rels);
 
-        var filesByPath = SemanticEnrichmentHelpers.CollectFilesByPath(l4Result);
+        var filesByPath = SemanticEnrichmentHelpers.CollectFilesByPath(ctx.FilesStructure);
         var modules = SemanticEnrichmentHelpers.CollectModules(l4Result.SemanticStructure);
         var index = SemanticEnrichmentHelpers.CollectTypesAndMethods(syntaxStruct);
 
@@ -93,7 +90,7 @@ internal static class ScheduledJobEnricher
     }
 
     private static void EnrichTypeLevelJobContracts(
-        ParsingContext ctx,
+        Layer5Context ctx,
         TypeNode tn,
         List<FunctionNode> methods,
         Dictionary<string, FileNode> filesByPath,
@@ -150,7 +147,7 @@ internal static class ScheduledJobEnricher
     }
 
     private static void EnrichMethodAnnotationsAndCalls(
-        ParsingContext ctx,
+        Layer5Context ctx,
         TypeNode? ownerType,
         FunctionNode fn,
         Dictionary<string, List<Reference>> refsByScopeId,
@@ -281,7 +278,7 @@ internal static class ScheduledJobEnricher
     }
 
     private static void EmitJob(
-        ParsingContext ctx,
+        Layer5Context ctx,
         FunctionNode fn,
         string jobName,
         JobKind subKind,

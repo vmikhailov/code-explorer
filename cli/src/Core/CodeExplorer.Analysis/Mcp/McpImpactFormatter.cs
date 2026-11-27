@@ -1,5 +1,3 @@
-using CodeExplorer.Cypher.Common;
-
 namespace CodeExplorer.Core.Mcp;
 
 internal static class McpImpactFormatter
@@ -32,7 +30,7 @@ internal static class McpImpactFormatter
         "RETURN target.id AS id LIMIT 12";
 
     private const string DirectInboundPrefix =
-        "MATCH (target)<-[r:USES_TYPE|CALLS|SERVICE_CALL|CALLS_ENDPOINT|IMPLEMENTS|INHERITS_FROM|PUBLISHES_TO|SUBSCRIBES_TO|TRIGGERS|QUERIED_BY|PERSISTED_IN|READS_FROM|WRITES_TO]-(dependent) " +
+        "MATCH (target)<-[r:USES_TYPE|OF_TYPE|CALLS|SERVICE_CALL|CALLS_ENDPOINT|IMPLEMENTS|INHERITS_FROM|PUBLISHES_TO|SUBSCRIBES_TO|TRIGGERS|QUERIED_BY|PERSISTED_IN|READS_FROM|WRITES_TO]-(dependent) " +
         "WHERE target.id IN [";
 
     private const string DirectInboundSuffix =

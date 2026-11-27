@@ -30,7 +30,7 @@ public class UndiciLibraryParser : DeclarativeSemanticExtension
 
     public override IReadOnlyList<CustomAstRule> CustomAstRules => Rules;
 
-    private static string? ExtractIdentifierStatic(Node node, ParsingContext ctx, string? projectName)
+    private static string? ExtractIdentifierStatic(Node node, SemanticParseContext ctx, string? projectName)
     {
         var projectContext = projectName ?? ctx?.WorkspaceId;
 
@@ -58,7 +58,7 @@ public class UndiciLibraryParser : DeclarativeSemanticExtension
         return null;
     }
 
-    private static void CollectReferencesCore(Node node, string scopeSymbolId, List<Reference> references, ParsingContext ctx)
+    private static void CollectReferencesCore(Node node, string scopeSymbolId, List<Reference> references, SemanticParseContext ctx)
     {
         if (IsUndiciClientCreation(node) || IsUndiciHttpCall(node))
         {

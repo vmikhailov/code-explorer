@@ -1,10 +1,7 @@
 using System.Buffers;
 using System.Text.Json;
 using System.Text.Json.Serialization;
-using CodeExplorer.Core.Analysis;
-using CodeExplorer.Core.Common;
 using CodeExplorer.Core.Common.Relationships;
-using CodeExplorer.Cypher.Common;
 
 namespace CodeExplorer.Core.Database;
 

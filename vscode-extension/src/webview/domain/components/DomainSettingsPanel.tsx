@@ -80,7 +80,7 @@ export const DomainSettingsPanel: React.FC<DomainSettingsPanelProps> = ({
     setCollapsedSections((prev) => ({ ...prev, [id]: !prev[id] }));
   };
 
-  const isConcentric = !layoutName || layoutName.startsWith('concentric');
+  const isConcentric = !layoutName || layoutName.startsWith('concentric') || layoutName === 'orbital-3d';
 
   if (isMatrixMode) {
     return (

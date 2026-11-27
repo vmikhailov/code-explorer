@@ -29,7 +29,7 @@ public class AsyncNatsLibraryParser : DeclarativeSemanticExtension
         ];
     }
 
-    private static void CollectReferencesCore(Node node, string scopeSymbolId, List<Reference> references, ParsingContext ctx)
+    private static void CollectReferencesCore(Node node, string scopeSymbolId, List<Reference> references, SemanticParseContext ctx)
     {
         if (IsNatsCall(node, out var subject, out var isPublish) && !string.IsNullOrEmpty(subject))
         {
@@ -42,7 +42,7 @@ public class AsyncNatsLibraryParser : DeclarativeSemanticExtension
         }
     }
 
-    private static void EnrichSymbolCore(Node node, SyntacticSymbol symbol, ParsingContext ctx)
+    private static void EnrichSymbolCore(Node node, SyntacticSymbol symbol, SemanticParseContext ctx)
     {
         if (IsNatsCall(node, out _, out _))
         {

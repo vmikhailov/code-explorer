@@ -1,5 +1,3 @@
-using CodeExplorer.Core.Database;
-using CodeExplorer.Core.Parser;
 using CodeExplorer.Core.Parser.Components;
 
 namespace CodeExplorer.Parsers.TypeScript.Components;

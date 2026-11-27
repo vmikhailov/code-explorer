@@ -264,7 +264,7 @@ public static partial class AstHelper
             }
         }
 
-        if (argNode is CodeExplorer.Core.Parser.Syntax.BinaryExprSyntax binExpr)
+        if (argNode is Core.Parser.Syntax.BinaryExprSyntax binExpr)
         {
             var leftNode = binExpr.Left ?? argNode.GetField(FieldLeft);
             var rightNode = binExpr.Right ?? argNode.GetField(FieldRight);
@@ -810,7 +810,7 @@ public static partial class AstHelper
 
         static string? CheckMethodNode(Node mNode, string mName, int d, HashSet<string>? visited)
         {
-            if (mNode is CodeExplorer.Core.Parser.Syntax.FunctionDeclSyntax ||
+            if (mNode is Core.Parser.Syntax.FunctionDeclSyntax ||
                 mNode.Type.Contains("method", StringComparison.OrdinalIgnoreCase) ||
                 mNode.Type.Contains("function", StringComparison.OrdinalIgnoreCase))
             {
@@ -857,10 +857,10 @@ public static partial class AstHelper
             var doc = node.Document;
             if (doc != null)
             {
-                CodeExplorer.Core.Parser.Syntax.FunctionDeclSyntax? enclosingFn = null;
+                Core.Parser.Syntax.FunctionDeclSyntax? enclosingFn = null;
                 for (var p = node.Parent; p.IsValid(); p = p.Parent)
                 {
-                    if (p is CodeExplorer.Core.Parser.Syntax.FunctionDeclSyntax fn)
+                    if (p is Core.Parser.Syntax.FunctionDeclSyntax fn)
                     {
                         enclosingFn = fn;
                         break;

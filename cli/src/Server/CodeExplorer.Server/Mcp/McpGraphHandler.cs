@@ -165,6 +165,7 @@ public partial class McpGraphHandler(
         return localDirs.Count == 1 ? localDirs[0] : null;
     }
 
+#pragma warning disable MCP9005 // Keep MCP roots/list compatibility for clients that still report workspace roots
     private async Task<IReadOnlyList<string>> FetchClientRootUrisAsync(CancellationToken cancellationToken)
     {
         if (CustomRootsProvider != null)
@@ -215,6 +216,7 @@ public partial class McpGraphHandler(
             return [];
         }
     }
+#pragma warning restore MCP9005
 
     private const string FileUriSchemePrefix = "file:///";
     private const string EncodedColonUpper = "%3A";

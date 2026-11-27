@@ -1,10 +1,8 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
-using CodeExplorer.Core.Common.Nodes;
 using CodeExplorer.Core.Common.Nodes.Layer3_Syntactic;
 using CodeExplorer.Core.Common.Nodes.Layer4_Semantic;
 using CodeExplorer.Core.Common.Relationships;
-using CodeExplorer.Cypher.Common;
 
 namespace CodeExplorer.Core.Parser.Layers;
 
@@ -49,7 +47,7 @@ internal static class OrmSchemaEnricher
 
     public static List<Node> EnrichOrmTablesAndForeignKeys(
         Layer4Result? l4Result,
-        ParsingContext ctx,
+        Layer5Context ctx,
         List<Relationship> referenceRelationships,
         HashSet<(string From, string To, string Kind)> existingRefRels)
     {
@@ -58,15 +56,15 @@ internal static class OrmSchemaEnricher
 
         var tablesById = new Dictionary<string, TableNode>(StringComparer.OrdinalIgnoreCase);
         CollectTables(l4Result.SemanticStructure, tablesById);
-        if (l4Result.Prev?.Prev?.Prev?.FilesStructure != null)
+        if (ctx.FilesStructure != null)
         {
-            CollectTables(l4Result.Prev.Prev.Prev.FilesStructure, tablesById);
+            CollectTables(ctx.FilesStructure, tablesById);
         }
         if (tablesById.Count == 0) return updatedNodes;
 
         var typesById = new Dictionary<string, TypeNode>(StringComparer.Ordinal);
         var typesByName = new Dictionary<string, TypeNode>(StringComparer.OrdinalIgnoreCase);
-        var syntaxStruct = l4Result.Prev?.SyntaxStructure ?? ctx.SyntaxStructure;
+        var syntaxStruct = ctx.SyntaxStructure;
         if (syntaxStruct != null)
         {
             CollectTypes(syntaxStruct, typesById, typesByName);

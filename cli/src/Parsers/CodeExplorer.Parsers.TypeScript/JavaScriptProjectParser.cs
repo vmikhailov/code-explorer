@@ -45,28 +45,51 @@ public class JavaScriptProjectParser : IProjectParser
 
     public bool TryParse(ProjectParseContext context, out ProjectParseResult? result)
     {
+        var activeIndex = context.DirectoryIndex ?? WorkspaceDirectoryIndex.Current;
+        if (activeIndex != null && activeIndex.TryGetCachedProjectParse(this, context.DirectoryPath, out var cached))
+        {
+            result = cached.Result;
+            return cached.Matched;
+        }
+
         if (!_tsParser.TryParse(context, out var tsResult) || tsResult == null)
         {
             if (!IsProjectDirectory(context.DirectoryPath, context.FilesInDirectory))
             {
+                activeIndex?.StoreProjectParse(this, context.DirectoryPath, false, null);
                 result = null;
                 return false;
             }
 
             var name = GetProjectName(context.DirectoryPath, context.FilesInDirectory);
             var props = ExtractManifestProperties(context.DirectoryPath, context.FilesInDirectory);
+            var produced = _tsParser.GetProducedPackageAsync(context.DirectoryPath).GetAwaiter().GetResult();
+            var deps = _tsParser.ParseDependenciesAsync(context.DirectoryPath).GetAwaiter().GetResult();
+            var meta = _tsParser.InspectDirectoryManifestMetadata(context);
             result = new ProjectParseResult(
-                new ParsedProjectDescriptor(name, context.DirectoryPath, ProjectType, props),
+                new ParsedProjectDescriptor(
+                    name,
+                    context.DirectoryPath,
+                    ProjectType,
+                    props,
+                    ProducedPackage: produced,
+                    Dependencies: deps,
+                    ManifestMetadata: meta),
                 ParserClaimMode.AbsorbSecondaryInDirectory);
+            activeIndex?.StoreProjectParse(this, context.DirectoryPath, true, result);
             return true;
         }
 
         result = tsResult with
         {
-            Project = tsResult.Project with { ProjectType = CodeExplorer.Cypher.Common.ProjectLanguage.JavaScript }
+            Project = tsResult.Project with { ProjectType = ProjectLanguage.JavaScript }
         };
+        activeIndex?.StoreProjectParse(this, context.DirectoryPath, true, result);
         return true;
     }
+
+    public ParsedProjectManifestMetadata? InspectDirectoryManifestMetadata(ProjectParseContext context) =>
+        _tsParser.InspectDirectoryManifestMetadata(context);
 
     public Dictionary<string, string> ExtractManifestProperties(string directoryPath, string[] filesInDirectory) =>
         _tsParser.ExtractManifestProperties(directoryPath, filesInDirectory);
@@ -74,121 +97,18 @@ public class JavaScriptProjectParser : IProjectParser
     public IReadOnlyCollection<string> ManifestFileNames => _tsParser.ManifestFileNames;
     public IReadOnlyCollection<string> ManifestExtensions => _tsParser.ManifestExtensions;
     public bool IsDistOutputDirectory(string dirName) => _tsParser.IsDistOutputDirectory(dirName);
-    public void InspectDirectoryFiles(string directoryPath, FileInfo[] files, CodeExplorer.Core.Common.Nodes.WorkspaceNode workspace) =>
+    public void InspectDirectoryFiles(string directoryPath, FileInfo[] files, Core.Common.Nodes.WorkspaceNode workspace) =>
         _tsParser.InspectDirectoryFiles(directoryPath, files, workspace);
-    public void InspectDirectoryFilePaths(string directoryPath, string[] filePaths, CodeExplorer.Core.Common.Nodes.WorkspaceNode workspace) =>
+    public void InspectDirectoryFilePaths(string directoryPath, string[] filePaths, Core.Common.Nodes.WorkspaceNode workspace) =>
         _tsParser.InspectDirectoryFilePaths(directoryPath, filePaths, workspace);
     public bool IsConfigurationFile(string fileName) => _tsParser.IsConfigurationFile(fileName);
 
     public string GetProjectName(string directoryPath, string[] filesInDirectory) =>
         _tsParser.GetProjectName(directoryPath, filesInDirectory);
 
-    public async Task<ProducedPackageInfo?> GetProducedPackageAsync(string projectDirectory)
-    {
-        var packageJsonPath = Path.Combine(projectDirectory, "package.json");
-        if (!File.Exists(packageJsonPath)) return null;
+    public Task<ProducedPackageInfo?> GetProducedPackageAsync(string projectDirectory) =>
+        _tsParser.GetProducedPackageAsync(projectDirectory);
 
-        try
-        {
-            var content = await PhysicalFileStore.ReadAllTextAsync(packageJsonPath);
-            var root = CypherValue.TryParseJsonText(content);
-
-            if (root.TryGetProperty("name", out var nameProp) &&
-                nameProp.Kind == CypherValueKind.String)
-            {
-                var name = nameProp.AsNullableString();
-                if (string.IsNullOrEmpty(name)) return null;
-
-                const string defaultVersion = "1.0.0";
-                var version = defaultVersion;
-
-                if (root.TryGetProperty("version", out var versionProp) &&
-                    versionProp.Kind == CypherValueKind.String)
-                {
-                    version = versionProp.AsString(defaultVersion);
-                }
-
-                return new ProducedPackageInfo(name, version, "npm");
-            }
-        }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.Text.Json.JsonException)
-        {
-            // Ignore
-        }
-
-        return null;
-    }
-
-    public async Task<ProjectDependencyInfo> ParseDependenciesAsync(string projectDirectory)
-    {
-        var localProjectPaths = new List<string>();
-        var externalPackages = new List<ProducedPackageInfo>();
-
-        var packageJsonPath = Path.Combine(projectDirectory, "package.json");
-        if (!File.Exists(packageJsonPath))
-        {
-            return new ProjectDependencyInfo(localProjectPaths, externalPackages);
-        }
-
-        try
-        {
-            var content = await PhysicalFileStore.ReadAllTextAsync(packageJsonPath);
-            var root = CypherValue.TryParseJsonText(content);
-
-            var depProperties = new[] { "dependencies", "devDependencies" };
-
-            foreach (var propName in depProperties)
-            {
-                if (root.TryGetProperty(propName, out var depsObj) &&
-                    depsObj.Kind == CypherValueKind.Object)
-                {
-                    const string defaultUnknownVersion = "unknown";
-                    foreach (var prop in depsObj.AsObject())
-                    {
-                        var packageName = prop.Key;
-                        var packageVersion = prop.Value.AsString(defaultUnknownVersion);
-
-                        // Check if it is a local file/path reference (e.g. file:../lib or workspace:../lib)
-                        if (packageVersion.StartsWith("file:", StringComparison.Ordinal) ||
-                            (packageVersion.StartsWith("workspace:", StringComparison.Ordinal) &&
-                             (packageVersion.Contains('/') || packageVersion.Contains('\\'))))
-                        {
-                            var relativePath = packageVersion[(packageVersion.IndexOf(':') + 1)..];
-
-                            if (!string.IsNullOrEmpty(relativePath) && (relativePath.StartsWith('.') ||
-                                                                        relativePath.StartsWith('/') ||
-                                                                        relativePath.StartsWith('\\')))
-                            {
-                                try
-                                {
-                                    var referencedDir =
-                                        Path.GetFullPath(Path.Combine(Path.GetDirectoryName(packageJsonPath) ?? string.Empty,
-                                            relativePath)).Replace('\\', '/');
-
-                                    if (Directory.Exists(referencedDir) || File.Exists(referencedDir))
-                                    {
-                                        localProjectPaths.Add(referencedDir);
-                                        continue;
-                                    }
-                                }
-                                catch (Exception ex) when (ex is ArgumentException or PathTooLongException)
-                                {
-                                    // Fallback to external package
-                                }
-                            }
-                        }
-
-                        // Treat as npm package reference
-                        externalPackages.Add(new ProducedPackageInfo(packageName, packageVersion, "npm", propName == "devDependencies" ? "dev" : "runtime"));
-                    }
-                }
-            }
-        }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.Text.Json.JsonException)
-        {
-            // Ignore
-        }
-
-        return new ProjectDependencyInfo(localProjectPaths, externalPackages);
-    }
+    public Task<ProjectDependencyInfo> ParseDependenciesAsync(string projectDirectory) =>
+        _tsParser.ParseDependenciesAsync(projectDirectory);
 }

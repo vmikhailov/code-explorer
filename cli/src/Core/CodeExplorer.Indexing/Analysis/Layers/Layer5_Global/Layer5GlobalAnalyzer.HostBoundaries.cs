@@ -4,7 +4,7 @@ public partial class Layer5AnalysisParser
 {
     private static void ResolveInstantiatesReference(
         Reference refItem,
-        ParsingContext ctx,
+        Layer5Context ctx,
         SymbolLookups symbols,
         ImportLookups imports,
         List<Relationship> referenceRelationships)

@@ -10,7 +10,11 @@ namespace CodeExplorer.Core.Parser;
 /// </summary>
 public static class SharedFileEnricher
 {
-    public static void Enrich(IReadOnlyList<FileNode> files, IReadOnlyList<ProjectNode> projects, ParsingContext ctx)
+    private const string Layer2Stage = "Layer2_Boundaries";
+    private const string ConfigParseErrorCode = "config_parse_error";
+    private const string SharedFileEnrichErrorName = "SharedFileEnrichError";
+
+    public static async Task EnrichAsync(IReadOnlyList<FileNode> files, IReadOnlyList<ProjectNode> projects, Layer2Context ctx)
     {
         ctx.WorkspaceEnrichments.Clear();
         foreach (var project in projects) project.Enrichments.Clear();
@@ -19,22 +23,57 @@ public static class SharedFileEnricher
         if (candidates.Count == 0) return;
 
         var parsed = new ConcurrentBag<(FileNode File, IReadOnlyList<IProjectEnrichment> Results)>();
-        Parallel.ForEach(candidates, new ParallelOptions { CancellationToken = ctx.CancellationToken }, file =>
+        var parallelOptions = new ParallelOptions
+        {
+            CancellationToken = ctx.CancellationToken,
+            MaxDegreeOfParallelism = Environment.ProcessorCount
+        };
+
+        async ValueTask body(FileNode file, CancellationToken ct)
         {
             try
             {
                 if (file.SizeBytes <= 0 || file.SizeBytes > SharedFileParserRegistry.MaxFileSizeBytes) return;
-                var fileText = file.PreloadedContent ?? PhysicalFileStore.ReadAllText(file.FullPath);
+                var fileText = file.PreloadedContent;
+                if (fileText == null)
+                {
+                    var streamed = await FileStreamReader.StreamAndAnalyzeFileAsync(
+                        file.FullPath,
+                        file.Path,
+                        file.Name,
+                        file.SizeBytes ?? 0L,
+                        isManifest: false,
+                        isSupportedSourceOrConfig: true,
+                        ctx.FileFilter,
+                        ct,
+                        computeHash: ctx.PersistToGraphDb);
+                    if (streamed.SkipByContent)
+                    {
+                        return;
+                    }
+                    file.LineCount = streamed.LineCount;
+                    if (streamed.ContentHash != null) file.ContentHash = streamed.ContentHash;
+                    if (streamed.ArtifactRole != null) file.ArtifactRole = streamed.ArtifactRole;
+                    file.PreloadedContent = streamed.DecodedText;
+                    fileText = streamed.DecodedText;
+                }
                 if (string.IsNullOrEmpty(fileText)) return;
 
                 var results = SharedFileParserRegistry.Parse(file.FullPath, fileText);
                 if (results.Count > 0) parsed.Add((file, results));
             }
-            catch (Exception ex)
+            catch (Exception ex) when (ex is FileNotFoundException or DirectoryNotFoundException)
             {
-                ctx.RecordScanIssue("Layer2_Boundaries", "config_parse_error", file.Path, ex.Message, name: "SharedFileEnrichError", exception: ex, parentNodeId: file.Id, isFileParent: true, logTag: "[Layer 2    ]");
+                ctx.Layer1Log.SkippingBrokenSymlink(file.Path);
+                ctx.DirectoryIndex.RemoveDirectoryFileEntry(file.FullPath);
             }
-        });
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                ctx.Layer2Log.SharedFileEnrichFailed(file.Path, ex);
+                ctx.RecordScanIssue(Layer2Stage, ConfigParseErrorCode, file.Path, ex.Message, name: SharedFileEnrichErrorName, exception: ex, parentNodeId: file.Id, isFileParent: true);
+            }
+        }
+        await Parallel.ForEachAsync(candidates, parallelOptions, body);
 
         var normalizedProjects = projects
             .Select(p => (Project: p, Prefix: string.IsNullOrEmpty(p.Path) ? "" : p.Path.Replace('\\', '/').TrimEnd('/') + "/"))

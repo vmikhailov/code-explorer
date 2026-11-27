@@ -1,26 +1,12 @@
 using System.Text.Json;
-using System.Text.RegularExpressions;
-using System.Xml.Linq;
-using CodeExplorer.Core.Common.Nodes;
 using CodeExplorer.Core.Common.Nodes.Layer1_Physical;
 using CodeExplorer.Core.Common.Nodes.Layer2_Boundaries;
 using CodeExplorer.Core.Common.Relationships;
-using CodeExplorer.Core.Database;
 
 namespace CodeExplorer.Core.Parser.Layers;
 
 public partial class Layer2ProjectParser
 {
-    private static readonly HashSet<string> InstallHookNames = new(StringComparer.OrdinalIgnoreCase)
-    {
-        "preinstall", "install", "postinstall", "preuninstall", "postuninstall", "prepublish"
-    };
-
-    private static readonly HashSet<string> BuildHookNames = new(StringComparer.OrdinalIgnoreCase)
-    {
-        "build", "prepare", "prepack", "compile"
-    };
-
     private static void ApplyExternalPackageMetadata(PackageNode pkgNode, ProducedPackageInfo extPack)
     {
         pkgNode.DependencyScope = string.IsNullOrEmpty(extPack.Scope) ? "runtime" : extPack.Scope;
@@ -39,11 +25,12 @@ public partial class Layer2ProjectParser
         }
     }
 
-    private static void PopulatePackageLifecycleAndEntryPoints(Layer1Result l1Result, List<ProjectNode> projects, List<PackageNode> packages, List<Relationship> dependencies, ParsingContext ctx)
-
-
-
-
+    private static void PopulatePackageLifecycleAndEntryPoints(
+        Layer1Result l1Result,
+        List<ProjectNode> projects,
+        List<PackageNode> packages,
+        List<Relationship> dependencies,
+        Layer2Context ctx)
     {
         var workspaceFiles = l1Result.Files;
         var fileByRelPath = new Dictionary<string, FileNode>(StringComparer.OrdinalIgnoreCase);
@@ -57,78 +44,56 @@ public partial class Layer2ProjectParser
 
         foreach (var project in projects)
         {
-            var projDir = string.IsNullOrEmpty(project.Path)
-                ? ctx.AbsoluteWorkspacePath
-                : Path.GetFullPath(Path.Combine(ctx.AbsoluteWorkspacePath, project.Path));
-            var pkgJsonPath = Path.Combine(projDir, "package.json");
-            var pkgJsonText = PhysicalFileStore.ReadAllText(pkgJsonPath);
-            if (string.IsNullOrEmpty(pkgJsonText)) continue;
+            var meta = project.TryGetSignals()?.ManifestMetadata;
+            if (meta == null) continue;
+
+            foreach (var pkgNode in project.Children.OfType<PackageNode>().Where(p => p.IsInternal))
+            {
+                if (!string.IsNullOrWhiteSpace(meta.Publisher)) pkgNode.Publisher = meta.Publisher;
+                if (meta.HasVsCodeEngine) pkgNode.HasVsCodeEngine = true;
+                if (!string.IsNullOrWhiteSpace(meta.ActivationEvents)) pkgNode.ActivationEvents = meta.ActivationEvents;
+            }
 
             var normProj = project.Path.Replace('\\', '/').Trim('/', '.');
-            var relManifestPath = string.IsNullOrEmpty(normProj)
-                ? "package.json"
-                : $"{normProj}/package.json";
 
-            try
+            if (meta.LifecycleHooks is { Count: > 0 })
             {
-                var root = CypherValue.TryParseJsonText(pkgJsonText);
-                if (root.Kind != CypherValueKind.Object) continue;
-                PopulatePackageJsonProjectExtensions(project, root);
-
-                if (root.TryGetProperty("scripts", out var scriptsProp) && scriptsProp.Kind == CypherValueKind.Object)
+                foreach (var hook in meta.LifecycleHooks)
                 {
-                    foreach (var script in scriptsProp.AsObject())
+                    var manifestFile = string.IsNullOrEmpty(hook.ManifestFileName) ? "package.json" : hook.ManifestFileName;
+                    var relManifestPath = string.IsNullOrEmpty(normProj)
+                        ? manifestFile
+                        : $"{normProj}/{manifestFile}";
+
+                    var entryId = $"{ctx.WorkspaceId}:{OntologyConstants.IdPrefixes.EntryPoint}:{hook.EntryType}:{project.Path}:{hook.Name}";
+                    var entryNode = new EntryPointNode(
+                        Id: entryId,
+                        Name: hook.Name,
+                        Path: relManifestPath,
+                        EntryType: hook.EntryType)
                     {
-                        var cmd = script.Value.AsString();
-                        var isInstallHook = InstallHookNames.Contains(script.Key);
-                        var isBuildHook = !isInstallHook && BuildHookNames.Contains(script.Key);
-                        if (!isInstallHook && !isBuildHook) continue;
+                        Command = hook.Command,
+                        HookKind = hook.HookKind
+                    };
 
-                        var entryType = isInstallHook ? "lifecycle-hook" : "build-hook";
-                        var entryId = $"{ctx.WorkspaceId}:{OntologyConstants.IdPrefixes.EntryPoint}:{entryType}:{project.Path}:{script.Key}";
-                        var entryNode = new EntryPointNode(
-                            Id: entryId,
-                            Name: script.Key,
-                            Path: relManifestPath,
-                            EntryType: entryType)
-                        {
-                            Command = cmd,
-                            HookKind = isInstallHook ? "install" : "build"
-                        };
+                    project.Children.Add(entryNode);
+                    dependencies.Add(new Relationship(project.Id, entryId, OntologyConstants.Relationships.Contains));
+                    dependencies.Add(new Relationship(entryId, project.Id, OntologyConstants.Relationships.BelongsTo));
 
-                        project.Children.Add(entryNode);
-                        dependencies.Add(new Relationship(project.Id, entryId, OntologyConstants.Relationships.Contains));
-                        dependencies.Add(new Relationship(entryId, project.Id, OntologyConstants.Relationships.BelongsTo));
-
-                        // Link lifecycle hook to any local script FileNode it triggers (e.g., `node setup_bun.js`)
-                        foreach (var candidateFile in ResolveReferencedScriptFiles(cmd, project.Path, fileByRelPath))
-                        {
-                            dependencies.Add(new Relationship(entryId, candidateFile.Id, OntologyConstants.Relationships.Triggers));
-                        }
+                    foreach (var candidateFile in ResolveReferencedScriptFiles(hook.Command, project.Path, fileByRelPath))
+                    {
+                        dependencies.Add(new Relationship(entryId, candidateFile.Id, OntologyConstants.Relationships.Triggers));
                     }
                 }
+            }
 
-                // Record package export entrypoints (`main`, `module`, `exports`, `bin`)
-                var exportTargets = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-                if (root.TryGetProperty("main", out var mainProp) && mainProp.Kind == CypherValueKind.String)
-                {
-                    var mainVal = mainProp.AsNullableString();
-                    if (!string.IsNullOrWhiteSpace(mainVal)) exportTargets.Add(mainVal);
-                }
-                if (root.TryGetProperty("module", out var modProp) && modProp.Kind == CypherValueKind.String)
-                {
-                    var modVal = modProp.AsNullableString();
-                    if (!string.IsNullOrWhiteSpace(modVal)) exportTargets.Add(modVal);
-                }
-                if (root.TryGetProperty("exports", out var expProp))
-                {
-                    CollectExportTargetStrings(expProp, exportTargets);
-                }
-
-                foreach (var targetRel in exportTargets)
+            if (meta.ExportTargets is { Count: > 0 })
+            {
+                var seenResolved = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                foreach (var targetRel in meta.ExportTargets)
                 {
                     var resolvedFile = TryMatchProjectFile(project.Path, targetRel, fileByRelPath);
-                    if (resolvedFile != null)
+                    if (resolvedFile != null && seenResolved.Add(resolvedFile.Path))
                     {
                         var expId = $"{ctx.WorkspaceId}:{OntologyConstants.IdPrefixes.EntryPoint}:package-export:{resolvedFile.Path}";
                         var expNode = new EntryPointNode(expId, Path.GetFileName(resolvedFile.Path), resolvedFile.Path, "package-export");
@@ -138,43 +103,9 @@ public partial class Layer2ProjectParser
                     }
                 }
             }
-            catch
-            {
-                // Ignore malformed package.json
-            }
         }
-        PopulateWorkspaceManifestsAndDrivers(l1Result, projects, packages, dependencies, ctx);
-        {
-            {
-            }
-        }
-    }
 
-    private static void CollectExportTargetStrings(CypherValue elem, HashSet<string> targets)
-    {
-        if (elem.Kind == CypherValueKind.String)
-        {
-            var s = elem.AsNullableString();
-            if (!string.IsNullOrWhiteSpace(s) && !s.EndsWith(".d.ts", StringComparison.OrdinalIgnoreCase))
-            {
-                targets.Add(s);
-            }
-        }
-        else if (elem.Kind == CypherValueKind.Object)
-        {
-            foreach (var p in elem.AsObject())
-            {
-                if (p.Key.Equals("types", StringComparison.OrdinalIgnoreCase)) continue;
-                CollectExportTargetStrings(p.Value, targets);
-            }
-        }
-        else if (elem.Kind == CypherValueKind.Array)
-        {
-            foreach (var item in elem.AsArray())
-            {
-                CollectExportTargetStrings(item, targets);
-            }
-        }
+        PopulateWorkspaceManifestsAndDrivers(l1Result, projects, packages, dependencies, ctx);
     }
 
     private static IEnumerable<FileNode> ResolveReferencedScriptFiles(
@@ -225,364 +156,128 @@ public partial class Layer2ProjectParser
         return null;
     }
 
-    private static readonly char[] PathWildcardTrimChars = ['*', '/'];
-
-    private static void PopulatePackageJsonProjectExtensions(ProjectNode project, CypherValue root)
-    {
-        var hints = project.Signals().ManifestHints ??= new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-
-        string? pkgName = null;
-        if (root.TryGetProperty(OntologyConstants.ManifestFields.Name, out var nameProp) && nameProp.Kind == CypherValueKind.String)
-        {
-            pkgName = nameProp.AsNullableString();
-            if (!string.IsNullOrWhiteSpace(pkgName))
-            {
-                project.PackageName = pkgName;
-                hints[OntologyConstants.ExtensionKeys.PackageName] = pkgName;
-            }
-        }
-
-        if (root.TryGetProperty(OntologyConstants.ManifestFields.Version, out var verProp) && verProp.Kind == CypherValueKind.String)
-        {
-            var ver = verProp.AsNullableString();
-            if (!string.IsNullOrWhiteSpace(ver))
-            {
-                project.PackageVersion = ver;
-                hints[OntologyConstants.ExtensionKeys.PackageVersion] = ver;
-            }
-        }
-
-        string? publisher = null;
-        if (root.TryGetProperty(OntologyConstants.ManifestFields.Publisher, out var pubProp) && pubProp.Kind == CypherValueKind.String)
-        {
-            publisher = pubProp.AsNullableString();
-        }
-        else if (!string.IsNullOrEmpty(pkgName) && pkgName.StartsWith('@') && pkgName.Contains('/'))
-        {
-            publisher = pkgName[1..pkgName.IndexOf('/')];
-        }
-        if (!string.IsNullOrWhiteSpace(publisher))
-        {
-            project.Publisher = publisher;
-            hints[OntologyConstants.ExtensionKeys.Publisher] = publisher;
-        }
-
-        if (root.TryGetProperty(OntologyConstants.ManifestFields.Main, out var mainProp) && mainProp.Kind == CypherValueKind.String)
-        {
-            var mainVal = mainProp.AsNullableString();
-            if (!string.IsNullOrWhiteSpace(mainVal))
-            {
-                project.MainFile = mainVal;
-                hints[OntologyConstants.ExtensionKeys.MainFile] = mainVal;
-            }
-        }
-
-        if (root.TryGetProperty(OntologyConstants.ManifestFields.Module, out var modProp) && modProp.Kind == CypherValueKind.String)
-        {
-            var modVal = modProp.AsNullableString();
-            if (!string.IsNullOrWhiteSpace(modVal))
-            {
-                project.ModuleFile = modVal;
-                hints[OntologyConstants.ExtensionKeys.ModuleFile] = modVal;
-            }
-        }
-
-        if (root.TryGetProperty(OntologyConstants.ManifestFields.Description, out var descProp) && descProp.Kind == CypherValueKind.String)
-        {
-            var desc = descProp.AsNullableString();
-            if (!string.IsNullOrWhiteSpace(desc))
-            {
-                project.Description = desc;
-                hints[OntologyConstants.ExtensionKeys.Description] = desc;
-            }
-        }
-
-        if (root.TryGetProperty(OntologyConstants.ManifestFields.Bin, out var binProp) &&
-            ((binProp.Kind == CypherValueKind.String && !string.IsNullOrWhiteSpace(binProp.AsNullableString())) ||
-             (binProp.Kind == CypherValueKind.Object && binProp.AsObject().Count > 0)))
-        {
-            project.HasBin = true;
-            hints[OntologyConstants.ExtensionKeys.HasBin] = OntologyConstants.ExtensionKeys.TrueValue;
-        }
-
-        if (root.TryGetProperty(OntologyConstants.ManifestFields.Contributes, out var contribProp) && contribProp.Kind == CypherValueKind.Object)
-        {
-            project.HasContributes = true;
-            hints[OntologyConstants.ExtensionKeys.HasContributes] = OntologyConstants.ExtensionKeys.TrueValue;
-        }
-
-        if (root.TryGetProperty(OntologyConstants.ManifestFields.Engines, out var engProp) && engProp.Kind == CypherValueKind.Object &&
-            engProp.TryGetProperty(OntologyConstants.ManifestFields.VsCode, out _))
-        {
-            project.HasVsCodeEngine = true;
-            hints[OntologyConstants.ExtensionKeys.HasVsCodeEngine] = OntologyConstants.ExtensionKeys.TrueValue;
-        }
-
-        if (root.TryGetProperty(OntologyConstants.ManifestFields.Keywords, out var kwProp) && kwProp.Kind == CypherValueKind.Array)
-        {
-            var kws = kwProp.AsStringList().Where(s => !string.IsNullOrWhiteSpace(s)).ToArray();
-            if (kws.Length > 0)
-            {
-                var kwJson = JsonSerializer.Serialize(kws);
-                project.KeywordsJson = kwJson;
-                hints[OntologyConstants.ExtensionKeys.KeywordsJson] = kwJson;
-            }
-        }
-
-        var extDeps = new List<string>();
-        foreach (var propName in new[] { "extensionDependencies", "extensionPack" })
-        {
-            if (root.TryGetProperty(propName, out var arr) && arr.Kind == CypherValueKind.Array)
-            {
-                foreach (var val in arr.AsStringList())
-                {
-                    if (!string.IsNullOrWhiteSpace(val)) extDeps.Add(val);
-                }
-            }
-        }
-        if (extDeps.Count > 0)
-        {
-            var extDepsJson = JsonSerializer.Serialize(extDeps);
-            project.ExtensionDependenciesJson = extDepsJson;
-            hints["extension_dependencies_json"] = extDepsJson;
-        }
-
-        string? activationJoined = null;
-        if (root.TryGetProperty(OntologyConstants.ManifestFields.ActivationEvents, out var actProp) && actProp.Kind == CypherValueKind.Array)
-        {
-            var acts = actProp.AsStringList().Where(s => !string.IsNullOrWhiteSpace(s)).ToArray();
-            if (acts.Length > 0)
-            {
-                activationJoined = string.Join(",", acts);
-                project.ActivationEvents = activationJoined;
-                hints["activation_events"] = activationJoined;
-            }
-        }
-
-        foreach (var pkgNode in project.Children.OfType<PackageNode>().Where(p => p.IsInternal))
-        {
-            if (!string.IsNullOrWhiteSpace(publisher)) pkgNode.Publisher = publisher;
-            if (project.HasVsCodeEngine == true) pkgNode.HasVsCodeEngine = true;
-            if (!string.IsNullOrWhiteSpace(activationJoined)) pkgNode.ActivationEvents = activationJoined;
-        }
-    }
-
     private static void PopulateWorkspaceManifestsAndDrivers(
         Layer1Result l1Result,
         List<ProjectNode> projects,
         List<PackageNode> packages,
         List<Relationship> dependencies,
-        ParsingContext ctx)
+        Layer2Context ctx)
     {
         var ws = l1Result.Workspace;
         var wsSignals = ws.Signals();
 
-        // 1. Root package.json fallback on WorkspaceNode (when no ProjectNode exists or for root package lookup)
-        var rootPkgPath = Path.Combine(ctx.AbsoluteWorkspacePath, "package.json");
-        var rootPkgText = PhysicalFileStore.ReadAllText(rootPkgPath);
-        if (!string.IsNullOrEmpty(rootPkgText))
+        // 1. Root manifest metadata on WorkspaceNode (from single-pass ParsedProjectManifestMetadata)
+        foreach (var meta in wsSignals.WorkspaceManifestMetadata)
         {
-            try
+            if (string.IsNullOrWhiteSpace(ws.PackageName) && !string.IsNullOrWhiteSpace(meta.PackageName))
+                ws.PackageName = meta.PackageName;
+            if (string.IsNullOrWhiteSpace(ws.PackageVersion) && !string.IsNullOrWhiteSpace(meta.PackageVersion))
+                ws.PackageVersion = meta.PackageVersion;
+            if (string.IsNullOrWhiteSpace(ws.Publisher) && !string.IsNullOrWhiteSpace(meta.Publisher))
+                ws.Publisher = meta.Publisher;
+            if (meta.HasVsCodeEngine)
+                ws.HasVsCodeEngine = true;
+            if (meta.HasContributes)
+                ws.HasContributes = true;
+            if (string.IsNullOrWhiteSpace(ws.ActivationEvents) && !string.IsNullOrWhiteSpace(meta.ActivationEvents))
+                ws.ActivationEvents = meta.ActivationEvents;
+
+            if (meta.TsConfigPaths != null)
             {
-                var root = CypherValue.TryParseJsonText(rootPkgText);
-                if (root.TryGetProperty(OntologyConstants.ManifestFields.Name, out var n) && n.Kind == CypherValueKind.String && !string.IsNullOrWhiteSpace(n.AsNullableString()))
-                    ws.PackageName = n.AsString();
-                if (root.TryGetProperty(OntologyConstants.ManifestFields.Version, out var v) && v.Kind == CypherValueKind.String && !string.IsNullOrWhiteSpace(v.AsNullableString()))
-                    ws.PackageVersion = v.AsString();
-                if (root.TryGetProperty(OntologyConstants.ManifestFields.Publisher, out var pub) && pub.Kind == CypherValueKind.String && !string.IsNullOrWhiteSpace(pub.AsNullableString()))
-                    ws.Publisher = pub.AsString();
-                if (root.TryGetProperty(OntologyConstants.ManifestFields.Engines, out var eng) && eng.Kind == CypherValueKind.Object && eng.TryGetProperty(OntologyConstants.ManifestFields.VsCode, out _))
-                    ws.HasVsCodeEngine = true;
-                if (root.TryGetProperty(OntologyConstants.ManifestFields.Contributes, out var contrib) && contrib.Kind == CypherValueKind.Object)
-                    ws.HasContributes = true;
-                if (root.TryGetProperty(OntologyConstants.ManifestFields.ActivationEvents, out var act) && act.Kind == CypherValueKind.Array)
+                foreach (var (k, v) in meta.TsConfigPaths)
                 {
-                    var acts = act.AsStringList().Where(s => !string.IsNullOrWhiteSpace(s)).ToArray();
-                    if (acts.Length > 0) ws.ActivationEvents = string.Join(",", acts);
-                }
-            }
-            catch
-            {
-                // ignored: malformed root package.json
-            }
-        }
-
-        // 2. .vscode/tasks.json folderOpen autorun tasks
-        var tasksJsonPath = Path.Combine(ctx.AbsoluteWorkspacePath, ".vscode", "tasks.json");
-        var tasksText = PhysicalFileStore.ReadAllText(tasksJsonPath);
-        if (!string.IsNullOrEmpty(tasksText))
-        {
-            try
-            {
-                var tRoot = CypherValue.TryParseJsonText(tasksText);
-                if (tRoot.TryGetProperty(OntologyConstants.ManifestFields.Tasks, out var tasksArr) && tasksArr.Kind == CypherValueKind.Array)
-                {
-                    var rootProj = projects.FirstOrDefault(p => string.IsNullOrEmpty(p.Path)) ?? projects.FirstOrDefault();
-                    var folderOpenTasks = new List<Dictionary<string, string>>();
-                    foreach (var task in tasksArr.AsArray())
-                    {
-                        if (task.Kind != CypherValueKind.Object) continue;
-                        const string folderOpenLiteral = "folderOpen";
-                        var isFolderOpen = task.TryGetProperty(OntologyConstants.ManifestFields.RunOptions, out var ro) &&
-                                           ro.Kind == CypherValueKind.Object &&
-                                           ro.TryGetProperty(OntologyConstants.ManifestFields.RunOn, out var runOn) &&
-                                           string.Equals(runOn.AsNullableString(), folderOpenLiteral, StringComparison.OrdinalIgnoreCase);
-                        if (!isFolderOpen) continue;
-
-                        var label = task.TryGetProperty(OntologyConstants.ManifestFields.Label, out var lbl) ? lbl.AsString(folderOpenLiteral) : folderOpenLiteral;
-                        var cmd = task.TryGetProperty(OntologyConstants.ManifestFields.Command, out var c) ? c.AsString() : "";
-                        folderOpenTasks.Add(new Dictionary<string, string> { [OntologyConstants.ManifestFields.Label] = label, [OntologyConstants.ManifestFields.Command] = cmd });
-
-                        if (rootProj != null)
-                        {
-                            var entryId = $"{ctx.WorkspaceId}:{OntologyConstants.IdPrefixes.EntryPoint}:vscode-task-folder-open:{label}";
-                            var entryNode = new EntryPointNode(
-                                Id: entryId,
-                                Name: $"vscode.tasks.folderOpen:{label}",
-                                Path: OntologyConstants.ManifestFields.TasksJsonRelPath,
-                                EntryType: OntologyConstants.ManifestFields.FolderOpenTaskType)
-                            {
-                                Command = cmd,
-                                HookKind = "install",
-                                TaskLabel = label
-                            };
-                            rootProj.Children.Add(entryNode);
-                            dependencies.Add(new Relationship(rootProj.Id, entryId, OntologyConstants.Relationships.Contains));
-                            dependencies.Add(new Relationship(entryId, rootProj.Id, OntologyConstants.Relationships.BelongsTo));
-                        }
-                    }
-                    if (folderOpenTasks.Count > 0)
-                    {
-                        wsSignals.VsCodeFolderOpenTasksJson = JsonSerializer.Serialize(folderOpenTasks);
-                    }
-                }
-            }
-            catch
-            {
-                // ignored: malformed .vscode/tasks.json
-            }
-        }
-
-        // 3. .nuspec manifest metadata & dependencies
-        foreach (var (_, (manifestPath, _, _, _)) in ctx.DiscoveredManifestFiles)
-        {
-            if (!manifestPath.EndsWith(".nuspec", StringComparison.OrdinalIgnoreCase)) continue;
-            var nuspecXml = PhysicalFileStore.ReadAllText(manifestPath);
-            if (string.IsNullOrEmpty(nuspecXml)) continue;
-
-            try
-            {
-                var xdoc = XDocument.Parse(nuspecXml);
-                var metadata = xdoc.Descendants().FirstOrDefault(e => e.Name.LocalName.Equals("metadata", StringComparison.OrdinalIgnoreCase));
-                var nuspecId = metadata?.Elements().FirstOrDefault(e => e.Name.LocalName.Equals("id", StringComparison.OrdinalIgnoreCase))?.Value?.Trim();
-                var nuspecVer = metadata?.Elements().FirstOrDefault(e => e.Name.LocalName.Equals("version", StringComparison.OrdinalIgnoreCase))?.Value?.Trim();
-
-                if (!string.IsNullOrEmpty(nuspecId)) wsSignals.NuspecId = nuspecId;
-                if (!string.IsNullOrEmpty(nuspecVer)) wsSignals.NuspecVersion = nuspecVer;
-
-                var ownerProj = projects.FirstOrDefault(p => string.IsNullOrEmpty(p.Path)) ?? projects.FirstOrDefault();
-                foreach (var depElem in xdoc.Descendants().Where(e => e.Name.LocalName.Equals("dependency", StringComparison.OrdinalIgnoreCase)))
-                {
-                    var depId = depElem.Attribute(OntologyConstants.ManifestFields.Id)?.Value?.Trim();
-                    var depVer = depElem.Attribute(OntologyConstants.ManifestFields.Version)?.Value?.Trim() ?? "*";
-                    if (string.IsNullOrWhiteSpace(depId)) continue;
-
-                    var pkgNodeId = $"{ctx.WorkspaceId}:{OntologyConstants.IdPrefixes.Package}:nuget:{depId.ToLowerInvariant()}";
-                    if (!packages.Any(p => p.Id.Equals(pkgNodeId, StringComparison.OrdinalIgnoreCase)))
-                    {
-                        var pkgNode = new PackageNode(
-                            Id: pkgNodeId,
-                            Name: depId,
-                            Version: depVer,
-                            IsInternal: false,
-                            Ecosystem: OntologyConstants.ManifestFields.NuGetEcosystem,
-                            Path: string.Empty,
-                            Archetype: OntologyConstants.Archetypes.PureUtility)
-                        {
-                            DependencyScope = "runtime",
-                            RawVersion = depVer
-                        };
-                        packages.Add(pkgNode);
-                        if (ownerProj != null)
-                        {
-                            ownerProj.Children.Add(pkgNode);
-                            var depRel = Relationship.FromRelationship(new DependsOnRelationship(ownerProj.Id, pkgNodeId, new() { ["dependency_type"] = "package", ["category"] = "library" }));
-                            dependencies.Add(depRel);
-                        }
-                    }
-                }
-            }
-            catch
-            {
-                // ignored: malformed .nuspec XML
-            }
-        }
-
-        // 4. tsconfig.json / tsconfig.base.json compilerOptions.paths
-        foreach (var tsConfigName in new[] { "tsconfig.base.json", "tsconfig.json" })
-        {
-            var tsConfigPath = Path.Combine(ctx.AbsoluteWorkspacePath, tsConfigName);
-            var tsConfigText = PhysicalFileStore.ReadAllText(tsConfigPath);
-            if (string.IsNullOrEmpty(tsConfigText)) continue;
-
-            try
-            {
-                var tsRoot = CypherValue.TryParseJsonText(tsConfigText);
-                if (tsRoot.TryGetProperty(OntologyConstants.ManifestFields.CompilerOptions, out var compOpts) &&
-                    compOpts.Kind == CypherValueKind.Object &&
-                    compOpts.TryGetProperty(OntologyConstants.ManifestFields.Paths, out var pathsProp) &&
-                    pathsProp.Kind == CypherValueKind.Object)
-                {
-                    foreach (var p in pathsProp.AsObject())
-                    {
-                        if (p.Value.Kind == CypherValueKind.Array && p.Value.AsArray() is { Count: > 0 } arr)
-                        {
-                            var rawTarget = arr[0].AsNullableString();
-                            if (!string.IsNullOrEmpty(rawTarget))
-                            {
-                                ctx.TsConfigPaths[p.Key] = rawTarget.Replace('\\', '/');
-                            }
-                        }
-                    }
-                }
-            }
-            catch
-            {
-                // ignored: malformed tsconfig.json
-            }
-        }
-
-        // 4b. go.mod module declarations (so Layer 5 resolves Go internal imports without filesystem IO)
-        foreach (var (relManifestPath, (manifestPath, _, _, _)) in ctx.DiscoveredManifestFiles)
-        {
-            if (!Path.GetFileName(manifestPath).Equals("go.mod", StringComparison.OrdinalIgnoreCase)) continue;
-            var lines = PhysicalFileStore.ReadLines(manifestPath);
-            foreach (var line in lines)
-            {
-                var trimmed = line.Trim();
-                if (trimmed.StartsWith("module ", StringComparison.Ordinal))
-                {
-                    var modName = trimmed["module ".Length..].Trim();
-                    if (!string.IsNullOrEmpty(modName))
-                    {
-                        var normPath = relManifestPath.Replace('\\', '/');
-                        var slashIdx = normPath.LastIndexOf('/');
-                        var relDir = slashIdx > 0 ? normPath[..slashIdx] : ".";
-                        ctx.WorkspaceGoModules.TryAdd(modName, relDir);
-                    }
-                    break;
+                    ctx.TsConfigPaths.TryAdd(k, v);
                 }
             }
         }
 
-        // 5. Pre-compute project database drivers from Layer 1/2 manifests & packages
+        // 2. .vscode/tasks.json folderOpen autorun tasks (parsed once in Layer 1)
+        if (ctx.DiscoveredVsCodeFolderOpenTasks.Count > 0)
+        {
+            var rootProj = projects.FirstOrDefault(p => string.IsNullOrEmpty(p.Path)) ?? projects.FirstOrDefault();
+            var folderOpenTasks = new List<Dictionary<string, string>>(ctx.DiscoveredVsCodeFolderOpenTasks.Count);
+            foreach (var (label, cmd) in ctx.DiscoveredVsCodeFolderOpenTasks)
+            {
+                folderOpenTasks.Add(new Dictionary<string, string>
+                {
+                    [OntologyConstants.ManifestFields.Label] = label,
+                    [OntologyConstants.ManifestFields.Command] = cmd
+                });
+
+                if (rootProj != null)
+                {
+                    var entryId = $"{ctx.WorkspaceId}:{OntologyConstants.IdPrefixes.EntryPoint}:vscode-task-folder-open:{label}";
+                    var entryNode = new EntryPointNode(
+                        Id: entryId,
+                        Name: $"vscode.tasks.folderOpen:{label}",
+                        Path: OntologyConstants.ManifestFields.TasksJsonRelPath,
+                        EntryType: OntologyConstants.ManifestFields.FolderOpenTaskType)
+                    {
+                        Command = cmd,
+                        HookKind = "install",
+                        TaskLabel = label
+                    };
+                    rootProj.Children.Add(entryNode);
+                    dependencies.Add(new Relationship(rootProj.Id, entryId, OntologyConstants.Relationships.Contains));
+                    dependencies.Add(new Relationship(entryId, rootProj.Id, OntologyConstants.Relationships.BelongsTo));
+                }
+            }
+
+            wsSignals.VsCodeFolderOpenTasksJson = JsonSerializer.Serialize(folderOpenTasks);
+        }
+
+        // 3. .nuspec manifest metadata & dependencies (already extracted once by CSharpProjectParser)
+        var allManifestMetadata = wsSignals.WorkspaceManifestMetadata
+            .Concat(projects.Select(p => p.TryGetSignals()?.ManifestMetadata).OfType<ParsedProjectManifestMetadata>())
+            .Distinct();
+        var ownerProj = projects.FirstOrDefault(p => string.IsNullOrEmpty(p.Path)) ?? projects.FirstOrDefault();
+        foreach (var meta in allManifestMetadata)
+        {
+            if (!string.IsNullOrEmpty(meta.NuspecId)) wsSignals.NuspecId = meta.NuspecId;
+            if (!string.IsNullOrEmpty(meta.NuspecVersion)) wsSignals.NuspecVersion = meta.NuspecVersion;
+
+            if (meta.NuspecDependencies is not { Count: > 0 }) continue;
+            foreach (var nuspecDep in meta.NuspecDependencies)
+            {
+                if (string.IsNullOrWhiteSpace(nuspecDep.Name)) continue;
+                var depVer = string.IsNullOrWhiteSpace(nuspecDep.Version) ? "*" : nuspecDep.Version;
+                var pkgNodeId = $"{ctx.WorkspaceId}:{OntologyConstants.IdPrefixes.Package}:nuget:{nuspecDep.Name.ToLowerInvariant()}";
+                if (!packages.Any(p => p.Id.Equals(pkgNodeId, StringComparison.OrdinalIgnoreCase)))
+                {
+                    var pkgNode = new PackageNode(
+                        Id: pkgNodeId,
+                        Name: nuspecDep.Name,
+                        Version: depVer,
+                        IsInternal: false,
+                        Ecosystem: OntologyConstants.ManifestFields.NuGetEcosystem,
+                        Path: string.Empty,
+                        Archetype: OntologyConstants.Archetypes.PureUtility)
+                    {
+                        DependencyScope = "runtime",
+                        RawVersion = depVer
+                    };
+                    packages.Add(pkgNode);
+                    if (ownerProj != null)
+                    {
+                        ownerProj.Children.Add(pkgNode);
+                        var depRel = Relationship.FromRelationship(new DependsOnRelationship(
+                            ownerProj.Id,
+                            pkgNodeId,
+                            new() { ["dependency_type"] = "package", ["category"] = "library" }));
+                        dependencies.Add(depRel);
+                    }
+                }
+            }
+        }
+
+        // 4. Pre-compute project database drivers from Layer 2 descriptors, packages, & SharedFileEnricher enrichments
         PopulateProjectDatabaseDrivers(projects, dependencies, ctx);
     }
 
     private static void PopulateProjectDatabaseDrivers(
         List<ProjectNode> projects,
         List<Relationship> dependencies,
-        ParsingContext ctx)
+        Layer2Context ctx)
     {
         var projectById = projects
             .GroupBy(p => p.Id, StringComparer.OrdinalIgnoreCase)
@@ -592,7 +287,7 @@ public partial class Layer2ProjectParser
         for (var i = 0; i < dependencies.Count; i++)
         {
             var dep = dependencies[i];
-            if (dep.Kind == CodeExplorer.Cypher.Common.RelationshipKind.DependsOn)
+            if (dep.Kind == RelationshipKind.DependsOn)
             {
                 if (!dependsOnTargetsBySource.TryGetValue(dep.From, out var list))
                 {
@@ -604,7 +299,6 @@ public partial class Layer2ProjectParser
         }
 
         var memoizedByProjectId = new Dictionary<string, (string? Engine, string? DbType)>(StringComparer.OrdinalIgnoreCase);
-        var propsCacheByDir = new Dictionary<string, (string? Engine, string? DbType)>(StringComparer.OrdinalIgnoreCase);
 
         foreach (var project in projects)
         {
@@ -615,7 +309,6 @@ public partial class Layer2ProjectParser
                 projectById,
                 dependsOnTargetsBySource,
                 memoizedByProjectId,
-                propsCacheByDir,
                 ctx,
                 []);
             if (!string.IsNullOrEmpty(engine) && !string.IsNullOrEmpty(dbType))
@@ -631,8 +324,7 @@ public partial class Layer2ProjectParser
         Dictionary<string, ProjectNode> projectById,
         Dictionary<string, List<string>> dependsOnTargetsBySource,
         Dictionary<string, (string? Engine, string? DbType)> memoizedByProjectId,
-        Dictionary<string, (string? Engine, string? DbType)> propsCacheByDir,
-        ParsingContext ctx,
+        Layer2Context ctx,
         HashSet<string> visited)
     {
         if (memoizedByProjectId.TryGetValue(projectNode.Id, out var cachedDriver))
@@ -660,9 +352,11 @@ public partial class Layer2ProjectParser
                 return memoizedByProjectId[projectNode.Id] = ("Redis", "cache");
         }
 
-        var projectAbsDir = string.IsNullOrEmpty(projectNode.Path)
-            ? ctx.AbsoluteWorkspacePath
-            : (Path.IsPathRooted(projectNode.Path) ? projectNode.Path : Path.GetFullPath(Path.Combine(ctx.AbsoluteWorkspacePath, projectNode.Path)));
+        var ownMeta = projectNode.TryGetSignals()?.ManifestMetadata;
+        if (!string.IsNullOrEmpty(ownMeta?.DatabaseDriverEngine) && !string.IsNullOrEmpty(ownMeta.DatabaseDriverFamily))
+        {
+            return memoizedByProjectId[projectNode.Id] = (ownMeta.DatabaseDriverEngine, ownMeta.DatabaseDriverFamily);
+        }
 
         // Transitive local project dependencies already resolved in Layer 2
         if (dependsOnTargetsBySource.TryGetValue(projectNode.Id, out var targets))
@@ -676,7 +370,6 @@ public partial class Layer2ProjectParser
                         projectById,
                         dependsOnTargetsBySource,
                         memoizedByProjectId,
-                        propsCacheByDir,
                         ctx,
                         visited);
                     if (subRes.Engine != null)
@@ -687,77 +380,67 @@ public partial class Layer2ProjectParser
             }
         }
 
-        // Check Directory.Packages.props / Directory.Build.props via PhysicalFileStore
-        var curr = projectAbsDir;
+        // Check ancestor directory manifest driver hints (Directory.Packages.props, Directory.Build.props, root package.json, virtual Cargo.toml)
+        var projectAbsDir = string.IsNullOrEmpty(projectNode.Path)
+            ? ctx.AbsoluteWorkspacePath
+            : (Path.IsPathRooted(projectNode.Path) ? projectNode.Path : Path.GetFullPath(Path.Combine(ctx.AbsoluteWorkspacePath, projectNode.Path)));
+        var normRoot = ctx.AbsoluteWorkspacePath.NormalizeFullPath(trimTrailingSlash: true);
+        var curr = projectAbsDir.NormalizeFullPath(trimTrailingSlash: true);
         while (!string.IsNullOrEmpty(curr))
         {
-            if (!propsCacheByDir.TryGetValue(curr, out var dirPropsDriver))
+            if (ctx.DirectoryManifestDrivers.TryGetValue(curr, out var dirDriver))
             {
-                dirPropsDriver = (null, null);
-                foreach (var propFile in new[] { "Directory.Packages.props", "Directory.Build.props" })
-                {
-                    var content = PhysicalFileStore.ReadAllText(Path.Combine(curr, propFile));
-                    if (!string.IsNullOrEmpty(content))
-                    {
-                        if (content.Contains("npgsql", StringComparison.OrdinalIgnoreCase)) { dirPropsDriver = ("PostgreSQL", "relational"); break; }
-                        if (content.Contains("sqlclient", StringComparison.OrdinalIgnoreCase) || content.Contains("entityframeworkcore.sqlserver", StringComparison.OrdinalIgnoreCase)) { dirPropsDriver = ("SQL Server", "relational"); break; }
-                        if (content.Contains("mysql", StringComparison.OrdinalIgnoreCase) || content.Contains("pomelo", StringComparison.OrdinalIgnoreCase)) { dirPropsDriver = ("MySQL", "relational"); break; }
-                        if (content.Contains("sqlite", StringComparison.OrdinalIgnoreCase)) { dirPropsDriver = ("SQLite", "relational"); break; }
-                        if (content.Contains("oracle", StringComparison.OrdinalIgnoreCase)) { dirPropsDriver = ("Oracle", "relational"); break; }
-                    }
-                }
-                propsCacheByDir[curr] = dirPropsDriver;
+                return memoizedByProjectId[projectNode.Id] = (dirDriver.Engine, dirDriver.Family);
             }
 
-            if (dirPropsDriver.Engine != null)
+            if (string.Equals(curr, normRoot, StringComparison.OrdinalIgnoreCase))
             {
-                return memoizedByProjectId[projectNode.Id] = dirPropsDriver;
-            }
-
-            if (string.Equals(curr.TrimEnd('/', '\\'), ctx.AbsoluteWorkspacePath.TrimEnd('/', '\\'), StringComparison.OrdinalIgnoreCase))
                 break;
-            curr = Path.GetDirectoryName(curr);
-        }
-
-        // Check appsettings*.json in project directory via PhysicalFileStore
-        foreach (var f in PhysicalFileStore.GetDirectoryFiles(projectAbsDir))
-        {
-            var fName = Path.GetFileName(f);
-            if (fName.StartsWith("appsettings", StringComparison.OrdinalIgnoreCase) && fName.EndsWith(".json", StringComparison.OrdinalIgnoreCase))
-            {
-                var content = PhysicalFileStore.ReadAllText(f);
-                if (content.Contains("port=5432", StringComparison.OrdinalIgnoreCase) || content.Contains("username=postgres", StringComparison.OrdinalIgnoreCase) || content.Contains("npgsql", StringComparison.OrdinalIgnoreCase) || content.Contains("database=postgres", StringComparison.OrdinalIgnoreCase))
-                    return memoizedByProjectId[projectNode.Id] = ("PostgreSQL", "relational");
-                if (content.Contains("initial catalog=", StringComparison.OrdinalIgnoreCase) || content.Contains("trusted_connection=", StringComparison.OrdinalIgnoreCase) || content.Contains("server=localhost;database=", StringComparison.OrdinalIgnoreCase))
-                    return memoizedByProjectId[projectNode.Id] = ("SQL Server", "relational");
-                if (content.Contains("port=3306", StringComparison.OrdinalIgnoreCase) || content.Contains("uid=root", StringComparison.OrdinalIgnoreCase) || content.Contains("user id=root", StringComparison.OrdinalIgnoreCase))
-                    return memoizedByProjectId[projectNode.Id] = ("MySQL", "relational");
-                if (content.Contains("data source=", StringComparison.OrdinalIgnoreCase) && (content.Contains(".db", StringComparison.OrdinalIgnoreCase) || content.Contains(".sqlite", StringComparison.OrdinalIgnoreCase)))
-                    return memoizedByProjectId[projectNode.Id] = ("SQLite", "relational");
             }
+
+            var slashIdx = curr.LastIndexOf('/');
+            if (slashIdx <= 0) break;
+            curr = curr[..slashIdx];
         }
 
-        // Fallback for monorepos: workspace root package.json or Cargo.toml
-        var rootPkg = PhysicalFileStore.ReadAllText(Path.Combine(ctx.AbsoluteWorkspacePath, "package.json"));
-        if (!string.IsNullOrEmpty(rootPkg))
+        // Check appsettings*.json enrichments already parsed once by SharedFileEnricher
+        foreach (var cfg in projectNode.Enrichments.OfType<ConfigurationFileInformation>())
         {
-            if (rootPkg.Contains("\"pg\"", StringComparison.OrdinalIgnoreCase) || rootPkg.Contains("\"pg-promise\"", StringComparison.OrdinalIgnoreCase) || rootPkg.Contains("\"postgres\"", StringComparison.OrdinalIgnoreCase))
-                return memoizedByProjectId[projectNode.Id] = ("PostgreSQL", "relational");
-        }
-
-        foreach (var cargoDir in new[] { projectAbsDir, ctx.AbsoluteWorkspacePath })
-        {
-            var cargoText = PhysicalFileStore.ReadAllText(Path.Combine(cargoDir, "Cargo.toml"));
-            if (!string.IsNullOrEmpty(cargoText) &&
-                (cargoText.Contains("sqlx", StringComparison.OrdinalIgnoreCase) || cargoText.Contains("sea-orm", StringComparison.OrdinalIgnoreCase) || cargoText.Contains("diesel", StringComparison.OrdinalIgnoreCase) || cargoText.Contains("tokio-postgres", StringComparison.OrdinalIgnoreCase)))
+            var fName = Path.GetFileName(cfg.SourceFilePath);
+            if (!fName.StartsWith("appsettings", StringComparison.OrdinalIgnoreCase) ||
+                !fName.EndsWith(".json", StringComparison.OrdinalIgnoreCase))
             {
-                if (cargoText.Contains("postgres", StringComparison.OrdinalIgnoreCase) || cargoText.Contains("pgpool", StringComparison.OrdinalIgnoreCase) || cargoText.Contains("pq", StringComparison.OrdinalIgnoreCase))
+                continue;
+            }
+
+            foreach (var kv in cfg.Values)
+            {
+                var val = kv.Value;
+                if (string.IsNullOrEmpty(val)) continue;
+                if (val.Contains("port=5432", StringComparison.OrdinalIgnoreCase) ||
+                    val.Contains("username=postgres", StringComparison.OrdinalIgnoreCase) ||
+                    val.Contains("npgsql", StringComparison.OrdinalIgnoreCase) ||
+                    val.Contains("database=postgres", StringComparison.OrdinalIgnoreCase))
+                {
                     return memoizedByProjectId[projectNode.Id] = ("PostgreSQL", "relational");
-                if (cargoText.Contains("mysql", StringComparison.OrdinalIgnoreCase))
+                }
+                if (val.Contains("initial catalog=", StringComparison.OrdinalIgnoreCase) ||
+                    val.Contains("trusted_connection=", StringComparison.OrdinalIgnoreCase) ||
+                    val.Contains("server=localhost;database=", StringComparison.OrdinalIgnoreCase))
+                {
+                    return memoizedByProjectId[projectNode.Id] = ("SQL Server", "relational");
+                }
+                if (val.Contains("port=3306", StringComparison.OrdinalIgnoreCase) ||
+                    val.Contains("uid=root", StringComparison.OrdinalIgnoreCase) ||
+                    val.Contains("user id=root", StringComparison.OrdinalIgnoreCase))
+                {
                     return memoizedByProjectId[projectNode.Id] = ("MySQL", "relational");
-                if (cargoText.Contains("sqlite", StringComparison.OrdinalIgnoreCase))
+                }
+                if (val.Contains("data source=", StringComparison.OrdinalIgnoreCase) &&
+                    (val.Contains(".db", StringComparison.OrdinalIgnoreCase) || val.Contains(".sqlite", StringComparison.OrdinalIgnoreCase)))
+                {
                     return memoizedByProjectId[projectNode.Id] = ("SQLite", "relational");
-                return memoizedByProjectId[projectNode.Id] = ("PostgreSQL", "relational");
+                }
             }
         }
 

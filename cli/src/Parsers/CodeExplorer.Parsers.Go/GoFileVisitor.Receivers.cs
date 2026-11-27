@@ -1,6 +1,4 @@
-using CodeExplorer.Core.Parser;
 using CodeExplorer.Core.Parser.Syntax;
-using CodeExplorer.Cypher.Common;
 using Node = CodeExplorer.Core.Parser.Syntax.SyntaxNode;
 
 namespace CodeExplorer.Parsers.Go;

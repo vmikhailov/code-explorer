@@ -1,5 +1,4 @@
 using CodeExplorer.Core.Protocol;
-using CodeExplorer.Cypher.Common;
 
 namespace CodeExplorer.Core.Analysis;
 
@@ -18,6 +17,11 @@ public partial class ArchitectureViewEngine
     private const string ProjDepsPropIsTest = "is_test";
     private const string ProjDepsPropVersion = "version";
     private const string ProjDepsPropEcosystem = "ecosystem";
+    private const string ProjDepsPropTier = "tier";
+    private const string ProjDepsPropTierLabel = "tier_label";
+    private const string ProjDepsPropTierReason = "tier_reason";
+    private const string ProjDepsPropFanIn = "fan_in";
+    private const string ProjDepsPropFanOut = "fan_out";
     private const string ColId = "id";
     private const string ColName = "name";
     private const string ColPath = "path";
@@ -150,6 +154,9 @@ public partial class ArchitectureViewEngine
             }
         }
 
+        // Compute fan-in, fan-out, and topological orbital tier (0 = Foundation/Core .. 4 = Test, 5 = External Package)
+        AssignProjectDependencyOrbitTiers(nodesById, edges);
+
         // Optional scope filter: keep focused project + direct 1-hop upstream/downstream neighbors
         if (!string.IsNullOrWhiteSpace(scope))
         {
@@ -195,13 +202,17 @@ public partial class ArchitectureViewEngine
                     nodesById[pkgId] = new GraphNodeDto
                     {
                         Id = pkgId,
-                        Kind = NodeKind.Package,
+                        Kind = NodeKind.Library,
                         Name = pkgName,
                         DisplayName = pkgName,
                         Properties = new Dictionary<string, string>(StringComparer.Ordinal)
                         {
                             [ProjDepsPropVersion] = row.GetStringProp(ProjDepsPropVersion),
-                            [ProjDepsPropEcosystem] = row.GetStringProp(ProjDepsPropEcosystem)
+                            [ProjDepsPropEcosystem] = row.GetStringProp(ProjDepsPropEcosystem),
+                            [ProjDepsPropEntityKind] = "Package",
+                            [ProjDepsPropTier] = "5",
+                            [ProjDepsPropTierLabel] = "External Packages",
+                            [ProjDepsPropTierReason] = "External third-party package dependency"
                         }
                     };
                 }
@@ -305,5 +316,76 @@ public partial class ArchitectureViewEngine
         }
 
         return cycles;
+    }
+
+    private static void AssignProjectDependencyOrbitTiers(
+        Dictionary<string, GraphNodeDto> nodesById,
+        List<GraphEdgeDto> edges)
+    {
+        var fanIn = new Dictionary<string, int>(StringComparer.Ordinal);
+        var fanOut = new Dictionary<string, int>(StringComparer.Ordinal);
+        foreach (var id in nodesById.Keys)
+        {
+            fanIn[id] = 0;
+            fanOut[id] = 0;
+        }
+
+        foreach (var e in edges)
+        {
+            if (e.Source == e.Target) continue;
+            if (fanOut.ContainsKey(e.Source)) fanOut[e.Source]++;
+            if (fanIn.ContainsKey(e.Target)) fanIn[e.Target]++;
+        }
+
+        foreach (var (id, node) in nodesById)
+        {
+            var props = node.Properties ??= new Dictionary<string, string>(StringComparer.Ordinal);
+            var inCount = fanIn.GetValueOrDefault(id);
+            var outCount = fanOut.GetValueOrDefault(id);
+            props[ProjDepsPropFanIn] = inCount.ToString();
+            props[ProjDepsPropFanOut] = outCount.ToString();
+
+            var isTest = props.GetValueOrDefault(ProjDepsPropIsTest) == ProjDepsBoolTrue || node.Kind == NodeKind.TestSuite;
+            var isWorkload = node.Kind is NodeKind.Service or NodeKind.App or NodeKind.Worker or NodeKind.CliTool;
+
+            int tier;
+            string tierLabel;
+            string tierReason;
+
+            if (isTest)
+            {
+                tier = 4;
+                tierLabel = "Test & Verification Suites";
+                tierReason = "Test or benchmark project";
+            }
+            else if (isWorkload)
+            {
+                tier = 3;
+                tierLabel = "Executable Services, Apps & CLI";
+                tierReason = $"Executable {node.Kind} workload (depends on {outCount} project(s))";
+            }
+            else if (outCount == 0 && inCount > 0)
+            {
+                tier = 0;
+                tierLabel = "Core & Foundation Kernel";
+                tierReason = $"Zero internal project dependencies, referenced by {inCount} project(s)";
+            }
+            else if (inCount >= outCount && inCount >= 2)
+            {
+                tier = 1;
+                tierLabel = "Shared Domain & Infrastructure";
+                tierReason = $"High-gravity shared library (fan-in {inCount} >= fan-out {outCount})";
+            }
+            else
+            {
+                tier = 2;
+                tierLabel = "Feature & Adapter Libraries";
+                tierReason = $"Adapter or feature module (fan-in {inCount}, fan-out {outCount})";
+            }
+
+            props[ProjDepsPropTier] = tier.ToString();
+            props[ProjDepsPropTierLabel] = tierLabel;
+            props[ProjDepsPropTierReason] = tierReason;
+        }
     }
 }

@@ -119,7 +119,7 @@ public class FileBasedCypherTests
 
             while (execReader.Read())
             {
-                for (int i = 0; i < execReader.FieldCount; i++)
+                for (var i = 0; i < execReader.FieldCount; i++)
                 {
                     var value = execReader.GetValue(i);
                 }

@@ -54,7 +54,7 @@ public class OrleansLibraryParser : DeclarativeSemanticExtension
         return null;
     }
 
-    private static void CollectReferencesCore(Node node, string scopeSymbolId, List<Reference> references, ParsingContext ctx)
+    private static void CollectReferencesCore(Node node, string scopeSymbolId, List<Reference> references, SemanticParseContext ctx)
     {
         if (IsGrainClass(node))
         {
@@ -113,12 +113,12 @@ public class OrleansLibraryParser : DeclarativeSemanticExtension
         }
     }
 
-    private static void EnrichSymbolCore(Node node, SyntacticSymbol symbol, ParsingContext ctx)
+    private static void EnrichSymbolCore(Node node, SyntacticSymbol symbol, SemanticParseContext ctx)
     {
         if (IsGrainClass(node))
         {
             symbol.Protocol = "Orleans";
-            symbol.OperationType = CodeExplorer.Cypher.Common.OperationType.Grain;
+            symbol.OperationType = OperationType.Grain;
         }
     }
 

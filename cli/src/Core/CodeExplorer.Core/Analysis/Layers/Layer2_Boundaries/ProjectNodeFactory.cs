@@ -1,7 +1,6 @@
 using CodeExplorer.Core.Common.Nodes;
 using CodeExplorer.Core.Common.Nodes.Layer2_Boundaries;
 using CodeExplorer.Core.Database;
-using CodeExplorer.Cypher.Common;
 
 namespace CodeExplorer.Core.Analysis;
 
@@ -33,7 +32,8 @@ public static class ProjectNodeFactory
         string directoryPath,
         string[] filesInDirectory,
         IReadOnlyList<string>? externalPackages = null,
-        Dictionary<string, string>? manifestProps = null)
+        Dictionary<string, string>? manifestProps = null,
+        ParsedProjectManifestMetadata? manifestMetadata = null)
     {
         manifestProps ??= new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
 
@@ -56,11 +56,11 @@ public static class ProjectNodeFactory
             ProjectEntityKind.Library => "library",
             _ => role switch
             {
-                CodeExplorer.Core.Common.ProjectRole.FrontendApp => "app",
-                CodeExplorer.Core.Common.ProjectRole.Worker => "worker",
-                CodeExplorer.Core.Common.ProjectRole.CliTool or CodeExplorer.Core.Common.ProjectRole.ScriptProject or CodeExplorer.Core.Common.ProjectRole.DatabaseMigration => "cli",
-                CodeExplorer.Core.Common.ProjectRole.Test => "test",
-                CodeExplorer.Core.Common.ProjectRole.SharedLibrary => "library",
+                Common.ProjectRole.FrontendApp => "app",
+                Common.ProjectRole.Worker => "worker",
+                Common.ProjectRole.CliTool or Common.ProjectRole.ScriptProject or Common.ProjectRole.DatabaseMigration => "cli",
+                Common.ProjectRole.Test => "test",
+                Common.ProjectRole.SharedLibrary => "library",
                 _ => isLibrary ? "library" : "service"
             }
         };
@@ -73,7 +73,7 @@ public static class ProjectNodeFactory
         var secRolesList = new List<string>();
         if (manifestProps.TryGetValue(KeySecondaryRoles, out var secJson) && !string.IsNullOrWhiteSpace(secJson))
         {
-            foreach (var item in CodeExplorer.Core.Database.CypherValue.TryParseJsonText(secJson).AsStringList())
+            foreach (var item in CypherValue.TryParseJsonText(secJson).AsStringList())
             {
                 var norm = NormalizeRoleName(item);
                 if (norm != null && norm != canonicalPrimaryRole && !secRolesList.Contains(norm))
@@ -119,8 +119,82 @@ public static class ProjectNodeFactory
             projectNode.Signals().CargoManifestDir = cargoDir;
         }
 
+        if (manifestMetadata != null)
+        {
+            ApplyManifestMetadataToProject(projectNode, manifestProps, manifestMetadata);
+        }
+
         projectNode.Signals().ManifestHints = manifestProps;
         return projectNode;
+    }
+
+    private static void ApplyManifestMetadataToProject(
+        ProjectNode project,
+        Dictionary<string, string> hints,
+        ParsedProjectManifestMetadata meta)
+    {
+        project.Signals().ManifestMetadata = meta;
+
+        if (!string.IsNullOrWhiteSpace(meta.PackageName))
+        {
+            project.PackageName = meta.PackageName;
+            hints[OntologyConstants.ExtensionKeys.PackageName] = meta.PackageName;
+        }
+        if (!string.IsNullOrWhiteSpace(meta.PackageVersion))
+        {
+            project.PackageVersion = meta.PackageVersion;
+            hints[OntologyConstants.ExtensionKeys.PackageVersion] = meta.PackageVersion;
+        }
+        if (!string.IsNullOrWhiteSpace(meta.Publisher))
+        {
+            project.Publisher = meta.Publisher;
+            hints[OntologyConstants.ExtensionKeys.Publisher] = meta.Publisher;
+        }
+        if (!string.IsNullOrWhiteSpace(meta.MainFile))
+        {
+            project.MainFile = meta.MainFile;
+            hints[OntologyConstants.ExtensionKeys.MainFile] = meta.MainFile;
+        }
+        if (!string.IsNullOrWhiteSpace(meta.ModuleFile))
+        {
+            project.ModuleFile = meta.ModuleFile;
+            hints[OntologyConstants.ExtensionKeys.ModuleFile] = meta.ModuleFile;
+        }
+        if (!string.IsNullOrWhiteSpace(meta.Description))
+        {
+            project.Description = meta.Description;
+            hints[OntologyConstants.ExtensionKeys.Description] = meta.Description;
+        }
+        if (meta.HasBin)
+        {
+            project.HasBin = true;
+            hints[OntologyConstants.ExtensionKeys.HasBin] = OntologyConstants.ExtensionKeys.TrueValue;
+        }
+        if (meta.HasContributes)
+        {
+            project.HasContributes = true;
+            hints[OntologyConstants.ExtensionKeys.HasContributes] = OntologyConstants.ExtensionKeys.TrueValue;
+        }
+        if (meta.HasVsCodeEngine)
+        {
+            project.HasVsCodeEngine = true;
+            hints[OntologyConstants.ExtensionKeys.HasVsCodeEngine] = OntologyConstants.ExtensionKeys.TrueValue;
+        }
+        if (!string.IsNullOrWhiteSpace(meta.KeywordsJson))
+        {
+            project.KeywordsJson = meta.KeywordsJson;
+            hints[OntologyConstants.ExtensionKeys.KeywordsJson] = meta.KeywordsJson;
+        }
+        if (!string.IsNullOrWhiteSpace(meta.ExtensionDependenciesJson))
+        {
+            project.ExtensionDependenciesJson = meta.ExtensionDependenciesJson;
+            hints["extension_dependencies_json"] = meta.ExtensionDependenciesJson;
+        }
+        if (!string.IsNullOrWhiteSpace(meta.ActivationEvents))
+        {
+            project.ActivationEvents = meta.ActivationEvents;
+            hints["activation_events"] = meta.ActivationEvents;
+        }
     }
 
     public static string? NormalizeRoleName(string? r) => r switch

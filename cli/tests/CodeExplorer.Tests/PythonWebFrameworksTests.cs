@@ -1,4 +1,3 @@
-using CodeExplorer.Core.Database;
 using System.Threading.Channels;
 using CodeExplorer.Core.Common.Nodes;
 using CodeExplorer.Core.Common.Nodes.Layer4_Semantic;
@@ -54,7 +53,7 @@ def get_user(user_id):
         {
             var channel = Channel.CreateUnbounded<Func<Task>>();
             await using var client = new InMemoryGraphRepository();
-            var ctx = new ParsingContext(tempDir, tempDir, client, channel);
+            var ctx = new SemanticParseContext(tempDir);
             var parser = new PythonFileParser();
 
             using var syntaxTree = await parser.ParseAsync(filePath, "parent-id", ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
@@ -118,7 +117,7 @@ urlpatterns = [
         {
             var channel = Channel.CreateUnbounded<Func<Task>>();
             await using var client = new InMemoryGraphRepository();
-            var ctx = new ParsingContext(tempDir, tempDir, client, channel);
+            var ctx = new SemanticParseContext(tempDir);
             var parser = new PythonFileParser();
 
             using var syntaxTree = await parser.ParseAsync(filePath, "parent-id", ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);

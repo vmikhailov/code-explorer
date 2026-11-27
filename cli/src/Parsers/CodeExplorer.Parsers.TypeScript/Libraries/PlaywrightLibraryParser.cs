@@ -30,7 +30,7 @@ public class PlaywrightLibraryParser : DeclarativeSemanticExtension
         yield return new PackageDescriptor("playwright", "Playwright", LibraryRole.TestFramework, "library", ["@playwright/test", "playwright"]);
     }
 
-    private static string? MapNodeTypeCore(Node node, ParsingContext ctx)
+    private static string? MapNodeTypeCore(Node node, SemanticParseContext ctx)
     {
         if (IsPlaywrightExternalCall(node, out _, out _))
         {
@@ -45,7 +45,7 @@ public class PlaywrightLibraryParser : DeclarativeSemanticExtension
         return null;
     }
 
-    private static string? ExtractIdentifierStatic(Node node, ParsingContext ctx, string? projectName, string? relativePath)
+    private static string? ExtractIdentifierStatic(Node node, SemanticParseContext ctx, string? projectName, string? relativePath)
     {
         if (IsPlaywrightExternalCall(node, out var argNode, out _))
         {
@@ -71,7 +71,7 @@ public class PlaywrightLibraryParser : DeclarativeSemanticExtension
         return null;
     }
 
-    private static void EnrichSymbolCore(Node node, SyntacticSymbol symbol, ParsingContext ctx)
+    private static void EnrichSymbolCore(Node node, SyntacticSymbol symbol, SemanticParseContext ctx)
     {
         if (IsPlaywrightSuiteOrTest(node) || IsPlaywrightExternalCall(node, out _, out _))
         {
@@ -83,7 +83,7 @@ public class PlaywrightLibraryParser : DeclarativeSemanticExtension
         }
     }
 
-    private static void CollectReferencesCore(Node node, string scopeSymbolId, List<Reference> references, ParsingContext ctx)
+    private static void CollectReferencesCore(Node node, string scopeSymbolId, List<Reference> references, SemanticParseContext ctx)
     {
         if (IsGotoCall(node, out var gotoArg))
         {

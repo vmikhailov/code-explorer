@@ -1,4 +1,3 @@
-using CodeExplorer.Core.Database;
 using System.Threading.Channels;
 using CodeExplorer.Core.Common.Nodes.Layer2_Boundaries;
 using CodeExplorer.Core.Common.Nodes.Layer4_Semantic;
@@ -115,7 +114,7 @@ public class RustIrisMpcTests
         var parser = new RustFileParser();
         var channel = Channel.CreateUnbounded<Func<Task>>();
         await using var client = new InMemoryGraphRepository();
-        var ctx = new ParsingContext(IrisMpcWorkspacePath, IrisMpcWorkspacePath, client, channel);
+        var ctx = new SemanticParseContext(IrisMpcWorkspacePath);
 
         using var syntaxTree = await parser.ParseAsync(libFile, "parent-id", ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
         Layer3SyntacticParser.ProcessVisitor(syntaxTree, ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
@@ -220,7 +219,7 @@ public class RustIrisMpcTests
 
             var channel = Channel.CreateUnbounded<Func<Task>>();
             await using var client = new InMemoryGraphRepository();
-            var ctx = new ParsingContext(IrisMpcWorkspacePath, IrisMpcWorkspacePath, client, channel);
+            var ctx = new SemanticParseContext(IrisMpcWorkspacePath);
             ctx.SemanticStructure = new SemanticStructureNode("ws:sem", "sem", IrisMpcWorkspacePath);
             var projNode = new ProjectNode("proj:iris-mpc-store", "iris-mpc-store", "iris-mpc-store", "rust", "Library", true, new Dictionary<string, string> { ["role"] = "Library", ["is_library"] = "true" });
             await ResourceSemanticAnalyzer.EnrichAsync(storeTree, projNode, parser, ctx);

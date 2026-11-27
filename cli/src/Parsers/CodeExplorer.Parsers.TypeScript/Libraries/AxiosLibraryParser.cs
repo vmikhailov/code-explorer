@@ -116,7 +116,7 @@ public class AxiosLibraryParser : DeclarativeSemanticExtension
         return false;
     }
 
-    private static string? ExtractIdentifierStatic(Node node, ParsingContext ctx, string? projectName)
+    private static string? ExtractIdentifierStatic(Node node, SemanticParseContext ctx, string? projectName)
     {
         if (IsHttpCallNode(node))
         {
@@ -369,7 +369,7 @@ public class AxiosLibraryParser : DeclarativeSemanticExtension
         return AstIdentifierUrlSanitizer.CleanIdentifierSuffix(ident);
     }
 
-    private static void EnrichSymbolCore(Node node, SyntacticSymbol symbol, ParsingContext ctx)
+    private static void EnrichSymbolCore(Node node, SyntacticSymbol symbol, SemanticParseContext ctx)
     {
         if (!IsHttpCallNode(node)) return;
         var func = node.GetFunctionNode();

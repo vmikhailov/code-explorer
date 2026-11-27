@@ -1,6 +1,4 @@
-using CodeExplorer.Core.Analysis.Layers.Layer4_Semantic.Analyzers;
-using CodeExplorer.Core.Common;
-using CodeExplorer.Core.Common.Nodes;
+using System.Diagnostics;
 using CodeExplorer.Core.Common.Nodes.Layer1_Physical;
 using CodeExplorer.Core.Common.Nodes.Layer2_Boundaries;
 using CodeExplorer.Core.Common.Nodes.Layer3_Syntactic;
@@ -11,21 +9,27 @@ namespace CodeExplorer.Core.Parser.Layers;
 
 public partial class Layer4SemanticParser
 {
-    public async Task<Layer4Result> ParseAsync(Layer3Result l3Result, ParsingContext ctx)
+    public Task<Layer4Result> ParseAsync(Layer3Result l3Result, Layer4Context ctx) =>
+        ParseAsync(ctx);
+
+    public async Task<Layer4Result> ParseAsync(Layer4Context ctx)
     {
-        var sw = System.Diagnostics.Stopwatch.StartNew();
+        var l1Result = ctx.Layer1;
+        var l2Result = ctx.Layer2;
+        var l3Result = ctx.Layer3;
+        var sw = Stopwatch.StartNew();
         ctx.Layer4Log.ScanStarted();
 
         var semanticNodeId = $"{ctx.WorkspaceId}:{OntologyConstants.IdPrefixes.SemanticStructure}";
-        var semanticStructureNode = new SemanticStructureNode(semanticNodeId, "SemanticStructure", l3Result.Prev.Prev.Workspace.Path);
-        l3Result.Prev.Prev.Workspace.Children.Add(semanticStructureNode);
+        var semanticStructureNode = new SemanticStructureNode(semanticNodeId, "SemanticStructure", l1Result.Workspace.Path);
+        l1Result.Workspace.Children.Add(semanticStructureNode);
         ctx.SemanticStructure = semanticStructureNode;
 
         var semanticNodes = new List<IOntologyNode>();
         var semanticRelationships = new List<Relationship>();
 
-        var allProjects = l3Result.Prev.Projects;
-        var allFiles = l3Result.Prev.Prev.Files;
+        var allProjects = l2Result.Projects;
+        var allFiles = l1Result.Files;
         var allTrees = l3Result.SyntaxTrees;
 
         // O(F * P) pre-grouping once instead of O(P * F * P) in inner loops (eliminates 1.72B comparisons)
@@ -67,7 +71,7 @@ public partial class Layer4SemanticParser
         {
             if (ConfigurationParser.IsConfigurationFile(wfile.Name))
             {
-                ConfigurationParser.ParseAndEnrich(wfile.FullPath, wfile.Path, ctx.WorkspaceId, semanticStructureNode, semanticRelationships, ctx);
+                ConfigurationParser.ParseAndEnrich(wfile.FullPath, wfile.Path, ctx.WorkspaceId, semanticStructureNode, semanticRelationships, ctx.Semantic);
             }
         }
 
@@ -89,7 +93,7 @@ public partial class Layer4SemanticParser
 
         InitializeWorkloadsForProjects(
             allProjects,
-            l3Result,
+            allFiles,
             ctx,
             semanticStructureNode,
             semanticNodes,
@@ -117,23 +121,25 @@ public partial class Layer4SemanticParser
         SemanticTopologySynthesizer.Synthesize(
             allProjects,
             filesByProjectId,
-            l3Result.Prev.ProjectDependencies,
-            l3Result.Prev.Packages,
+            l2Result.ProjectDependencies,
+            l2Result.Packages,
             workloadByProjectId,
             allFiles,
             semanticStructureNode,
             semanticRelationships,
             existingRelKeys,
-            ctx);
+            ctx.Semantic,
+            ctx.CancellationToken);
 
         MaterializeWorkloadDependencies(
-            l3Result,
+            l2Result,
             workloadByProjectId,
             semanticStructureNode,
             existingRelKeys,
             semanticRelationships);
 
         LinkEntryPointsToModuleInit(
+            l2Result,
             l3Result,
             allFiles,
             allProjects,
@@ -158,7 +164,7 @@ public partial class Layer4SemanticParser
         // 3. Upload the entire Workspace Node tree using OntologyUploader
         ctx.CancellationToken.ThrowIfCancellationRequested();
         ctx.Layer4Log.QueuingOntologyTree();
-        await OntologyUploader.UploadNodeTreeAsync(l3Result.Prev.Prev.Workspace, null, ctx);
+        await OntologyUploader.UploadNodeTreeAsync(l1Result.Workspace, null, ctx);
 
         // Free any remaining native TreeSitter memory after Layer 4 (unless Layer 5 provenance slicing is enabled)
         if (!ctx.LightweightAstScanMode)
@@ -172,7 +178,7 @@ public partial class Layer4SemanticParser
         }
 
         ctx.Layer4Log.ScanCompleted(semanticNodes.Count, sw.ElapsedMilliseconds);
-        return new Layer4Result(l3Result, semanticStructureNode, semanticNodes, semanticRelationships);
+        return new Layer4Result(semanticStructureNode, semanticNodes, semanticRelationships);
     }
 
     private static bool IsEnclosedInProject(FileNode file, ProjectNode project, List<ProjectNode> projects) =>
@@ -196,7 +202,7 @@ public partial class Layer4SemanticParser
         List<SyntaxTree> projectTrees,
         List<Relationship> semanticRelationships,
         HashSet<(string From, string To, string Kind)> existingRelKeys,
-        ParsingContext ctx)
+        Layer4Context ctx)
     {
         var entryPoints = new List<EntryPointNode>();
         var parentMap = new Dictionary<string, string>();
@@ -213,7 +219,7 @@ public partial class Layer4SemanticParser
         {
             foreach (var ep in entryPoints.DistinctBy(e => e.Id))
             {
-                if (project.IsLibrary && ep.EntryType is CodeExplorer.Cypher.Common.EntryPointType.MainMethod or CodeExplorer.Cypher.Common.EntryPointType.TopLevel or CodeExplorer.Cypher.Common.EntryPointType.ScriptMain)
+                if (project.IsLibrary && ep.EntryType is EntryPointType.MainMethod or EntryPointType.TopLevel or EntryPointType.ScriptMain)
                 {
                     continue;
                 }
@@ -279,6 +285,7 @@ public partial class Layer4SemanticParser
     }
 
     private static void LinkEntryPointsToModuleInit(
+        Layer2Result l2Result,
         Layer3Result l3Result,
         List<FileNode> allFiles,
         List<ProjectNode> allProjects,
@@ -307,7 +314,7 @@ public partial class Layer4SemanticParser
 
         if (modInitByFileId.Count == 0) return;
 
-        foreach (var dep in l3Result.Prev.ProjectDependencies)
+        foreach (var dep in l2Result.ProjectDependencies)
         {
             if (dep.Kind is RelationshipKind.Triggers or RelationshipKind.DeclaredIn &&
                 modInitByFileId.TryGetValue(dep.To, out var targetModInit) &&

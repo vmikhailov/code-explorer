@@ -1,5 +1,4 @@
 using CodeExplorer.Core.Protocol;
-using CodeExplorer.Cypher.Common;
 
 namespace CodeExplorer.Core.Analysis;
 
@@ -157,8 +156,8 @@ public partial class ArchitectureViewEngine
                         ? rfp
                         : row.GetStringProp("path");
                     if (string.IsNullOrEmpty(path)) continue;
-                    int? line = ParseLineProp(rProps, OntologyConstants.PropertyNames.Line, row, "line");
-                    int? lineEnd = ParseLineProp(rProps, OntologyConstants.PropertyNames.LineEnd, row, "line_end") ?? line;
+                    var line = ParseLineProp(rProps, OntologyConstants.PropertyNames.Line, row, "line");
+                    var lineEnd = ParseLineProp(rProps, OntologyConstants.PropertyNames.LineEnd, row, "line_end") ?? line;
 
                     var symName = row.GetStringProp("name");
                     var svc = row.GetStringProp("service");
@@ -225,8 +224,8 @@ public partial class ArchitectureViewEngine
                     var symKind = row.GetStringProp("kind");
                     if (symKind is "Endpoint" or "EntryPoint" && row.GetStringProp("rel_kind") == "ATTRIBUTED_TO") continue;
 
-                    int? line = ParseLineProp(rProps, OntologyConstants.PropertyNames.Line, row, "line");
-                    int? lineEnd = ParseLineProp(rProps, OntologyConstants.PropertyNames.LineEnd, row, "line_end") ?? line;
+                    var line = ParseLineProp(rProps, OntologyConstants.PropertyNames.Line, row, "line");
+                    var lineEnd = ParseLineProp(rProps, OntologyConstants.PropertyNames.LineEnd, row, "line_end") ?? line;
 
                     var symName = row.GetStringProp("name");
                     var svc = row.GetStringProp("service");
@@ -285,8 +284,8 @@ public partial class ArchitectureViewEngine
                 var method = row.GetStringProp("http_method");
                 var route = row.GetStringProp("route");
                 var epName = row.GetStringProp("name");
-                int? line = row.GetNullableIntProp("line");
-                int? lineEnd = row.GetNullableIntProp("line_end");
+                var line = row.GetNullableIntProp("line");
+                var lineEnd = row.GetNullableIntProp("line_end");
                 if (line <= 0) line = null;
                 if (lineEnd <= 0) lineEnd = line;
 
@@ -332,8 +331,8 @@ public partial class ArchitectureViewEngine
                 if (string.IsNullOrEmpty(path) || !scope.Matches(path, row.GetStringProp("service"), entryId)) continue;
 
                 var name = row.GetStringProp("name");
-                int? line = row.GetNullableIntProp("line");
-                int? lineEnd = row.GetNullableIntProp("line_end");
+                var line = row.GetNullableIntProp("line");
+                var lineEnd = row.GetNullableIntProp("line_end");
                 if (line <= 0) line = null;
                 if (lineEnd <= 0) lineEnd = line;
 
@@ -378,8 +377,8 @@ public partial class ArchitectureViewEngine
 
                 var name = row.GetStringProp("name");
                 var tblName = row.GetStringProp("tbl_name");
-                int? line = row.GetNullableIntProp("line");
-                int? lineEnd = row.GetNullableIntProp("line_end");
+                var line = row.GetNullableIntProp("line");
+                var lineEnd = row.GetNullableIntProp("line_end");
                 if (line <= 0) line = null;
                 if (lineEnd <= 0) lineEnd = line;
 

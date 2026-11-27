@@ -1,7 +1,3 @@
-using CodeExplorer.Core.Common;
-using CodeExplorer.Core.Database;
-using CodeExplorer.Core.Mcp;
-using CodeExplorer.Cypher.Linq;
 using CodeExplorer.Options;
 
 namespace CodeExplorer.Commands;
@@ -32,7 +28,7 @@ public static class StatusCommandHandler
 
             await using var client = new SqliteGraphClient(ws.DbPath);
 
-            string wsName = new DirectoryInfo(ws.RootDirectory).Name;
+            var wsName = new DirectoryInfo(ws.RootDirectory).Name;
             DateTime? lastIndexedAt = null;
             var projects = new List<(string Name, string Language, string Layer, string Role)>();
             long nodeCount = 0;

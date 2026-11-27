@@ -1,6 +1,5 @@
 using System.Text.Json;
 using CodeExplorer.Core.Protocol;
-using CodeExplorer.Cypher.Common;
 
 namespace CodeExplorer.Core.Analysis;
 
@@ -186,7 +185,7 @@ public partial class ArchitectureViewEngine
 
         // 3. File path resolution (e.g. ws:f:action-scheduler/src/... or ws:sym:action-scheduler/...)
         var filePath = sourceId;
-        bool isKnownFileOrSymbolUrn = false;
+        var isKnownFileOrSymbolUrn = false;
         if (Urn.TryParse(sourceId, out var urn) && !string.IsNullOrEmpty(urn.Path))
         {
             var domain = (urn.Domain ?? "").ToLowerInvariant();
@@ -244,7 +243,7 @@ public partial class ArchitectureViewEngine
 
         // Match against project FilePath (longest match first)
         GraphNodeDto? bestMatch = null;
-        int bestLen = -1;
+        var bestLen = -1;
         GraphNodeDto? rootProject = null;
 
         foreach (var p in projList)

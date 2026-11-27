@@ -310,7 +310,7 @@ public class MessagingConnectionsTests
                 var t = elem.GetStringProp("topic");
                 edgeList.Add((s, r, t));
             }
-            TestContext.WriteLine("ALL EDGES: " + string.Join(", ", edgeList.Select(e => $"{e.Service} -{e.Rel}-> {e.Topic}")));
+            TestContext.Out.WriteLine("ALL EDGES: " + string.Join(", ", edgeList.Select(e => $"{e.Service} -{e.Rel}-> {e.Topic}")));
 
             // Assert 1: publisher-service has PUBLISHES_TO edges to event-tb-updated-topic, event-bus-topic, journal-topic
             var pubEdges = edgeList.Where(e => e.Service.Equals("publisher-service", StringComparison.OrdinalIgnoreCase) &&

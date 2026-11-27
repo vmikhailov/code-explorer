@@ -34,10 +34,10 @@ public class PubSubGoLibraryParser : DeclarativeSemanticExtension
         ];
     }
 
-    private static void CollectPubSubReferences(Node node, string scopeSymbolId, List<Reference> references, ParsingContext ctx)
+    private static void CollectPubSubReferences(Node node, string scopeSymbolId, List<Reference> references, SemanticParseContext ctx)
     {
         // 1. Composite literals with topic fields (Topic, TopicID, TopicName, SubID, WorkerDef)
-        if (node is CodeExplorer.Core.Parser.Syntax.CollectionExprSyntax)
+        if (node is Core.Parser.Syntax.CollectionExprSyntax)
         {
             if (TryExtractTopicFromCompositeLiteral(node, out var topic, out var isPubLiteral, out var isSubLiteral))
             {
@@ -400,7 +400,7 @@ public class PubSubGoLibraryParser : DeclarativeSemanticExtension
             targetNode = targetNode.Children[1];
         }
 
-        if (targetNode is not CodeExplorer.Core.Parser.Syntax.CollectionExprSyntax)
+        if (targetNode is not Core.Parser.Syntax.CollectionExprSyntax)
         {
             return false;
         }
@@ -513,21 +513,21 @@ public class PubSubGoLibraryParser : DeclarativeSemanticExtension
         foreach (var rawChild in container.Children)
         {
             var elem = rawChild;
-            if (elem is CodeExplorer.Core.Parser.Syntax.ParenthesizedExprSyntax or CodeExplorer.Core.Parser.Syntax.SyntaxList && elem.Children.Count > 0)
+            if (elem is Core.Parser.Syntax.ParenthesizedExprSyntax or Core.Parser.Syntax.SyntaxList && elem.Children.Count > 0)
             {
                 elem = elem.Children[0];
             }
 
-            if (elem is CodeExplorer.Core.Parser.Syntax.KeyValueExprSyntax && elem.Children.Count >= 2)
+            if (elem is Core.Parser.Syntax.KeyValueExprSyntax && elem.Children.Count >= 2)
             {
                 var keyChild = elem.Children[0];
-                if (keyChild is CodeExplorer.Core.Parser.Syntax.ParenthesizedExprSyntax or CodeExplorer.Core.Parser.Syntax.SyntaxList && keyChild.Children.Count > 0)
+                if (keyChild is Core.Parser.Syntax.ParenthesizedExprSyntax or Core.Parser.Syntax.SyntaxList && keyChild.Children.Count > 0)
                 {
                     keyChild = keyChild.Children[0];
                 }
 
                 var valChild = elem.Children[^1];
-                if (valChild is CodeExplorer.Core.Parser.Syntax.ParenthesizedExprSyntax or CodeExplorer.Core.Parser.Syntax.SyntaxList && valChild.Children.Count > 0)
+                if (valChild is Core.Parser.Syntax.ParenthesizedExprSyntax or Core.Parser.Syntax.SyntaxList && valChild.Children.Count > 0)
                 {
                     valChild = valChild.Children[0];
                 }

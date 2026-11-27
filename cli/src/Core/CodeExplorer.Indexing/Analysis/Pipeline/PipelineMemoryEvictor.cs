@@ -1,4 +1,3 @@
-using CodeExplorer.Core.Common.Nodes;
 using CodeExplorer.Core.Common.Nodes.Layer1_Physical;
 using CodeExplorer.Core.Common.Nodes.Layer2_Boundaries;
 using CodeExplorer.Core.Common.Nodes.Layer3_Syntactic;
@@ -12,9 +11,9 @@ internal static class PipelineMemoryEvictor
     private const string LangTerraform = "terraform";
     private const string KeywordSchema = "schema";
 
-    public static void ReleaseSyntaxTreeBuffersAfterLayer3(SyntaxTree syntaxTree, ParsingContext ctx)
+    public static void ReleaseSyntaxTreeBuffersAfterLayer3(SyntaxTree syntaxTree, bool lightweightAstScanMode)
     {
-        if (ctx.LightweightAstScanMode) return;
+        if (lightweightAstScanMode) return;
 
         syntaxTree.RawVariables.Clear();
         syntaxTree.RawVariables.TrimExcess();
@@ -22,9 +21,21 @@ internal static class PipelineMemoryEvictor
         syntaxTree.RawTypeBindings.TrimExcess();
     }
 
-    public static void TryReleaseDocumentEarlyInLayer3(SyntaxTree syntaxTree, ParsingContext ctx)
+    public static void ReleaseSyntaxTreesAfterLayer4(Layer3Result layer3, bool lightweightAstScanMode)
     {
-        if (ctx.LightweightAstScanMode) return;
+        if (lightweightAstScanMode) return;
+
+        for (var i = 0; i < layer3.SyntaxTrees.Count; i++)
+        {
+            layer3.SyntaxTrees[i].Dispose();
+        }
+        layer3.SyntaxTrees.Clear();
+        layer3.SyntaxTrees.TrimExcess();
+    }
+
+    public static void TryReleaseDocumentEarlyInLayer3(SyntaxTree syntaxTree, bool lightweightAstScanMode)
+    {
+        if (lightweightAstScanMode) return;
 
         syntaxTree.RootSymbol = null;
         if (syntaxTree.SemanticSymbols.Count == 0 &&
@@ -35,17 +46,17 @@ internal static class PipelineMemoryEvictor
         }
     }
 
-    public static void EvictPostResolutionLeafNodes(Layer4Result l4Result, ParsingContext ctx)
+    public static void EvictPostResolutionLeafNodes(Layer5Context ctx)
     {
         if (ctx.LightweightAstScanMode) return;
 
-        var syntaxStructure = l4Result.Prev.SyntaxStructure;
+        var syntaxStructure = ctx.SyntaxStructure;
         if (syntaxStructure != null)
         {
             PruneSyntacticLeafChildrenRecursive(syntaxStructure);
         }
 
-        var files = l4Result.Prev.Prev.Prev.Files;
+        var files = ctx.Files;
         for (var i = 0; i < files.Count; i++)
         {
             PruneSyntacticLeafChildrenRecursive(files[i]);
@@ -65,11 +76,11 @@ internal static class PipelineMemoryEvictor
         }
     }
 
-    public static void EvictNonPostIndexLayersBeforePostIndex(Layer4Result l4Result, ParsingContext ctx)
+    public static void EvictNonPostIndexLayersBeforePostIndex(Layer5Context ctx)
     {
         if (ctx.LightweightAstScanMode) return;
 
-        var syntaxStructure = l4Result.Prev.SyntaxStructure;
+        var syntaxStructure = ctx.SyntaxStructure;
         if (syntaxStructure != null)
         {
             CollectFunctionIdsRecursive(syntaxStructure, ctx.KnownFunctionIds);
@@ -77,7 +88,7 @@ internal static class PipelineMemoryEvictor
             syntaxStructure.Children.TrimExcess();
         }
 
-        var files = l4Result.Prev.Prev.Prev.Files;
+        var files = ctx.Files;
         var hoistedSemanticNodes = new List<IOntologyNode>();
         for (var i = 0; i < files.Count; i++)
         {
@@ -98,7 +109,7 @@ internal static class PipelineMemoryEvictor
             file.Children.TrimExcess();
         }
 
-        var workspace = l4Result.Prev.Prev.Prev.Workspace;
+        var workspace = ctx.Workspace;
         if (workspace != null)
         {
             for (var i = 0; i < workspace.Children.Count; i++)
@@ -109,12 +120,6 @@ internal static class PipelineMemoryEvictor
                     filesStructure.Children.TrimExcess();
                 }
             }
-        }
-
-        if (l4Result.Prev.SyntaxTrees is List<SyntaxTree> treeList)
-        {
-            treeList.Clear();
-            treeList.TrimExcess();
         }
 
         AnalysisSignalStore.ClearFunctionSignals();

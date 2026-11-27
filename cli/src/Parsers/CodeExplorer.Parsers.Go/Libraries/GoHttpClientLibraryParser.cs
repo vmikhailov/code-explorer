@@ -105,7 +105,7 @@ public class GoHttpClientLibraryParser : DeclarativeSemanticExtension
         var args = GoAstHelper.GetCallArguments(node);
         if (args.Count > 0)
         {
-            int targetArgIndex = 0;
+            var targetArgIndex = 0;
             if (methodName == "NewRequest" && args.Count > 1)
             {
                 targetArgIndex = 1;

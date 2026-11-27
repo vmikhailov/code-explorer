@@ -1,11 +1,8 @@
-using CodeExplorer.Core.Common;
-using CodeExplorer.Core.Common.Nodes;
 using CodeExplorer.Core.Common.Nodes.Layer3_Syntactic;
 using CodeExplorer.Core.Common.Nodes.Layer4_Semantic;
 using CodeExplorer.Core.Common.Relationships;
 using CodeExplorer.Core.Parser.Canonical;
 using CodeExplorer.Core.Semantics;
-using CodeExplorer.Cypher.Common;
 
 namespace CodeExplorer.Core.Parser.Layers;
 
@@ -30,7 +27,7 @@ internal static class SemanticArgumentPropagator
 
     public static async Task PropagateAndGroundAsync(
         Layer4Result l4Result,
-        ParsingContext ctx,
+        Layer5Context ctx,
         List<Relationship> referenceRelationships,
         List<Relationship> lateBoundRels)
     {
@@ -38,8 +35,11 @@ internal static class SemanticArgumentPropagator
         var methodsByTypeId = new Dictionary<string, List<FunctionNode>>(StringComparer.Ordinal);
         var visitedWalk = new HashSet<IOntologyNode>(ReferenceEqualityComparer.Instance);
 
-        CollectFunctionsAndTypeMethods(l4Result.Prev.SyntaxStructure, enclosingType: null, functionsById, methodsByTypeId, visitedWalk);
-        foreach (var file in l4Result.Prev.Prev.Prev.Files)
+        if (ctx.SyntaxStructure != null)
+        {
+            CollectFunctionsAndTypeMethods(ctx.SyntaxStructure, enclosingType: null, functionsById, methodsByTypeId, visitedWalk);
+        }
+        foreach (var file in ctx.Files)
         {
             CollectFunctionsAndTypeMethods(file, enclosingType: null, functionsById, methodsByTypeId, visitedWalk);
         }
@@ -88,10 +88,10 @@ internal static class SemanticArgumentPropagator
         var paramTemplatesByFnAndIndex = CollectCalleeParamTemplates(functionsById, counterpartMethodsByFnId);
 
         // Phase C: Materialize :Parameter, :CallArgument, FLOWS_TO, and downward TARGETED_BY edges
-        var targetGrounder = SemanticTargetGrounder.Build(l4Result);
+        var targetGrounder = SemanticTargetGrounder.Build(l4Result, ctx);
         var fileToProject = Layer2ProjectParser.BuildFileToProjectMap(
-            l4Result.Prev.Prev.Prev.Files,
-            l4Result.Prev.Prev.Projects);
+            ctx.Files,
+            ctx.Projects);
 
         var newNodes = new List<Node>();
         var newRels = new List<Relationship>();
@@ -584,7 +584,7 @@ internal static class SemanticArgumentPropagator
 
     internal static void PropagateCrossServiceEndpointParameterFlows(
         Layer4Result l4Result,
-        ParsingContext ctx,
+        Layer5Context ctx,
         Dictionary<string, FunctionNode> functionsById,
         Dictionary<(string FnId, int ParamIdx), ParameterNode> paramNodesByFnAndIdx,
         List<Relationship> referenceRelationships,
@@ -610,8 +610,8 @@ internal static class SemanticArgumentPropagator
         }
 
         CollectContractNodes(l4Result.SemanticStructure);
-        CollectContractNodes(l4Result.Prev.Prev.Prev.Workspace);
-        foreach (var f in l4Result.Prev.Prev.Prev.Files) CollectContractNodes(f);
+        CollectContractNodes(ctx.Workspace);
+        foreach (var f in ctx.Files) CollectContractNodes(f);
         for (var i = 0; i < l4Result.SemanticNodes.Count; i++) CollectContractNodes(l4Result.SemanticNodes[i]);
 
         if (endpointsById.Count == 0 || extServicesById.Count == 0) return;

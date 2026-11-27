@@ -162,7 +162,7 @@ public class ProjectQueryManagerTests
 
         // Seed simple graph data
         await client.ExecuteWriteAsync(
-            $"INSERT INTO nodes (id, kind, properties) VALUES ('ws1', {CodeExplorer.Cypher.Common.GraphKindCodec.EncodeNodeKind("Workspace")}, jsonb(json_object('name', 'main_ws', 'path', @path)))",
+            $"INSERT INTO nodes (id, kind, properties) VALUES ('ws1', {GraphKindCodec.EncodeNodeKind("Workspace")}, jsonb(json_object('name', 'main_ws', 'path', @path)))",
             new Dictionary<string, object?> { ["path"] = _tempDir });
 
         // 1. Save query via repository
@@ -191,7 +191,7 @@ public class ProjectQueryManagerTests
         execJson.Should().Contain("ws1");
 
         // 4. Missing required parameter throws ArgumentException
-        Assert.ThrowsAsync<ArgumentException>(async () =>
+        await Assert.ThrowsAsync<ArgumentException>(async () =>
             await repo.ExecuteProjectQueryAsync("find_workspace_by_name", "{}", _tempDir));
     }
 }

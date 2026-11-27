@@ -1,9 +1,6 @@
 using System.Globalization;
 using System.Text.Json;
-using CodeExplorer.Core.Common;
-using CodeExplorer.Core.Database;
 using CodeExplorer.Core.Protocol;
-using CodeExplorer.Cypher.Common;
 
 namespace CodeExplorer.Core.Analysis.GraphProjection;
 

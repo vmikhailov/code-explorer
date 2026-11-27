@@ -3,6 +3,7 @@ using System.Runtime.CompilerServices;
 using CodeExplorer.Core.Common.Nodes.Layer1_Physical;
 using CodeExplorer.Core.Common.Nodes.Layer2_Boundaries;
 using CodeExplorer.Core.Common.Nodes.Layer3_Syntactic;
+using CodeExplorer.Core.Parser;
 using CodeExplorer.Core.Semantics;
 
 namespace CodeExplorer.Core.Common.Nodes;
@@ -15,6 +16,7 @@ public sealed class WorkspaceAnalysisSignals
     public string? VsCodeFolderOpenTasksJson { get; set; }
     public string? NuspecId { get; set; }
     public string? NuspecVersion { get; set; }
+    public List<ParsedProjectManifestMetadata> WorkspaceManifestMetadata { get; } = [];
 }
 
 public sealed class FileAnalysisSignals
@@ -83,6 +85,7 @@ public sealed class ProjectAnalysisSignals
     public string? ParentProjectId { get; set; }
     public string? CargoManifestDir { get; set; }
     public Dictionary<string, string>? ManifestHints { get; set; }
+    public ParsedProjectManifestMetadata? ManifestMetadata { get; set; }
 
     /// <summary>
     /// Comma-separated schema names extracted from schema-qualified SQL table references across

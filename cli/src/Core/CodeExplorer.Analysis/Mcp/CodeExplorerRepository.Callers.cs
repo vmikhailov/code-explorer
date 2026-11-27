@@ -1,7 +1,3 @@
-using System.Text;
-using System.Text.Json;
-using CodeExplorer.Cypher.Common;
-
 namespace CodeExplorer.Core.Mcp;
 
 public partial class CodeExplorerRepository

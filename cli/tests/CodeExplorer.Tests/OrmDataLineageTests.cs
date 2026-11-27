@@ -1,5 +1,3 @@
-using CodeExplorer.Core.Database;
-using CodeExplorer.Cypher.Common;
 using CodeExplorer.Parsers.CSharp;
 using CodeExplorer.Parsers.Java;
 using CodeExplorer.Parsers.TypeScript;
@@ -443,7 +441,7 @@ export class Product {
             };
             await db.UploadRelationshipsAsync(rels);
 
-            var ctx = new ParsingContext("", "");
+            var ctx = new Layer5Context("", db);
             var analyzer = new PostIndexAnalyzer(db);
             await analyzer.RunAsync("workspace", ctx);
 
@@ -526,15 +524,18 @@ public class MyEntityConfiguration : IEntityTypeConfiguration<MyEntity>
 public class MyEntity { public int Id { get; set; } }
 ");
 
-            var channel = System.Threading.Channels.Channel.CreateUnbounded<Func<Task>>();
-
             await using var client = new InMemoryGraphRepository();
 
-            var ctx = new ParsingContext(tempWorkspace, tempWorkspace, client, channel);
-
-            var l1Result = await new Core.Parser.Layers.Layer1PhysicalParser().ParseAsync(ctx);
-            var l2Result = await new Core.Parser.Layers.Layer2ProjectParser().ParseAsync(l1Result, ctx);
+            var l1Ctx = new Layer1Context(tempWorkspace, tempWorkspace, client);
+            var l1Result = await new Core.Parser.Layers.Layer1PhysicalParser().ParseAsync(l1Ctx);
+            var l2Ctx = new Layer2Context(l1Ctx.Scope, l1Ctx.Sink, l1Result, l1Ctx.DirectoryIndex);
+            var l2Result = await new Core.Parser.Layers.Layer2ProjectParser().ParseAsync(l2Ctx);
             var projectNode = l2Result.Projects.First(p => p.Name.Equals("MyApp", StringComparison.OrdinalIgnoreCase));
+
+            var ctx = new SemanticParseContext(l1Ctx.Scope)
+            {
+                ProjectsStructure = l2Result.ProjectsStructure
+            };
 
             var csharpParser = new CSharpFileParser();
 

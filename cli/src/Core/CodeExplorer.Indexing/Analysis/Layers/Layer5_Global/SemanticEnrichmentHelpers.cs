@@ -1,9 +1,7 @@
-using CodeExplorer.Core.Common.Nodes;
 using CodeExplorer.Core.Common.Nodes.Layer1_Physical;
 using CodeExplorer.Core.Common.Nodes.Layer3_Syntactic;
 using CodeExplorer.Core.Common.Nodes.Layer4_Semantic;
 using CodeExplorer.Core.Common.Relationships;
-using CodeExplorer.Cypher.Common;
 
 namespace CodeExplorer.Core.Parser.Layers;
 
@@ -75,10 +73,9 @@ internal static class SemanticEnrichmentHelpers
         }
     }
 
-    public static Dictionary<string, FileNode> CollectFilesByPath(Layer4Result l4Result)
+    public static Dictionary<string, FileNode> CollectFilesByPath(FilesStructureNode? fs)
     {
         var map = new Dictionary<string, FileNode>(StringComparer.OrdinalIgnoreCase);
-        var fs = l4Result.Prev?.Prev?.Prev?.FilesStructure;
         if (fs != null) WalkFiles(fs, map);
         return map;
     }

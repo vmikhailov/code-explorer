@@ -1,9 +1,6 @@
 using System.Collections.Concurrent;
-using CodeExplorer.Core.Common;
-using CodeExplorer.Core.Common.Nodes;
 using CodeExplorer.Core.Common.Nodes.Layer1_Physical;
 using CodeExplorer.Core.Common.Nodes.Layer2_Boundaries;
-using CodeExplorer.Core.Common.Relationships;
 
 namespace CodeExplorer.Core.Parser.Layers;
 
@@ -20,6 +17,7 @@ internal static class Layer3ProjectFileStreamer
     private const char SlashChar = '/';
 
     public static void GroupFilesByEnclosingProject(
+        Layer1Result l1Result,
         Layer2Result l2Result,
         Dictionary<string, List<FileNode>> filesByProjectId,
         Dictionary<string, ProjectNode> primaryOwnerByFilePath,
@@ -29,7 +27,7 @@ internal static class Layer3ProjectFileStreamer
         var hasNonScriptProject = l2Result.Projects.Any(static pr => pr.EntityKind != ProjectEntityKind.ScriptProject);
         var bestMatches = new List<ProjectNode>();
 
-        foreach (var file in l2Result.Prev.Files)
+        foreach (var file in l1Result.Files)
         {
             if (!string.IsNullOrEmpty(file.Path))
             {
@@ -123,7 +121,7 @@ internal static class Layer3ProjectFileStreamer
 
     public static async ValueTask<bool> EnsureSourceFileStreamedAsync(
         FileNode file,
-        ParsingContext ctx,
+        Layer3Context ctx,
         ConcurrentDictionary<string, byte> prunedFileIds,
         CancellationToken cancellationToken)
     {
@@ -135,7 +133,7 @@ internal static class Layer3ProjectFileStreamer
         try
         {
             var sizeBytes = file.SizeBytes ?? 0L;
-            var streamed = await PhysicalFileStore.StreamAndAnalyzeFileAsync(
+            var streamed = await FileStreamReader.StreamAndAnalyzeFileAsync(
                 file.FullPath,
                 file.Path,
                 file.Name,
@@ -152,7 +150,6 @@ internal static class Layer3ProjectFileStreamer
                 {
                     ctx.DiscoveredContentSkippedFiles[file.Path] = (file.FullPath, file.LastModifiedUtc.Value, sizeBytes);
                 }
-                PhysicalFileStore.EvictFileText(file.FullPath);
                 prunedFileIds.TryAdd(file.Id, 0);
                 return false;
             }
@@ -166,14 +163,14 @@ internal static class Layer3ProjectFileStreamer
         catch (Exception ex) when (ex is FileNotFoundException or DirectoryNotFoundException)
         {
             ctx.Layer1Log.SkippingBrokenSymlink(file.Path);
-            PhysicalFileStore.RemoveCachedFile(file.FullPath);
+            ctx.DirectoryIndex.RemoveDirectoryFileEntry(file.FullPath);
             prunedFileIds.TryAdd(file.Id, 0);
             return false;
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
             ctx.Layer1Log.FileReadFailed(file.Path, ex);
-            PhysicalFileStore.RemoveCachedFile(file.FullPath);
+            ctx.DirectoryIndex.RemoveDirectoryFileEntry(file.FullPath);
             prunedFileIds.TryAdd(file.Id, 0);
             ctx.RecordScanIssue(
                 Layer1Stage,
@@ -184,14 +181,13 @@ internal static class Layer3ProjectFileStreamer
                 severity: SeverityWarning,
                 exception: ex,
                 parentNodeId: null,
-                isFileParent: false,
-                logToConsole: false);
+                isFileParent: false);
             return false;
         }
     }
 
     public static void PruneSkippedFilesAndEnqueueContains(
-        Layer2Result l2Result,
+        Layer1Result l1Result,
         Dictionary<string, IOntologyNode> parentByChildId,
         Dictionary<string, FileNode> fileNodeByPath,
         Dictionary<string, ProjectNode> primaryOwnerByFilePath,
@@ -200,7 +196,7 @@ internal static class Layer3ProjectFileStreamer
     {
         if (prunedFileIds.IsEmpty) return;
 
-        var mutableFolders = l2Result.Prev.Folders as List<FolderNode>;
+        var mutableFolders = l1Result.Folders;
         foreach (var fileId in prunedFileIds.Keys)
         {
             if (!parentByChildId.TryGetValue(fileId, out var parentNode)) continue;
@@ -208,17 +204,15 @@ internal static class Layer3ProjectFileStreamer
             PruneEmptyAncestorFolders(parentNode, parentByChildId, mutableFolders);
         }
 
-        if (l2Result.Prev.Files is List<FileNode> mutableFiles)
+        var mutableFiles = l1Result.Files;
+        for (var i = mutableFiles.Count - 1; i >= 0; i--)
         {
-            for (var i = mutableFiles.Count - 1; i >= 0; i--)
-            {
-                var f = mutableFiles[i];
-                if (!prunedFileIds.ContainsKey(f.Id)) continue;
-                var normPath = f.Path.NormalizeSlashes().Trim(SlashChar);
-                fileNodeByPath.Remove(normPath);
-                primaryOwnerByFilePath.Remove(normPath);
-                mutableFiles.RemoveAt(i);
-            }
+            var f = mutableFiles[i];
+            if (!prunedFileIds.ContainsKey(f.Id)) continue;
+            var normPath = f.Path.NormalizeSlashes().Trim(SlashChar);
+            fileNodeByPath.Remove(normPath);
+            primaryOwnerByFilePath.Remove(normPath);
+            mutableFiles.RemoveAt(i);
         }
 
         projectRels.RemoveAll(r => prunedFileIds.ContainsKey(r.To));

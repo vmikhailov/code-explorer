@@ -29,7 +29,7 @@ public class RdKafkaRustLibraryParser : DeclarativeSemanticExtension
         ];
     }
 
-    private static void CollectReferencesCore(Node node, string scopeSymbolId, List<Reference> references, ParsingContext ctx)
+    private static void CollectReferencesCore(Node node, string scopeSymbolId, List<Reference> references, SemanticParseContext ctx)
     {
         if (IsKafkaCall(node, out var topic, out var isProducer) && !string.IsNullOrEmpty(topic))
         {
@@ -42,7 +42,7 @@ public class RdKafkaRustLibraryParser : DeclarativeSemanticExtension
         }
     }
 
-    private static void EnrichSymbolCore(Node node, SyntacticSymbol symbol, ParsingContext ctx)
+    private static void EnrichSymbolCore(Node node, SyntacticSymbol symbol, SemanticParseContext ctx)
     {
         if (IsKafkaCall(node, out _, out _))
         {

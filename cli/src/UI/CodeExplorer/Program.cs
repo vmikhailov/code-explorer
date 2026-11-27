@@ -30,6 +30,7 @@ public class Program
         }
 
         WorkspaceIndexer.AutoRegisterParsers();
+        WorkspaceIndexer.IntentEnrichmentHook = CodeIntentAnalyzer.EnrichAsync;
 
         using var parser = new CommandLineParser(settings =>
         {

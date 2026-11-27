@@ -1,10 +1,7 @@
 using System.Text.RegularExpressions;
-using CodeExplorer.Core.Common;
 using CodeExplorer.Core.Common.Nodes.Layer1_Physical;
-using CodeExplorer.Core.Common.Nodes.Layer2_Boundaries;
 using CodeExplorer.Core.Common.Nodes.Layer3_Syntactic;
 using CodeExplorer.Core.Common.Nodes.Layer4_Semantic;
-using CodeExplorer.Core.Parser;
 using CodeExplorer.Core.Parser.Syntax;
 using Node = CodeExplorer.Core.Parser.Syntax.SyntaxNode;
 
@@ -118,14 +115,15 @@ public partial class KotlinFileParser : IFileParser
         string filePath,
         string parentNodeId,
         string workspaceId,
-        string absoluteWorkspacePath)
+        string absoluteWorkspacePath,
+        string? preloadedContent = null)
     {
         var relativePath = Path.GetRelativePath(absoluteWorkspacePath, filePath).Replace('\\', '/');
         var fileName = Path.GetFileName(filePath);
         var fileNodeId = $"{workspaceId}:{OntologyConstants.IdPrefixes.File}:{relativePath}";
 
         var fileNode = new FileNode(fileNodeId, fileName, relativePath, filePath);
-        var content = await PhysicalFileStore.ConsumeFileTextAsync(filePath);
+        var content = preloadedContent ?? await FileStreamReader.ReadTextOnceAsync(filePath);
 
         var rawImports = new List<RawImport>();
         var rawVariables = new List<RawVariable>();
@@ -372,7 +370,7 @@ public partial class KotlinFileParser : IFileParser
                 nextIdx++;
             }
 
-            string args = string.Empty;
+            var args = string.Empty;
             if (nextIdx < textToScan.Length && textToScan[nextIdx] == '(')
             {
                 var openParen = nextIdx;

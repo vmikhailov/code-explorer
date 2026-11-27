@@ -6,7 +6,7 @@ MATCH (target) WHERE (target:Type OR target:Function OR target:Project OR target
        OR target.graphql_operation = $symbolName
        OR target.symbol ENDS WITH $symbolName 
        OR target.name CONTAINS $symbolName)
-MATCH (target)<-[r:USES_TYPE|CALLS|SERVICE_CALL|CALLS_ENDPOINT|IMPLEMENTS|INHERITS_FROM|PUBLISHES_TO|SUBSCRIBES_TO|TRIGGERS|QUERIED_BY|PERSISTED_IN]-(dependent)
+MATCH (target)<-[r:USES_TYPE|OF_TYPE|CALLS|SERVICE_CALL|CALLS_ENDPOINT|IMPLEMENTS|INHERITS_FROM|PUBLISHES_TO|SUBSCRIBES_TO|TRIGGERS|QUERIED_BY|PERSISTED_IN]-(dependent)
 OPTIONAL MATCH (dependent)-[:DECLARED_IN]->(f:File)
 RETURN 
   CASE 

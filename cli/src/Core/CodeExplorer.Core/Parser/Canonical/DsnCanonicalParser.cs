@@ -1,5 +1,4 @@
 using System.Text;
-using CodeExplorer.Cypher.Common;
 
 namespace CodeExplorer.Core.Parser.Canonical;
 

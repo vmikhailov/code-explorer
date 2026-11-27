@@ -14,7 +14,7 @@ public class JavaTestComponentParser : IComponentLibraryParser
 
     public bool CanHandle(ProjectContext context)
     {
-        return context.ProjectType == CodeExplorer.Cypher.Common.ProjectLanguage.Java &&
+        return context.ProjectType == ProjectLanguage.Java &&
                (Libraries.JavaTestLibraryParser.Instance.GetPackageDescriptors().Any(p => p.Matches(context)) ||
                 context.FilesInDirectory.Any(f => f.EndsWith("Test.java") || f.EndsWith("Tests.java")) ||
                 context.ManifestProperties.GetValueOrDefault("manifest_type") == "test" ||
@@ -36,7 +36,7 @@ public class JavaTestComponentParser : IComponentLibraryParser
         };
     }
 
-    public void EnrichWithSyntax(ComponentAnalysisResult? result, SyntaxTree syntaxTree, ParsingContext ctx)
+    public void EnrichWithSyntax(ComponentAnalysisResult? result, SyntaxTree syntaxTree, SemanticParseContext ctx)
     {
         if (syntaxTree.Tree == null) return;
 
@@ -45,7 +45,7 @@ public class JavaTestComponentParser : IComponentLibraryParser
 
         var root = syntaxTree.Tree.RootNode;
 
-        void WalkNode(CodeExplorer.Core.Parser.Syntax.SyntaxNode node)
+        void WalkNode(Core.Parser.Syntax.SyntaxNode node)
         {
             if (node.Is(TreeSitterSyntax.Java.MethodDeclaration))
             {
@@ -70,7 +70,7 @@ public class JavaTestComponentParser : IComponentLibraryParser
                 }
             }
 
-            for (int i = 0; i < node.Children.Count; i++)
+            for (var i = 0; i < node.Children.Count; i++)
             {
                 var child = node.Children[i];
                 if (child.IsValid())

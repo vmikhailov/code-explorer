@@ -1,7 +1,5 @@
-using CodeExplorer.Core.Common.Nodes;
 using CodeExplorer.Core.Common.Nodes.Layer4_Semantic;
 using CodeExplorer.Core.Common.Relationships;
-using CodeExplorer.Cypher.Common;
 
 namespace CodeExplorer.Core.Parser.Layers;
 
@@ -19,14 +17,14 @@ internal static class TableOwnershipEnricher
 
     public static Dictionary<string, string> EnrichTableOwnership(
         Layer4Result? l4Result,
-        ParsingContext ctx,
+        Layer5Context ctx,
         List<Relationship> referenceRelationships,
         HashSet<(string From, string To, string Kind)> existingRefRels)
     {
         var tableOwnerModuleId = new Dictionary<string, string>(StringComparer.Ordinal);
         if (l4Result == null) return tableOwnerModuleId;
 
-        var syntaxStruct = l4Result.Prev?.SyntaxStructure ?? ctx.SyntaxStructure;
+        var syntaxStruct = ctx.SyntaxStructure;
         if (syntaxStruct == null) return tableOwnerModuleId;
 
         var modules = SemanticEnrichmentHelpers.CollectModules(l4Result.SemanticStructure);
@@ -34,7 +32,7 @@ internal static class TableOwnershipEnricher
 
         var tablesById = new Dictionary<string, TableNode>(StringComparer.Ordinal);
         CollectTables(l4Result.SemanticStructure, tablesById);
-        CollectTables(l4Result.Prev?.Prev?.Prev?.FilesStructure, tablesById);
+        CollectTables(ctx.FilesStructure, tablesById);
         if (tablesById.Count == 0) return tableOwnerModuleId;
 
         var index = SemanticEnrichmentHelpers.CollectTypesAndMethods(syntaxStruct);

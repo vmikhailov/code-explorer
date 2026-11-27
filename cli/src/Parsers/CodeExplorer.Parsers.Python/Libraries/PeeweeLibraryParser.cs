@@ -34,7 +34,7 @@ public class PeeweeLibraryParser : DeclarativeSemanticExtension
         ];
     }
 
-    private static string? ExtractPeeweeIdentifier(Node node, ParsingContext ctx, string? projectName, string? relativePath)
+    private static string? ExtractPeeweeIdentifier(Node node, SemanticParseContext ctx, string? projectName, string? relativePath)
     {
         if (IsPeeweeModelClass(node, out var className))
         {
@@ -66,7 +66,7 @@ public class PeeweeLibraryParser : DeclarativeSemanticExtension
 
     private const string DefaultDatabaseId = "database";
 
-    private static void CollectPeeweeReferences(Node node, string scopeSymbolId, List<Reference> references, ParsingContext ctx)
+    private static void CollectPeeweeReferences(Node node, string scopeSymbolId, List<Reference> references, SemanticParseContext ctx)
     {
         if (IsPeeweeModelClass(node, out var className))
         {

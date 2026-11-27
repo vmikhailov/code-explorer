@@ -33,7 +33,7 @@ public class HotChocolateLibraryParser : DeclarativeSemanticExtension
         "UsePagingAttribute", "UseFilteringAttribute", "UseSortingAttribute", "UseProjectionAttribute"
     ];
 
-    private static string? ExtractHotChocolateIdentifier(Node node, ParsingContext ctx)
+    private static string? ExtractHotChocolateIdentifier(Node node, SemanticParseContext ctx)
     {
         if (IsGraphQlAttribute(node))
         {
@@ -65,7 +65,7 @@ public class HotChocolateLibraryParser : DeclarativeSemanticExtension
         return null;
     }
 
-    private static void EnrichHotChocolateSymbol(Node node, SyntacticSymbol symbol, ParsingContext ctx)
+    private static void EnrichHotChocolateSymbol(Node node, SyntacticSymbol symbol, SemanticParseContext ctx)
     {
         if (IsGraphQlAttribute(node))
         {
@@ -73,9 +73,9 @@ public class HotChocolateLibraryParser : DeclarativeSemanticExtension
             var attrName = GetAttributeName(node);
             symbol.OperationType = attrName switch
             {
-                "Mutation" or "MutationAttribute" => CodeExplorer.Cypher.Common.OperationType.Mutation,
-                "Subscription" or "SubscriptionAttribute" => CodeExplorer.Cypher.Common.OperationType.Subscription,
-                _ => CodeExplorer.Cypher.Common.OperationType.Query
+                "Mutation" or "MutationAttribute" => OperationType.Mutation,
+                "Subscription" or "SubscriptionAttribute" => OperationType.Subscription,
+                _ => OperationType.Query
             };
         }
         else if (IsGraphQlMethodDeclaration(node))
@@ -84,9 +84,9 @@ public class HotChocolateLibraryParser : DeclarativeSemanticExtension
             var op = GetGraphQlOperationTypeFromClass(node);
             symbol.OperationType = op switch
             {
-                "MUTATION" => CodeExplorer.Cypher.Common.OperationType.Mutation,
-                "SUBSCRIPTION" => CodeExplorer.Cypher.Common.OperationType.Subscription,
-                _ => CodeExplorer.Cypher.Common.OperationType.Query
+                "MUTATION" => OperationType.Mutation,
+                "SUBSCRIPTION" => OperationType.Subscription,
+                _ => OperationType.Query
             };
         }
         else

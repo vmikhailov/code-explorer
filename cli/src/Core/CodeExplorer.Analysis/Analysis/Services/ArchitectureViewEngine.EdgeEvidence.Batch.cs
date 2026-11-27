@@ -1,5 +1,4 @@
 using CodeExplorer.Core.Protocol;
-using CodeExplorer.Cypher.Common;
 
 namespace CodeExplorer.Core.Analysis;
 
@@ -62,8 +61,8 @@ public partial class ArchitectureViewEngine
                     var matchedScope = scopes.FirstOrDefault(s => s.Matches(path, symService, symId));
                     if (matchedScope is null) continue;
 
-                    int? line = ParseLineProp(rProps, OntologyConstants.PropertyNames.Line, row, "line");
-                    int? lineEnd = ParseLineProp(rProps, OntologyConstants.PropertyNames.LineEnd, row, "line_end") ?? line;
+                    var line = ParseLineProp(rProps, OntologyConstants.PropertyNames.Line, row, "line");
+                    var lineEnd = ParseLineProp(rProps, OntologyConstants.PropertyNames.LineEnd, row, "line_end") ?? line;
 
                     var symName = row.GetStringProp("name");
                     items.Add(new ArchitectureEvidenceItemDto
@@ -152,8 +151,8 @@ public partial class ArchitectureViewEngine
                     var symKind = row.GetStringProp("kind");
                     if (symKind is "Endpoint" or "EntryPoint" && row.GetStringProp("rel_kind") == "ATTRIBUTED_TO") continue;
 
-                    int? line = ParseLineProp(rProps, OntologyConstants.PropertyNames.Line, row, "line");
-                    int? lineEnd = ParseLineProp(rProps, OntologyConstants.PropertyNames.LineEnd, row, "line_end") ?? line;
+                    var line = ParseLineProp(rProps, OntologyConstants.PropertyNames.Line, row, "line");
+                    var lineEnd = ParseLineProp(rProps, OntologyConstants.PropertyNames.LineEnd, row, "line_end") ?? line;
 
                     var symName = row.GetStringProp("name");
                     if (!seen.Add($"{path}:{line}:{symName}:{extId}")) continue;
@@ -251,8 +250,8 @@ public partial class ArchitectureViewEngine
                 var method = row.GetStringProp("http_method");
                 var route = row.GetStringProp("route");
                 var epName = row.GetStringProp("ep_name");
-                int? line = ParseLineProp(rProps, OntologyConstants.PropertyNames.Line, row, "line");
-                int? lineEnd = ParseLineProp(rProps, OntologyConstants.PropertyNames.LineEnd, row, "line_end") ?? line;
+                var line = ParseLineProp(rProps, OntologyConstants.PropertyNames.Line, row, "line");
+                var lineEnd = ParseLineProp(rProps, OntologyConstants.PropertyNames.LineEnd, row, "line_end") ?? line;
 
                 var callerName = row.GetStringProp("name");
 
@@ -320,8 +319,8 @@ public partial class ArchitectureViewEngine
                         cs.Scope.Matches(tPath, null, sym2Id));
                     if (matchedCallee.Scope is null) continue;
 
-                    int? line = row.GetNullableIntProp("line");
-                    int? lineEnd = row.GetNullableIntProp("line_end");
+                    var line = row.GetNullableIntProp("line");
+                    var lineEnd = row.GetNullableIntProp("line_end");
                     if (line <= 0) line = null;
                     if (lineEnd <= 0) lineEnd = line;
 

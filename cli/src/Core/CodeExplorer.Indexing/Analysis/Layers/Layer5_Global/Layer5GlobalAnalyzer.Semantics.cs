@@ -1,6 +1,3 @@
-using CodeExplorer.Core.Common.Nodes;
-using CodeExplorer.Core.Common.Relationships;
-
 namespace CodeExplorer.Core.Parser.Layers;
 
 public partial class Layer5AnalysisParser
@@ -8,7 +5,7 @@ public partial class Layer5AnalysisParser
     private Dictionary<string, string>? _tableOwnerModuleIds;
 
     private async Task RunSemanticLayerEnrichersAsync(
-        ParsingContext ctx,
+        Layer5Context ctx,
         SymbolLookups symbols,
         BindingLookups bindings,
         List<Relationship> referenceRelationships,
@@ -21,7 +18,7 @@ public partial class Layer5AnalysisParser
             await ctx.EnqueueUploadNodesAsync(enrichedOrmTables);
         }
 
-        var sensitivityTables = DataSensitivityEnricher.EnrichTableSensitivity(_currentL4Result);
+        var sensitivityTables = DataSensitivityEnricher.EnrichTableSensitivity(_currentL4Result, ctx.Workspace);
         if (sensitivityTables.Count > 0)
         {
             await ctx.EnqueueUploadNodesAsync(sensitivityTables);

@@ -1,5 +1,4 @@
 using System.Text.Json;
-using CodeExplorer.Core.Common.Nodes;
 using CodeExplorer.Core.Common.Nodes.Layer2_Boundaries;
 using CodeExplorer.Core.Common.Nodes.Layer3_Syntactic;
 using CodeExplorer.Core.Common.Nodes.Layer4_Semantic;
@@ -7,13 +6,9 @@ using CodeExplorer.Core.Parser.Layers;
 
 namespace CodeExplorer.Core.Parser;
 
-
-
-public record CanonicalizeDatabasesResult(int CanonicalNodesCount, int MaterializedRelationshipsCount);
-
 public partial class PostIndexAnalyzer(IGraphClient db)
 {
-    public async Task RunAsync(string workspaceId, ParsingContext ctx)
+    public async Task RunAsync(string workspaceId, Layer5Context ctx)
     {
         ArgumentNullException.ThrowIfNull(ctx);
         var widPrefix = string.IsNullOrEmpty(workspaceId) ? "" : (workspaceId.EndsWith(':') ? workspaceId : workspaceId + ":");
@@ -23,7 +18,7 @@ public partial class PostIndexAnalyzer(IGraphClient db)
         ctx.PostIndexLog.NormalizingArchitecturalEdges();
         await NormalizeEdgesAsync(db, widPrefix);
         ctx.PostIndexLog.PurgingPhantomExternalServices();
-        await PurgePhantomExternalServicesAsync(db, widPrefix);
+        await PurgePhantomExternalServicesAsync(db, widPrefix, isSubtreeScan: ctx.IsSubtreeScan);
         ctx.PostIndexLog.PurgingPlaceholderTopics();
         await PurgePlaceholderTopicsAsync(db, widPrefix);
         ctx.PostIndexLog.DeduplicatingProjectNodes();
@@ -47,7 +42,7 @@ public partial class PostIndexAnalyzer(IGraphClient db)
     }
 
     public async Task RunInMemoryAsync(
-        ParsingContext ctx,
+        Layer5Context ctx,
         Layer4Result l4Result,
         List<Relationship> referenceRelationships,
         List<Relationship> lateBoundRels)
@@ -133,13 +128,13 @@ public partial class PostIndexAnalyzer(IGraphClient db)
             }
         }
 
-        var root = l4Result.Prev.Prev.Prev.Workspace;
+        var root = ctx.Workspace;
         CollectNodes(root);
         if (l4Result.SemanticStructure != null)
         {
             CollectNodes(l4Result.SemanticStructure);
         }
-        foreach (var file in l4Result.Prev.Prev.Prev.Files)
+        foreach (var file in ctx.Files)
         {
             CollectNodes(file);
         }
@@ -191,7 +186,7 @@ public partial class PostIndexAnalyzer(IGraphClient db)
         foreach (var rel in ctx.TreeRelationships) ProcessImplementsRel(rel);
 
         var projectToEntryPoints = new Dictionary<string, List<string>>();
-        foreach (var project in l4Result.Prev.Prev.Projects)
+        foreach (var project in ctx.Projects)
         {
             var epList = new List<string>();
             foreach (var child in project.Children)
@@ -237,7 +232,7 @@ public partial class PostIndexAnalyzer(IGraphClient db)
         // Update project nodes in memory
         foreach (var (projId, domains) in result.ProjectExternalApis)
         {
-            var proj = l4Result.Prev.Prev.Projects.FirstOrDefault(p => p.Id == projId);
+            var proj = ctx.Projects.FirstOrDefault(p => p.Id == projId);
             if (proj != null)
             {
                 proj.ExternalApis = JsonSerializer.Serialize(domains);
@@ -255,8 +250,8 @@ public partial class PostIndexAnalyzer(IGraphClient db)
 
         ctx.PostIndexLog.BuildingFileToProjectMap();
         var fileToProject = Layer2ProjectParser.BuildFileToProjectMap(
-            l4Result.Prev.Prev.Prev.Files,
-            l4Result.Prev.Prev.Projects
+            ctx.Files,
+            ctx.Projects
         );
 
         // Canonicalize databases and link projects in graph
@@ -295,8 +290,8 @@ public partial class PostIndexAnalyzer(IGraphClient db)
 
         ctx.PostIndexLog.MaterializingDirectProjectRelationships();
         var directProjectRels = MaterializeDirectProjectRelationships(
-            l4Result.Prev.Prev.Projects,
-            l4Result.Prev.Prev.Prev.Files,
+            ctx.Projects,
+            ctx.Files,
             allCombinedRels,
             dbCanonicalMap: rawToCanonicalDbMap,
             prebuiltFileToProject: fileToProject,
@@ -313,7 +308,7 @@ public partial class PostIndexAnalyzer(IGraphClient db)
 
         ctx.PostIndexLog.MaterializingTransitiveSemanticRelationships();
         var liftedSemanticRels = LiftTransitiveSemanticRelations(
-            l4Result.Prev.Prev.Projects,
+            ctx.Projects,
             allCombinedRels,
             dbCanonicalMap: rawToCanonicalDbMap,
             projectToWorkloadMap: projectToWorkloadMap
@@ -326,7 +321,7 @@ public partial class PostIndexAnalyzer(IGraphClient db)
         }
 
         // Classify projects and persist layer metadata into SQLite nodes
-        ctx.PostIndexLog.ClassifyingArchitecturalLayers(l4Result.Prev.Prev.Projects.Count);
+        ctx.PostIndexLog.ClassifyingArchitecturalLayers(ctx.Projects.Count);
         var usesDbBySource = new Dictionary<string, int>(StringComparer.Ordinal);
         var dependencyItems = new List<DependencyItem>();
         foreach (var r in allCombinedRels)
@@ -347,7 +342,7 @@ public partial class PostIndexAnalyzer(IGraphClient db)
             }
         }
 
-        var classifierItems = l4Result.Prev.Prev.Projects.Select(p =>
+        var classifierItems = ctx.Projects.Select(p =>
         {
             var allChildren = new List<IOntologyNode>();
             void Collect(IOntologyNode parent)
@@ -395,7 +390,7 @@ public partial class PostIndexAnalyzer(IGraphClient db)
         var layerMap = ProjectLayerClassifier.Classify(classifierItems, dependencyItems);
 
         var updatedProjectNodes = new List<Node>();
-        foreach (var p in l4Result.Prev.Prev.Projects)
+        foreach (var p in ctx.Projects)
         {
             if (layerMap.TryGetValue(p.Id, out var layerInfo))
             {
@@ -665,7 +660,8 @@ public partial class PostIndexAnalyzer(IGraphClient db)
                         }
                         // Case 2: Library calls another Service -> Lift direct SERVICE_CALL to Service
                         // Only lift if the library's edge to the target service is an actual service call (not a generic compile-time project dependency)
-                        else if (projects.Any(p => p.Id == targetProjId && !p.IsLibrary && p.Id != service.Id) &&
+                        else if (projects.FirstOrDefault(p => p.Id == targetProjId) is { } targetServiceProj &&
+                                 Layer5RuntimeCallBinder.CanEmitRuntimeServiceCall(service, targetServiceProj) &&
                                  (edge.Kind is RelationshipKind.ServiceCall or RelationshipKind.CallsEndpoint or RelationshipKind.Calls ||
                                   edge.DependencyType == "service_call"))
                         {

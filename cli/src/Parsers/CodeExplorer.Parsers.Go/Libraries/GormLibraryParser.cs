@@ -30,7 +30,7 @@ public class GormLibraryParser : DeclarativeSemanticExtension
         ];
     }
 
-    private static string? ExtractGormIdentifier(Node node, ParsingContext ctx, string? projectName, string? relativePath)
+    private static string? ExtractGormIdentifier(Node node, SemanticParseContext ctx, string? projectName, string? relativePath)
     {
         if (IsGormCall(node, out var method, out var target))
         {
@@ -61,7 +61,7 @@ public class GormLibraryParser : DeclarativeSemanticExtension
 
     private const string DefaultDatabaseId = "database";
 
-    private static void CollectGormReferences(Node node, string scopeSymbolId, List<Reference> references, ParsingContext ctx)
+    private static void CollectGormReferences(Node node, string scopeSymbolId, List<Reference> references, SemanticParseContext ctx)
     {
         if (IsGormCall(node, out var method, out var target))
         {

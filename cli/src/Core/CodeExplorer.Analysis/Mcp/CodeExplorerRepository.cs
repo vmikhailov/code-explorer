@@ -1,6 +1,5 @@
 using System.Text.Json;
 using CodeExplorer.Core.Diagrams;
-using CodeExplorer.Core.Parser;
 
 namespace CodeExplorer.Core.Mcp;
 
@@ -66,12 +65,12 @@ public partial class CodeExplorerRepository : IDisposable
             isNew = true;
             var w = new FileWatcher(root, async batch =>
             {
-                var changed = await indexer.IndexIncrementalAsync(
+                var watchResult = await indexer.IndexAsync(
                     root,
                     root,
                     enableIntentAnalysis: false,
                     knownChangedFiles: batch);
-                if (changed)
+                if (watchResult.HasChanges)
                 {
                     InvalidateCache();
                 }
@@ -415,7 +414,7 @@ public partial class CodeExplorerRepository : IDisposable
         }
 
         var normalizedLevel = level.Trim().ToLowerInvariant();
-        var engine = new Analysis.ArchitectureViewEngine(client);
+        var engine = new ArchitectureViewEngine(client);
 
         var viewType = normalizedLevel switch
         {
@@ -428,14 +427,14 @@ public partial class CodeExplorerRepository : IDisposable
             _ => Analysis.ArchitectureViewType.SystemContext
         };
 
-        var graph = await engine.GetViewAsync(new Analysis.ArchitectureViewRequest
+        var graph = await engine.GetViewAsync(new ArchitectureViewRequest
         {
             ViewType = viewType,
             Scope = scope,
             IncludeLibraries = includeLibraries
         }, cancellationToken);
 
-        return Analysis.ArchitectureViewEngine.ToToon(graph);
+        return ArchitectureViewEngine.ToToon(graph);
     }
 
     public async Task<string> GetDomainArchitectureAsync(
@@ -449,9 +448,9 @@ public partial class CodeExplorerRepository : IDisposable
             return StandbyMessageYaml;
         }
 
-        var engine = new Analysis.ArchitectureViewEngine(client);
+        var engine = new ArchitectureViewEngine(client);
         var domainDto = await engine.GetDomainArchitectureAsync(includeLibraries, cancellationToken);
-        return Analysis.ArchitectureViewEngine.ToToon(domainDto);
+        return ArchitectureViewEngine.ToToon(domainDto);
     }
 
     public async Task<string> GetBoundedContextsAsync(
@@ -464,7 +463,7 @@ public partial class CodeExplorerRepository : IDisposable
             return StandbyMessageYaml;
         }
 
-        var engine = new Analysis.ArchitectureViewEngine(client);
+        var engine = new ArchitectureViewEngine(client);
         var mapDto = await engine.GetBoundedContextMapAsync(ct: cancellationToken);
         return ToonYamlSerializer.SerializeObject(mapDto);
     }
@@ -481,9 +480,9 @@ public partial class CodeExplorerRepository : IDisposable
             return StandbyMessageYaml;
         }
 
-        var engine = new Analysis.ArchitectureViewEngine(client);
+        var engine = new ArchitectureViewEngine(client);
         var contract = await engine.GetServiceContractsAsync(serviceName, direction, cancellationToken);
-        return Analysis.ArchitectureViewEngine.ToToon(contract);
+        return ArchitectureViewEngine.ToToon(contract);
     }
 
     public async Task<string> TraceCrossServiceFlowAsync(
@@ -499,7 +498,7 @@ public partial class CodeExplorerRepository : IDisposable
             return StandbyMessageYaml;
         }
 
-        var engine = new Analysis.ArchitectureViewEngine(client);
+        var engine = new ArchitectureViewEngine(client);
         var flow = await engine.TraceCrossServiceFlowAsync(startService, entryPoint, maxDepth, cancellationToken);
         return ToonYamlSerializer.SerializeObject(flow);
     }

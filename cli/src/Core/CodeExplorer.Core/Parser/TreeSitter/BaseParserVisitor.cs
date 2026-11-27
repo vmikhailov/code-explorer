@@ -18,7 +18,7 @@ public abstract partial class BaseParserVisitor : TreeSitterAstVisitor
     public SemanticExtensionRegistry ExtensionRegistry { get; }
     public SemanticExtensionRegistry LibraryRegistry => ExtensionRegistry;
     public string? ProjectName { get; set; }
-    public ParsingContext? Context { get; set; }
+    public SemanticParseContext? Context { get; set; }
     public bool IsTestFile { get; set; }
 
     protected void RegisterActiveExtension(ISemanticExtension ext)
@@ -159,7 +159,7 @@ public abstract partial class BaseParserVisitor : TreeSitterAstVisitor
     {
         if (IsInsideInterpolatedString(node) ||
             WorkspaceConventions.IsFrontendFilePath(RelativePath) ||
-            (SymbolStack.Count > 0 && SymbolStack.Peek().Kind == CodeExplorer.Cypher.Common.SyntacticSymbolKind.Query))
+            (SymbolStack.Count > 0 && SymbolStack.Peek().Kind == SyntacticSymbolKind.Query))
         {
             return null;
         }
@@ -183,7 +183,7 @@ public abstract partial class BaseParserVisitor : TreeSitterAstVisitor
     {
         if (IsInsideInterpolatedString(node) ||
             WorkspaceConventions.IsFrontendFilePath(RelativePath) ||
-            (SymbolStack.Count > 0 && SymbolStack.Peek().Kind == CodeExplorer.Cypher.Common.SyntacticSymbolKind.Query))
+            (SymbolStack.Count > 0 && SymbolStack.Peek().Kind == SyntacticSymbolKind.Query))
         {
             return null;
         }
@@ -214,12 +214,12 @@ public abstract partial class BaseParserVisitor : TreeSitterAstVisitor
         {
             return td.Kind switch
             {
-                TypeSyntaxKind.Struct => CodeExplorer.Cypher.Common.TaxonomyEnumExtendedExtensions.ToCanonicalString(Profile.DefaultStructKind),
-                TypeSyntaxKind.Enum => CodeExplorer.Cypher.Common.TaxonomyEnumExtendedExtensions.ToCanonicalString(Profile.DefaultEnumKind),
+                TypeSyntaxKind.Struct => TaxonomyEnumExtendedExtensions.ToCanonicalString(Profile.DefaultStructKind),
+                TypeSyntaxKind.Enum => TaxonomyEnumExtendedExtensions.ToCanonicalString(Profile.DefaultEnumKind),
                 TypeSyntaxKind.Class or TypeSyntaxKind.Record => "Class",
                 TypeSyntaxKind.Interface or TypeSyntaxKind.Trait => "Interface",
-                TypeSyntaxKind.TypeAlias or TypeSyntaxKind.Union when Profile.StructDeclarations.Count > 0 && Profile.DefaultStructKind == CodeExplorer.Cypher.Common.SyntacticSymbolKind.Struct =>
-                    CodeExplorer.Cypher.Common.TaxonomyEnumExtendedExtensions.ToCanonicalString(Profile.DefaultStructKind),
+                TypeSyntaxKind.TypeAlias or TypeSyntaxKind.Union when Profile.StructDeclarations.Count > 0 && Profile.DefaultStructKind == SyntacticSymbolKind.Struct =>
+                    TaxonomyEnumExtendedExtensions.ToCanonicalString(Profile.DefaultStructKind),
                 _ => null
             };
         }
@@ -408,7 +408,7 @@ public abstract partial class BaseParserVisitor : TreeSitterAstVisitor
     protected virtual void CollectProfileSymbolMetadata(Node node, SyntacticSymbol symbolNode)
     {
         // 1. If EntryPoint from an annotation/attribute, connect to the enclosing method/class
-        if (symbolNode.Kind == CodeExplorer.Cypher.Common.SyntacticSymbolKind.EntryPoint &&
+        if (symbolNode.Kind == SyntacticSymbolKind.EntryPoint &&
             (node is AnnotationSyntax || Profile.AnnotationNodeTypes.Contains(node.Type)))
         {
             var enclosing = FindEnclosingDeclaration(node);
@@ -416,9 +416,9 @@ public abstract partial class BaseParserVisitor : TreeSitterAstVisitor
             {
                 var methodName = ExtractProfileIdentifier(enclosing);
                 if (!string.IsNullOrEmpty(methodName) &&
-                    !symbolNode.References.Any(r => r.RelationshipKind == CodeExplorer.Cypher.Common.RelationshipKind.Calls && r.TargetName == methodName))
+                    !symbolNode.References.Any(r => r.RelationshipKind == RelationshipKind.Calls && r.TargetName == methodName))
                 {
-                    symbolNode.References.Add(new Reference("", methodName, CodeExplorer.Cypher.Common.RelationshipKind.Calls,
+                    symbolNode.References.Add(new Reference("", methodName, RelationshipKind.Calls,
                         node.StartPosition.Row + 1,
                         node.StartPosition.Column + 1));
                 }
@@ -426,7 +426,7 @@ public abstract partial class BaseParserVisitor : TreeSitterAstVisitor
         }
 
         // 2. Class/Interface/Struct inheritance, implemented interfaces, and annotations
-        if (symbolNode.Kind is CodeExplorer.Cypher.Common.SyntacticSymbolKind.Class or CodeExplorer.Cypher.Common.SyntacticSymbolKind.Interface or CodeExplorer.Cypher.Common.SyntacticSymbolKind.Struct)
+        if (symbolNode.Kind is SyntacticSymbolKind.Class or SyntacticSymbolKind.Interface or SyntacticSymbolKind.Struct)
         {
             void ProcessBaseClause(BaseTypeClauseSyntax clause)
             {
@@ -446,7 +446,7 @@ public abstract partial class BaseParserVisitor : TreeSitterAstVisitor
                             var baseName = fullBaseText;
                             var ltIdx = baseName.IndexOf('<');
                             if (ltIdx > 0) baseName = baseName[..ltIdx].Trim();
-                            symbolNode.References.Add(new Reference("", baseName, CodeExplorer.Cypher.Common.RelationshipKind.InheritsFrom));
+                            symbolNode.References.Add(new Reference("", baseName, RelationshipKind.InheritsFrom));
                             symbolNode.Properties.TryAdd(OntologyConstants.PropertyNames.Extends, fullBaseText);
                         }
                     }
@@ -463,7 +463,7 @@ public abstract partial class BaseParserVisitor : TreeSitterAstVisitor
                             var implName = fullImplText;
                             var ltIdx = implName.IndexOf('<');
                             if (ltIdx > 0) implName = implName[..ltIdx].Trim();
-                            symbolNode.References.Add(new Reference("", implName, CodeExplorer.Cypher.Common.RelationshipKind.Implements));
+                            symbolNode.References.Add(new Reference("", implName, RelationshipKind.Implements));
                             implList ??= [];
                             implList.Add(fullImplText);
                         }
@@ -488,7 +488,7 @@ public abstract partial class BaseParserVisitor : TreeSitterAstVisitor
         }
 
         // 3. Function/Method annotations
-        if (symbolNode.Kind == CodeExplorer.Cypher.Common.SyntacticSymbolKind.Function)
+        if (symbolNode.Kind == SyntacticSymbolKind.Function)
         {
             ExtractProfileAnnotations(node, symbolNode);
         }
@@ -616,8 +616,8 @@ public abstract partial class BaseParserVisitor : TreeSitterAstVisitor
 
             if (LibraryParsers.Count > 0 && MayContainSymbolsOrReferences(node))
             {
-                var enclosingFunc = currentScope.Kind == CodeExplorer.Cypher.Common.SyntacticSymbolKind.Query
-                    ? SymbolStack.FirstOrDefault(s => s.Kind == CodeExplorer.Cypher.Common.SyntacticSymbolKind.Function)
+                var enclosingFunc = currentScope.Kind == SyntacticSymbolKind.Query
+                    ? SymbolStack.FirstOrDefault(s => s.Kind == SyntacticSymbolKind.Function)
                     : null;
 
                 if (_fusedDeclarative != null)
@@ -927,8 +927,8 @@ public abstract partial class BaseParserVisitor : TreeSitterAstVisitor
             !syntacticNode.Properties.ContainsKey(OntologyConstants.PropertyNames.MessagingDirection))
         {
             var subscribes = syntacticNode.References.Any(r =>
-                r.Kind is CodeExplorer.Cypher.Common.RelationshipKind.SubscribesTo or CodeExplorer.Cypher.Common.RelationshipKind.Triggers);
-            var publishes = syntacticNode.References.Any(r => r.Kind == CodeExplorer.Cypher.Common.RelationshipKind.PublishesTo);
+                r.Kind is RelationshipKind.SubscribesTo or RelationshipKind.Triggers);
+            var publishes = syntacticNode.References.Any(r => r.Kind == RelationshipKind.PublishesTo);
             if (subscribes && !publishes)
             {
                 syntacticNode.Properties[OntologyConstants.PropertyNames.MessagingDirection] = OntologyConstants.EvidenceKinds.Subscribe;
@@ -939,18 +939,18 @@ public abstract partial class BaseParserVisitor : TreeSitterAstVisitor
         {
             var rawQueryText = (syntacticNode.Text ?? node.Text).Trim().Trim('"', '\'', '`');
             NestedSqlParser.TryDetectSqlDependencies(rawQueryText, "", syntacticNode.References);
-            var enclosingTarget = SymbolStack.FirstOrDefault(s => s != syntacticNode && s.Kind == CodeExplorer.Cypher.Common.SyntacticSymbolKind.Function)
-                                  ?? SymbolStack.FirstOrDefault(s => s != syntacticNode && s.Kind is CodeExplorer.Cypher.Common.SyntacticSymbolKind.Class
-                                      or CodeExplorer.Cypher.Common.SyntacticSymbolKind.Struct
-                                      or CodeExplorer.Cypher.Common.SyntacticSymbolKind.Type)
+            var enclosingTarget = SymbolStack.FirstOrDefault(s => s != syntacticNode && s.Kind == SyntacticSymbolKind.Function)
+                                  ?? SymbolStack.FirstOrDefault(s => s != syntacticNode && s.Kind is SyntacticSymbolKind.Class
+                                      or SyntacticSymbolKind.Struct
+                                      or SyntacticSymbolKind.Type)
                                   ?? parent;
             if (enclosingTarget != null)
             {
                 foreach (var r in syntacticNode.References)
                 {
-                    if (r.Kind is CodeExplorer.Cypher.Common.RelationshipKind.DependsOn
-                            or CodeExplorer.Cypher.Common.RelationshipKind.ReadsFrom
-                            or CodeExplorer.Cypher.Common.RelationshipKind.WritesTo &&
+                    if (r.Kind is RelationshipKind.DependsOn
+                            or RelationshipKind.ReadsFrom
+                            or RelationshipKind.WritesTo &&
                         !enclosingTarget.References.Contains(r))
                     {
                         enclosingTarget.References.Add(r);

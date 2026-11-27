@@ -4,7 +4,6 @@ using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
 using System.Reflection;
 using System.Runtime.CompilerServices;
-using CodeExplorer.Cypher.Common;
 
 namespace CodeExplorer.Core.Database;
 
@@ -433,7 +432,7 @@ public static class DbRowMaterializer
         if (t == typeof(string)) return string.Empty;
         if (t == typeof(List<string>) || t == typeof(IReadOnlyList<string>)) return new List<string>();
         if (t == typeof(string[])) return Array.Empty<string>();
-        return t.IsValueType ? (t.IsEnum ? Enum.ToObject(t, 0) : System.Runtime.CompilerServices.RuntimeHelpers.GetUninitializedObject(t)) : null;
+        return t.IsValueType ? (t.IsEnum ? Enum.ToObject(t, 0) : RuntimeHelpers.GetUninitializedObject(t)) : null;
     }
 
     private sealed class CachedTypeDescriptor

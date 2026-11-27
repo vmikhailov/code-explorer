@@ -14,7 +14,7 @@ public static class PythonDeclarationExtractor
 
     private static void ExtractInternal(Node node, string? currentScope, Action<string, Node?, string?> register)
     {
-        if (node is CodeExplorer.Core.Parser.Syntax.AssignmentExprSyntax)
+        if (node is Core.Parser.Syntax.AssignmentExprSyntax)
         {
             var left = node.GetChildForField(TreeSitterSyntax.Fields.Left) ??
                        node.Children.FirstOrDefault(c => c.Is(TreeSitterSyntax.Python.Identifier));
@@ -37,7 +37,7 @@ public static class PythonDeclarationExtractor
             return;
         }
 
-        if (node is CodeExplorer.Core.Parser.Syntax.TypeDeclSyntax)
+        if (node is Core.Parser.Syntax.TypeDeclSyntax)
         {
             var nameNode = node.GetChildForField(TreeSitterSyntax.Fields.Name);
             var className = nameNode.IsValid() ? nameNode.Text : currentScope;

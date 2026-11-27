@@ -149,9 +149,9 @@ public static class PythonAstHelper
                             }
                         }
 
-                        var augAssign = child is CodeExplorer.Core.Parser.Syntax.AssignmentExprSyntax { Operator: not "=" }
+                        var augAssign = child is Core.Parser.Syntax.AssignmentExprSyntax { Operator: not "=" }
                             ? child
-                            : child.Children.FirstOrDefault(c => c is CodeExplorer.Core.Parser.Syntax.AssignmentExprSyntax { Operator: not "=" });
+                            : child.Children.FirstOrDefault(c => c is Core.Parser.Syntax.AssignmentExprSyntax { Operator: not "=" });
                         if (augAssign.IsValid() && !IsNodeContainedWithin(node, augAssign))
                         {
                             var left = augAssign.GetField(TreeSitterSyntax.Fields.Left) ??
@@ -193,19 +193,19 @@ public static class PythonAstHelper
         if (depth > MaxRecursionDepth || !argNode.IsValid()) return null;
 
         // 1. String literal / f-string
-        if (argNode is CodeExplorer.Core.Parser.Syntax.LiteralExprSyntax { LiteralKind: CodeExplorer.Core.Parser.Syntax.LiteralSyntaxKind.String or CodeExplorer.Core.Parser.Syntax.LiteralSyntaxKind.RawString }
-            or CodeExplorer.Core.Parser.Syntax.InterpolatedStringExprSyntax)
+        if (argNode is Core.Parser.Syntax.LiteralExprSyntax { LiteralKind: Core.Parser.Syntax.LiteralSyntaxKind.String or Core.Parser.Syntax.LiteralSyntaxKind.RawString }
+            or Core.Parser.Syntax.InterpolatedStringExprSyntax)
         {
-            if (argNode is CodeExplorer.Core.Parser.Syntax.InterpolatedStringExprSyntax)
+            if (argNode is Core.Parser.Syntax.InterpolatedStringExprSyntax)
             {
                 var sb = new System.Text.StringBuilder();
                 foreach (var child in argNode.Children)
                 {
-                    if (child is CodeExplorer.Core.Parser.Syntax.LiteralExprSyntax { LiteralKind: CodeExplorer.Core.Parser.Syntax.LiteralSyntaxKind.String })
+                    if (child is Core.Parser.Syntax.LiteralExprSyntax { LiteralKind: Core.Parser.Syntax.LiteralSyntaxKind.String })
                     {
                         sb.Append(child.Text);
                     }
-                    else if (child is CodeExplorer.Core.Parser.Syntax.ParenthesizedExprSyntax { IsInterpolation: true })
+                    else if (child is Core.Parser.Syntax.ParenthesizedExprSyntax { IsInterpolation: true })
                     {
                         var expr = child.Children.FirstOrDefault(c => c.Type != "{" && c.Type != "}" && c.Type != "!");
                         if (expr.IsValid())
@@ -536,7 +536,7 @@ public static class PythonAstHelper
                                 (c.Is(TreeSitterSyntax.Python.Identifier) ||
                                  c.Is(TreeSitterSyntax.Python.DottedName) ||
                                  c.Is(TreeSitterSyntax.Python.AliasedName) ||
-                                 c is CodeExplorer.Core.Parser.Syntax.KeyValueExprSyntax))
+                                 c is Core.Parser.Syntax.KeyValueExprSyntax))
                     .ToList();
             }
 
@@ -581,7 +581,7 @@ public static class PythonAstHelper
     private static void RegisterImportedNames(Node nameChild, string resolvedModule, Dictionary<string, string> map)
     {
         if (nameChild.Is(TreeSitterSyntax.Python.AliasedName) ||
-            nameChild is CodeExplorer.Core.Parser.Syntax.KeyValueExprSyntax { Children.Count: >= 2 })
+            nameChild is Core.Parser.Syntax.KeyValueExprSyntax { Children.Count: >= 2 })
         {
             var imported = nameChild.Children[0].Text.Trim();
             var alias = nameChild.Children[^1].Text.Trim();

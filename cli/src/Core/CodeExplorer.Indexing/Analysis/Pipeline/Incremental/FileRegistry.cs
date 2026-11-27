@@ -1,5 +1,4 @@
 using System.Collections.Concurrent;
-using CodeExplorer.Core.Database;
 
 namespace CodeExplorer.Core.Parser.Incremental;
 

@@ -1,5 +1,4 @@
 using System.Text.Json;
-using CodeExplorer.Cypher.Common;
 using CodeExplorer.Cypher.Compiler;
 using CodeExplorer.Cypher.Parser;
 using CodeExplorer.Cypher.Tests.Shared;
@@ -126,7 +125,7 @@ public class SqliteCompilerTests
         {
             var row = new Dictionary<string, object?>();
 
-            for (int i = 0; i < reader.FieldCount; i++)
+            for (var i = 0; i < reader.FieldCount; i++)
             {
                 row[reader.GetName(i)] = reader.IsDBNull(i) ? null : reader.GetValue(i);
             }
@@ -899,8 +898,8 @@ public class SqliteCompilerTests
         ungroupedRows.Should().HaveCount(1);
         Convert.ToInt64(ungroupedRows[0]["total"]).Should().Be(7);
         Convert.ToInt64(ungroupedRows[0]["tests"]).Should().Be(2);
-        System.Text.Json.JsonSerializer.Deserialize<string[]>((string)ungroupedRows[0]["sample_names"]!)!.Should().HaveCount(5);
-        System.Text.Json.JsonSerializer.Deserialize<string[]>((string)ungroupedRows[0]["sample_paths"]!)!.Should().HaveCount(3);
+        JsonSerializer.Deserialize<string[]>((string)ungroupedRows[0]["sample_names"]!)!.Should().HaveCount(5);
+        JsonSerializer.Deserialize<string[]>((string)ungroupedRows[0]["sample_paths"]!)!.Should().HaveCount(3);
 
         InsertNode("type:sliceCtrl", "Type", new() { ["name"] = "SliceController" });
         for (var i = 1; i <= 4; i++)
@@ -916,7 +915,7 @@ public class SqliteCompilerTests
 
         groupedRows.Should().HaveCount(1);
         groupedRows[0]["cls"].Should().Be("SliceController");
-        System.Text.Json.JsonSerializer.Deserialize<string[]>((string)groupedRows[0]["sample_methods"]!)!.Should().HaveCount(2);
+        JsonSerializer.Deserialize<string[]>((string)groupedRows[0]["sample_methods"]!)!.Should().HaveCount(2);
     }
 
     [Test]

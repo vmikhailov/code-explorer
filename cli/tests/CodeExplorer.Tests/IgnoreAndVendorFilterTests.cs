@@ -384,7 +384,7 @@ packages/
             foldersJson.Should().NotContain("tmp-sandboxes");
 
             // Immediate incremental scan should see 0 changes (file_registry populated in single pass)
-            var changed = await indexer.IndexIncrementalAsync(tempDir, tempDir);
+            var changed = (await indexer.IndexAsync(tempDir, tempDir)).HasChanges;
             changed.Should().BeFalse();
         }
         finally
@@ -723,21 +723,16 @@ snapshots/*.snap
             await File.WriteAllTextAsync(minifiedPath, "(function(modules){function __webpack_require__(id){return modules[id];}})([]);");
 
             WorkspaceIndexer.AutoRegisterParsers();
-            var channel = System.Threading.Channels.Channel.CreateUnbounded<Func<Task>>();
             await using var memRepo = new InMemoryGraphRepository();
-            var l1Ctx = new ParsingContext(tempDir, tempDir, memRepo, channel)
-            {
-                FileFilter = WorkspaceFileFilter.Default
-            };
+            var l1Ctx = new Layer1Context(tempDir, tempDir, memRepo, fileFilter: WorkspaceFileFilter.Default);
 
-            // 1. Layer 1 must NOT open or preload source files into memory
-            var l1 = await new CodeExplorer.Core.Parser.Layers.Layer1PhysicalParser().ParseAsync(l1Ctx);
+            // 1. Layer 1 must NOT open or preload source files or manifests into memory upfront
+            var l1 = await new Core.Parser.Layers.Layer1PhysicalParser().ParseAsync(l1Ctx);
             var appFile = l1.Files.Single(f => f.Name == "app.ts");
             appFile.PreloadedContent.Should().BeNull("Layer 1 should not read source file contents upfront");
             appFile.LineCount.Should().BeNull("LineCount is computed on demand when Layer 3 streams the project file");
-            PhysicalFileStore.TryGetFileText(mainPath, out _).Should().BeFalse("Source text must not be buffered in PhysicalFileStore during Layer 1");
-            PhysicalFileStore.TryGetFileText(Path.Combine(tempDir, "package.json"), out var pkgText).Should().BeTrue("Manifests remain available for Layer 2");
-            pkgText.Should().Contain("lazy-stream-app");
+            l1Ctx.DiscoveredManifestPaths.Should().ContainKey("package.json");
+            l1Ctx.DiscoveredManifestFiles.Should().BeEmpty("Manifests are parsed once on demand by IProjectParser in Layer 2 without upfront buffering");
 
             // 2. Full pipeline streams project files in Layer 3, computes LineCount & hashes, and prunes content-minified JS bundles
             var dbPath = Path.Combine(tempDir, "lazy_graph.db");
@@ -752,7 +747,7 @@ snapshots/*.snap
             var funcsJson = (await client.ExecuteCypherAsync("MATCH (fn:Function) RETURN fn.name AS name")).ToJson();
             funcsJson.Should().Contain("runApp");
 
-            var changed = await indexer.IndexIncrementalAsync(tempDir, tempDir);
+            var changed = (await indexer.IndexAsync(tempDir, tempDir)).HasChanges;
             changed.Should().BeFalse("Incremental registry should track both streamed project files and content-skipped bundles");
         }
         finally

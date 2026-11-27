@@ -1,4 +1,3 @@
-using CodeExplorer.Core.Database;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using NUnit.Framework;
@@ -119,7 +118,7 @@ public class Layer1Layer2MatrixBaselineTests
             Enum.TryParse<ProjectEntityKind>(actualKindStr, true, out var actualKind);
             var actualIsLib = bool.TryParse(node.Properties.GetValueOrDefault("is_library")?.ToString(), out var b) && b;
 
-            actualType.Should().Be(CodeExplorer.Cypher.Common.TaxonomyEnumExtendedExtensions.ToCanonicalString(expected.ProjectType), $"Project '{path}' projectType mismatch");
+            actualType.Should().Be(TaxonomyEnumExtendedExtensions.ToCanonicalString(expected.ProjectType), $"Project '{path}' projectType mismatch");
             actualKind.Should().Be(expected.EntityKind, $"Project '{path}' entityKind mismatch");
             actualIsLib.Should().Be(expected.IsLibrary, $"Project '{path}' isLibrary mismatch");
         }
@@ -156,7 +155,7 @@ public class Layer1Layer2MatrixBaselineTests
         var expectedAnswers = JsonSerializer.Deserialize<Dictionary<string, ExpectedProjectAnswer>>(json, jsonOptions)!;
 
         var testedProjectTypes = expectedAnswers.Values
-            .Select(a => CodeExplorer.Cypher.Common.TaxonomyEnumExtendedExtensions.ToCanonicalString(a.ProjectType).ToLowerInvariant())
+            .Select(a => TaxonomyEnumExtendedExtensions.ToCanonicalString(a.ProjectType).ToLowerInvariant())
             .Distinct()
             .ToHashSet();
 

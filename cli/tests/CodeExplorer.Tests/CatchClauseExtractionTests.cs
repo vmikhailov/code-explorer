@@ -1,9 +1,7 @@
 using System.Threading.Channels;
 using CodeExplorer.Core.Common.Nodes;
 using CodeExplorer.Core.Common.Nodes.Layer3_Syntactic;
-using CodeExplorer.Core.Database;
 using CodeExplorer.Core.Parser.Layers;
-using CodeExplorer.Cypher.Common;
 using CodeExplorer.Parsers.CSharp;
 using CodeExplorer.Parsers.TypeScript;
 using CodeExplorer.Parsers.TypeScript.Components;
@@ -23,7 +21,7 @@ public class CatchClauseExtractionTests
             var filePath = Path.Combine(tempDir, fileName);
             await File.WriteAllTextAsync(filePath, code);
             var channel = Channel.CreateUnbounded<Func<Task>>();
-            var ctx = new ParsingContext(tempDir, tempDir, new InMemoryGraphRepository(), channel);
+            var ctx = new SemanticParseContext(tempDir);
             using var syntaxTree = await new TypeScriptFileParser().ParseAsync(filePath, "parent-id", ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
             var isTest = WorkspaceConventions.IsTestFilePath(filePath) || new JavaScriptTestRunnerComponentParser().IsTestSource(syntaxTree);
             syntaxTree.FileNode!.IsTest = isTest;
@@ -45,7 +43,7 @@ public class CatchClauseExtractionTests
             var filePath = Path.Combine(tempDir, fileName);
             await File.WriteAllTextAsync(filePath, code);
             var channel = Channel.CreateUnbounded<Func<Task>>();
-            var ctx = new ParsingContext(tempDir, tempDir, new InMemoryGraphRepository(), channel);
+            var ctx = new SemanticParseContext(tempDir);
             using var syntaxTree = await new CSharpFileParser().ParseAsync(filePath, "parent-id", ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
             var isTest = WorkspaceConventions.IsTestFilePath(filePath);
             syntaxTree.FileNode!.IsTest = isTest;

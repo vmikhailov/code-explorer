@@ -17,7 +17,8 @@ export type DomainLayoutName =
   | 'matrix'
   | 'cose'
   | 'dagre'
-  | 'mermaid';
+  | 'mermaid'
+  | 'orbital-3d';
 
 export type EdgeCurveMode = 'bezier' | 'straight' | 'avoid-inner';
 

@@ -32,9 +32,9 @@ public static class GitDiffHelper
             var matchHunk = HunkHeaderRegex.Match(line);
             if (matchHunk.Success && currentFile != null)
             {
-                int start = int.Parse(matchHunk.Groups[3].Value);
-                int count = matchHunk.Groups[4].Success ? int.Parse(matchHunk.Groups[4].Value) : 1;
-                int end = count > 0 ? start + count - 1 : start;
+                var start = int.Parse(matchHunk.Groups[3].Value);
+                var count = matchHunk.Groups[4].Success ? int.Parse(matchHunk.Groups[4].Value) : 1;
+                var end = count > 0 ? start + count - 1 : start;
                 result.Add(new ChangedHunk(currentFile, start, end));
             }
         }

@@ -1,10 +1,7 @@
-using CodeExplorer.Core.Analysis;
 using CodeExplorer.Core.Analysis.Dataflow;
-using CodeExplorer.Core.Common;
 using CodeExplorer.Core.Common.Nodes;
 using CodeExplorer.Core.Common.Nodes.Layer1_Physical;
 using CodeExplorer.Core.Common.Nodes.Layer3_Syntactic;
-using CodeExplorer.Core.Parser;
 using CodeExplorer.Core.Parser.Layers;
 using CodeExplorer.Core.Parser.Syntax;
 using CodeExplorer.Parsers.CSharp;
@@ -506,10 +503,10 @@ public class UastCompletionAndFlowAnalysisTests
         Assert.That(sequentialCtx.Flags.HasFlag(CallExecutionFlags.IsAwaited), Is.True);
         Assert.That(sequentialCtx.IsParallel, Is.False);
 
-        var callRel = CodeExplorer.Core.Database.Relationship.CreateWithCallSite(
+        var callRel = Relationship.CreateWithCallSite(
             "fn:AggregateAsync",
             "fn:FetchCatalogAsync",
-            CodeExplorer.Cypher.Common.RelationshipKind.Calls,
+            RelationshipKind.Calls,
             catalogCall!.Span.StartLine + 1,
             catalogCall.Span.StartColumn + 1,
             catalogCtx);
@@ -517,10 +514,10 @@ public class UastCompletionAndFlowAnalysisTests
         Assert.That(callRel.Properties["is_parallel"], Is.EqualTo(true));
         Assert.That(callRel.Properties["is_awaited"], Is.EqualTo(true));
 
-        var liftedServiceRel = new CodeExplorer.Core.Database.Relationship(
+        var liftedServiceRel = new Relationship(
             "proj:Aggregator",
             "proj:Catalog",
-            CodeExplorer.Cypher.Common.RelationshipKind.ServiceCall);
+            RelationshipKind.ServiceCall);
         EvidenceProvenanceHelper.MergeProvenance(liftedServiceRel, callRel);
 
         Assert.That(liftedServiceRel.CallContext.IsParallel, Is.True);

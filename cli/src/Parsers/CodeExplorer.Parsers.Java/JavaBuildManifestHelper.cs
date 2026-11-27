@@ -1,4 +1,5 @@
 using System.Text.RegularExpressions;
+using System.Xml;
 using System.Xml.Linq;
 
 namespace CodeExplorer.Parsers.Java;
@@ -186,7 +187,7 @@ internal static partial class JavaBuildManifestHelper
                 }
             }
         }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.Xml.XmlException)
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or XmlException)
         {
             // Ignore unreadable or malformed parent POM; child POM parsing continues
         }
@@ -296,7 +297,7 @@ internal static partial class JavaBuildManifestHelper
 
         try
         {
-            var lines = PhysicalFileStore.ReadAllText(catalogPath).Split('\n');
+            var lines = FileStreamReader.ReadTextOnce(catalogPath).Split('\n');
             var versions = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
             var section = string.Empty;
 

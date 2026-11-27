@@ -1,6 +1,6 @@
-using CodeExplorer.Core.Database;
 using CodeExplorer.Core.Common.Nodes;
 using CodeExplorer.Core.Common.Nodes.Layer2_Boundaries;
+using CodeExplorer.Core.Common.Nodes.Layer3_Syntactic;
 using CodeExplorer.Core.Parser.Layers;
 using NUnit.Framework;
 
@@ -77,32 +77,24 @@ public class GitSettingsTests
         File.WriteAllText(Path.Combine(clientDir, ".git", "HEAD"), "ref: refs/heads/main\n");
         File.WriteAllText(Path.Combine(clientDir, ".git", "config"), "[remote \"origin\"]\n\turl = https://gitlab.com/corp/client.git\n");
 
-        var ctx = new ParsingContext(
-            absoluteWorkspacePath: _tempDir,
-            hostWorkspacePath: _tempDir,
-            dbClient: new InMemoryGraphRepository(),
-            sharedChannel: System.Threading.Channels.Channel.CreateUnbounded<Func<Task>>(),
-            clear: false)
-        {
-            WorkspaceId = "testws"
-        };
+        var git = new GitRepositoryRegistry();
 
         var backendGit = GitSettingsParser.Parse("testws", _tempDir, backendDir)!;
         var clientGit = GitSettingsParser.Parse("testws", _tempDir, clientDir)!;
 
-        ctx.RegisterGitRepository(backendDir, backendGit);
-        ctx.RegisterGitRepository(clientDir, clientGit);
+        git.Register(backendDir, backendGit);
+        git.Register(clientDir, clientGit);
 
         // Nested project inside Backend/Services/OrderService
         var nestedOrderService = Path.Combine(backendDir, "Services", "OrderService");
         Directory.CreateDirectory(nestedOrderService);
 
-        var resolvedBackend = ctx.FindGitSettingsForPath("Backend/Services/OrderService");
+        var resolvedBackend = git.FindForPath("testws", _tempDir, "Backend/Services/OrderService");
         resolvedBackend.Should().NotBeNull();
         resolvedBackend!.Id.Should().Be("testws:git:Backend");
         resolvedBackend.Branch.Should().Be("dev");
 
-        var resolvedClient = ctx.FindGitSettingsForPath("Client/src/components");
+        var resolvedClient = git.FindForPath("testws", _tempDir, "Client/src/components");
         resolvedClient.Should().NotBeNull();
         resolvedClient!.Id.Should().Be("testws:git:Client");
         resolvedClient.Branch.Should().Be("main");
@@ -120,37 +112,35 @@ public class GitSettingsTests
         File.WriteAllText(Path.Combine(backendDir, ".git", "config"), "[remote \"origin\"]\n\turl = https://git.company.com/backend.git\n");
 
         var memClient = new InMemoryGraphRepository();
-        var ctx = new ParsingContext(
-            absoluteWorkspacePath: _tempDir,
-            hostWorkspacePath: _tempDir,
-            dbClient: memClient,
-            sharedChannel: System.Threading.Channels.Channel.CreateUnbounded<Func<Task>>(),
-            clear: false)
+        var l1Ctx = new Layer1Context(_tempDir, _tempDir, memClient)
         {
             WorkspaceId = "testws"
         };
 
         // 1. Run Layer 1 Physical scan
         var layer1Parser = new Layer1PhysicalParser();
-        var layer1 = await layer1Parser.ParseAsync(ctx);
+        var layer1 = await layer1Parser.ParseAsync(l1Ctx);
         layer1.Should().NotBeNull();
 
         // Verify subrepo GitSettings was discovered and registered in ctx
-        var backendSettings = ctx.FindGitSettingsForPath(projDir);
+        var backendSettings = l1Ctx.Git.FindForPath(l1Ctx.WorkspaceId, _tempDir, projDir);
         backendSettings.Should().NotBeNull();
         backendSettings!.Branch.Should().Be("release/1.0");
         backendSettings.OriginUrl.Should().Be("https://git.company.com/backend.git");
 
         // 2. Create ProjectNode in Layer 2
         var projNode = new ProjectNode(
-            $"{ctx.WorkspaceId}:p:Backend/Services/CoreApi:",
+            $"{l1Ctx.WorkspaceId}:p:Backend/Services/CoreApi:",
             "CoreApi",
             "Backend/Services/CoreApi",
             "csharp"
         );
 
         // 3. Upload via OntologyUploader
-        await OntologyUploader.UploadNodeTreeAsync(projNode, null, ctx);
+        var l2 = new Layer2Result(new ProjectsStructureNode($"{l1Ctx.WorkspaceId}:projects", "Projects", _tempDir), [projNode], [], []);
+        var l3 = new Layer3Result(new SyntaxStructureNode($"{l1Ctx.WorkspaceId}:syntax", "Syntax", _tempDir), [], [], [], [], [], new());
+        var l4Ctx = new Layer4Context(l1Ctx.Scope, l1Ctx.Sink, l1Ctx.Git, layer1, l2, l3, new SymbolResolutionBuffer(), new SemanticParseContext(l1Ctx.Scope), [], []);
+        await OntologyUploader.UploadNodeTreeAsync(projNode, null, l4Ctx);
 
         // Verify git signals were recorded in transient ProjectAnalysisSignals
         projNode.Signals().GitBranch.Should().Be("release/1.0");
@@ -158,9 +148,9 @@ public class GitSettingsTests
         projNode.Signals().GitRepo.Should().Be("Backend");
 
         // Verify USES_GIT relationship exists in ctx.TreeRelationships
-        var usesGitRels = ctx.TreeRelationships.Where(r => r.Kind == RelationshipKind.UsesGit).ToList();
+        var usesGitRels = l4Ctx.TreeRelationships.Where(r => r.Kind == RelationshipKind.UsesGit).ToList();
         usesGitRels.Should().HaveCount(1);
         usesGitRels[0].From.Should().Be(projNode.Id);
-        usesGitRels[0].To.Should().Be($"{ctx.WorkspaceId}:git:Backend");
+        usesGitRels[0].To.Should().Be($"{l1Ctx.WorkspaceId}:git:Backend");
     }
 }

@@ -1,7 +1,7 @@
 using System.Threading.Channels;
 using CodeExplorer.Core.Common.Nodes;
 using CodeExplorer.Core.Common.Nodes.Layer3_Syntactic;
-using CodeExplorer.Core.Database;
+using CodeExplorer.Core.Mcp;
 using CodeExplorer.Core.Parser.Layers;
 using CodeExplorer.Parsers.CSharp;
 using NUnit.Framework;
@@ -88,7 +88,7 @@ public class CSharpParserTests
             var filePath = Path.Combine(tempDir, "UsersController.cs");
             await File.WriteAllTextAsync(filePath, code);
             var channel = Channel.CreateUnbounded<Func<Task>>();
-            var ctx = new ParsingContext(tempDir, tempDir, new InMemoryGraphRepository(), channel);
+            var ctx = new SemanticParseContext(tempDir);
             using var syntaxTree = await new CSharpFileParser().ParseAsync(filePath, "parent-id", ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
             Layer3SyntacticParser.ProcessVisitor(syntaxTree, ctx.WorkspaceId, ctx.AbsoluteWorkspacePath, isTest: false);
 
@@ -147,7 +147,7 @@ public class CSharpParserTests
             var filePath = Path.Combine(tempDir, "UserService.cs");
             await File.WriteAllTextAsync(filePath, code);
             var channel = Channel.CreateUnbounded<Func<Task>>();
-            var ctx = new ParsingContext(tempDir, tempDir, new InMemoryGraphRepository(), channel);
+            var ctx = new SemanticParseContext(tempDir);
             using var syntaxTree = await new CSharpFileParser().ParseAsync(filePath, "parent-id", ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
             Layer3SyntacticParser.ProcessVisitor(syntaxTree, ctx.WorkspaceId, ctx.AbsoluteWorkspacePath, isTest: false);
 
@@ -159,6 +159,76 @@ public class CSharpParserTests
             var searchFn = svcType.Children.OfType<FunctionNode>().Single(f => f.Name == "Search");
             searchFn.References.Should().Contain(r => r.ReceiverName == "_session" && r.MemberName == "Query");
             syntaxTree.RawTypeBindings.Should().Contain(b => b.VariableName == "cm" && b.TypeName == "IContentManager");
+        }
+        finally
+        {
+            try { Directory.Delete(tempDir, true); } catch { }
+        }
+    }
+
+    [Test]
+    public async Task CSharp_ParameterTypesAndMemberOfType_AppearInAnalyzeCodeImpact()
+    {
+        WorkspaceIndexer.AutoRegisterParsers();
+        var tempDir = Path.Combine(Path.GetTempPath(), "ce_impact_cs_" + Guid.NewGuid().ToString("N"));
+        var dbPath = Path.Combine(tempDir, "graph.db");
+        Directory.CreateDirectory(tempDir);
+        try
+        {
+            await File.WriteAllTextAsync(Path.Combine(tempDir, "Sample.csproj"), """
+                <Project Sdk="Microsoft.NET.Sdk">
+                  <PropertyGroup>
+                    <TargetFramework>net10.0</TargetFramework>
+                  </PropertyGroup>
+                </Project>
+                """);
+
+            await File.WriteAllTextAsync(Path.Combine(tempDir, "SharedContext.cs"), """
+                namespace SampleApp;
+
+                public class SharedContext
+                {
+                    public string RootPath { get; set; } = "";
+                }
+                """);
+
+            await File.WriteAllTextAsync(Path.Combine(tempDir, "Consumers.cs"), """
+                using System.Collections.Generic;
+
+                namespace SampleApp;
+
+                public class HolderService
+                {
+                    private readonly SharedContext _context;
+
+                    public HolderService(SharedContext context)
+                    {
+                        _context = context;
+                    }
+                }
+
+                public static class ReaderHelper
+                {
+                    public static string ReadRoot(SharedContext ctx, int retries, string fallback)
+                        => ctx.RootPath ?? fallback;
+
+                    public static int CountAll(IReadOnlyList<SharedContext> items)
+                        => items.Count;
+                }
+                """);
+
+            await using var client = new SqliteGraphClient(dbPath);
+            var indexer = new WorkspaceIndexer(client);
+            await indexer.IndexAsync(tempDir, tempDir, clear: true);
+
+            var repo = new CodeExplorerRepository(client);
+            var impactYaml = await repo.AnalyzeCodeImpactAsync("SharedContext");
+
+            impactYaml.Should().Contain("HolderService");
+            impactYaml.Should().Contain("INJECTS_TYPE");
+            impactYaml.Should().Contain("ReaderHelper.ReadRoot");
+            impactYaml.Should().Contain("ReaderHelper.CountAll");
+            impactYaml.Should().Contain("USES_TYPE");
         }
         finally
         {

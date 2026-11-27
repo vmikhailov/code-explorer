@@ -1,6 +1,4 @@
-using System.Text.RegularExpressions;
 using CodeExplorer.Core.Protocol;
-using CodeExplorer.Cypher.Common;
 
 namespace CodeExplorer.Core.Analysis;
 
@@ -132,7 +130,7 @@ public partial class ArchitectureViewEngine
                 }
 
                 var rels = new Dictionary<string, long>(rawRelCounts, StringComparer.OrdinalIgnoreCase);
-                long totalR = rawRelCounts.Values.Sum();
+                var totalR = rawRelCounts.Values.Sum();
 
                 result.NodeCounts = nodes;
                 result.RelationshipCounts = rels;
@@ -663,7 +661,7 @@ public partial class ArchitectureViewEngine
                 var line = row.GetNullableIntProp(colLine);
 
                 var role = row.GetStringProp("role");
-                string nodeKind = safeKind ?? "";
+                var nodeKind = safeKind ?? "";
 
                 if (string.IsNullOrEmpty(nodeKind) && row.TryGetProperty("lbl", out var lblProp))
                 {

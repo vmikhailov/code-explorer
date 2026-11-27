@@ -136,7 +136,7 @@ public class SqliteIndicesTests
 
         // Large batch (5,000 items)
         var largeBatch = new List<string> { "OrderService", "ProcessOrder" };
-        for (int i = 0; i < 5000; i++)
+        for (var i = 0; i < 5000; i++)
         {
             largeBatch.Add($"dummy_symbol_{i}");
         }
@@ -161,7 +161,7 @@ public class SqliteIndicesTests
 
         // Large batch (5,000 items)
         var largeBatch = new List<string> { "IOrderService" };
-        for (int i = 0; i < 5000; i++)
+        for (var i = 0; i < 5000; i++)
         {
             largeBatch.Add($"dummy_type_{i}");
         }

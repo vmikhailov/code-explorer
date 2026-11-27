@@ -113,7 +113,7 @@ internal sealed class CompiledDeclarativeRuleIndex
 
     private sealed class FusedDeclarativeSemanticExtension(DeclarativeSemanticExtension[] children) : DeclarativeSemanticExtension
     {
-        public override void DiscoverDeclarations(string filePath, string content, string? projectName, ParsingContext? ctx)
+        public override void DiscoverDeclarations(string filePath, string content, string? projectName, SemanticParseContext? ctx)
         {
             for (var i = 0; i < children.Length; i++)
             {
@@ -304,16 +304,16 @@ internal sealed class CompiledDeclarativeRuleIndex
         map.ToDictionary(kvp => kvp.Key, kvp => kvp.Value.ToArray(), StringComparer.Ordinal)
            .ToFrozenDictionary(StringComparer.Ordinal);
 
-    internal string? EvaluateCustomMapNodeType(Node node, ParsingContext ctx) =>
+    internal string? EvaluateCustomMapNodeType(Node node, SemanticParseContext ctx) =>
         DeclarativeExtendedRuleEvaluator.EvaluateCustomMapNodeType(node, ctx, CustomRulesByNodeType, UnfilteredCustomRules);
 
-    internal string? EvaluateCustomExtractIdentifier(Node node, ParsingContext ctx, string? projectName, string? relativePath) =>
+    internal string? EvaluateCustomExtractIdentifier(Node node, SemanticParseContext ctx, string? projectName, string? relativePath) =>
         DeclarativeExtendedRuleEvaluator.EvaluateCustomExtractIdentifier(node, ctx, projectName, relativePath, CustomRulesByNodeType, UnfilteredCustomRules);
 
-    internal void EvaluateCustomEnrichSymbol(Node node, SyntacticSymbol symbol, ParsingContext ctx) =>
+    internal void EvaluateCustomEnrichSymbol(Node node, SyntacticSymbol symbol, SemanticParseContext ctx) =>
         DeclarativeExtendedRuleEvaluator.EvaluateCustomEnrichSymbol(node, symbol, ctx, CustomRulesByNodeType, UnfilteredCustomRules);
 
-    internal void EvaluateCollectReferences(Node node, string scopeSymbolId, List<Reference> references, ParsingContext ctx)
+    internal void EvaluateCollectReferences(Node node, string scopeSymbolId, List<Reference> references, SemanticParseContext ctx)
     {
         if (CustomRulesByNodeType.Count > 0 || UnfilteredCustomRules.Length > 0)
         {

@@ -23,7 +23,7 @@ public class ReactLibraryParser : DeclarativeSemanticExtension
 
     public override IReadOnlyList<CustomAstRule> CustomAstRules => Rules;
 
-    private static void CollectReferencesCore(Node node, string scopeSymbolId, List<Reference> references, ParsingContext ctx)
+    private static void CollectReferencesCore(Node node, string scopeSymbolId, List<Reference> references, SemanticParseContext ctx)
     {
         if (IsReactRootMount(node))
         {
@@ -113,7 +113,7 @@ public class ReactLibraryParser : DeclarativeSemanticExtension
     {
         if (!node.IsValid()) return;
 
-        if (node is CodeExplorer.Core.Parser.Syntax.UiElementSyntax { IsClosing: false, IsFragment: false })
+        if (node is Core.Parser.Syntax.UiElementSyntax { IsClosing: false, IsFragment: false })
         {
             var nameNode = node.GetField(TreeSitterSyntax.Fields.Name) ??
                            node.Children.FirstOrDefault(c => c.Is(TreeSitterSyntax.TypeScript.Identifier));

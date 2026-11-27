@@ -155,11 +155,11 @@ public class EvolutionGateTests
     [Test]
     public async Task NoFileReadAboveLayer3_Layer4Or5ReadingFile_FailsZeroTolerance()
     {
-        const string store = "cli/src/Core/CodeExplorer.Core/Analysis/Layers/Layer1_Physical/PhysicalFileStore.cs";
+        const string reader = "cli/src/Core/CodeExplorer.Core/Parser/FileStreamReader.cs";
         const string l5 = "cli/src/Core/CodeExplorer.Analysis/Analysis/Layers/Layer5_Global/PostIndexAnalyzer.cs";
         var nodes = new[]
         {
-            Fn("read", "ReadAllText", store),
+            Fn("read", "ReadTextOnce", reader),
             Fn("l3Caller", "Parse", L3),
             Fn("l4Caller", "EnrichAsync", L4),
             Fn("l5Caller", "Consolidate", l5)
@@ -174,5 +174,34 @@ public class EvolutionGateTests
         var bad = await RunAsync(gate, nodes, [Calls("l3Caller", "read"), Calls("l4Caller", "read"), Calls("l5Caller", "read")]);
         bad.Status.Should().Be(GateCheckStatus.FailedNew);
         bad.Violations.Should().HaveCount(2);
+    }
+
+    [Test]
+    public async Task ProjectManifestSinglePassOwnership_Layer2ReadingManifestDirectly_FailsZeroTolerance()
+    {
+        const string reader = "cli/src/Core/CodeExplorer.Core/Parser/FileStreamReader.cs";
+        const string l2Lifecycle = "cli/src/Core/CodeExplorer.Indexing/Analysis/Layers/Layer2_Boundaries/Layer2BoundariesAnalyzer.Lifecycle.cs";
+        const string l2Enricher = "cli/src/Core/CodeExplorer.Core/Parser/Shared/SharedFileEnricher.cs";
+        const string tsParser = "cli/src/Parsers/CodeExplorer.Parsers.TypeScript/TypeScriptProjectParser.cs";
+
+        var nodes = new[]
+        {
+            Fn("read", "ReadTextOnce", reader),
+            Fn("stream", "StreamAndAnalyzeFileAsync", reader),
+            Fn("parserTryParse", "TryParse", tsParser),
+            Fn("enricher", "EnrichAsync", l2Enricher),
+            Fn("l2Violator", "PopulatePackageLifecycleAndEntryPoints", l2Lifecycle)
+        };
+
+        var gate = BuiltInGateCatalog.ProjectManifestSinglePassOwnershipGate;
+        gate.Id.Should().Be("SIG-P-B-013");
+        gate.Ratchet.Enabled.Should().BeFalse("SIG-P-B-013 must have zero tolerance (no ratchet baseline)");
+
+        var ok = await RunAsync(gate, nodes, [Calls("parserTryParse", "read"), Calls("enricher", "stream")]);
+        ok.Status.Should().Be(GateCheckStatus.Passed);
+
+        var bad = await RunAsync(gate, nodes, [Calls("parserTryParse", "read"), Calls("enricher", "stream"), Calls("l2Violator", "read")]);
+        bad.Status.Should().Be(GateCheckStatus.FailedNew);
+        bad.Violations.Should().ContainSingle();
     }
 }

@@ -1,5 +1,3 @@
-using CodeExplorer.Core.Common.Nodes.Layer4_Semantic;
-using CodeExplorer.Core.Database;
 using CodeExplorer.Parsers.Java;
 using NUnit.Framework;
 

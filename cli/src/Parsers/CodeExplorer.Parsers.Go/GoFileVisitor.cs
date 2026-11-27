@@ -32,14 +32,14 @@ public partial class GoFileVisitor : BaseParserVisitor
             return OntologyConstants.NodeLabels.EntryPoint;
         }
 
-        if (node is CodeExplorer.Core.Parser.Syntax.TypeDeclSyntax td)
+        if (node is Core.Parser.Syntax.TypeDeclSyntax td)
         {
-            if (td.Parent is CodeExplorer.Core.Parser.Syntax.TypeDeclSyntax || !td.HasName)
+            if (td.Parent is Core.Parser.Syntax.TypeDeclSyntax || !td.HasName)
             {
                 return null;
             }
-            return td.Kind == CodeExplorer.Core.Parser.Syntax.TypeSyntaxKind.Interface ||
-                   td.Children.Any(c => c is CodeExplorer.Core.Parser.Syntax.TypeDeclSyntax { Kind: CodeExplorer.Core.Parser.Syntax.TypeSyntaxKind.Interface })
+            return td.Kind == Core.Parser.Syntax.TypeSyntaxKind.Interface ||
+                   td.Children.Any(c => c is Core.Parser.Syntax.TypeDeclSyntax { Kind: Core.Parser.Syntax.TypeSyntaxKind.Interface })
                 ? "Interface"
                 : "Class";
         }
@@ -75,20 +75,20 @@ public partial class GoFileVisitor : BaseParserVisitor
 
     protected override void CollectCustomReferencesForSymbol(Node node, SyntacticSymbol symbolNode, SyntacticSymbol parentNode)
     {
-        if (symbolNode.Kind is CodeExplorer.Cypher.Common.SyntacticSymbolKind.Class or CodeExplorer.Cypher.Common.SyntacticSymbolKind.Struct)
+        if (symbolNode.Kind is SyntacticSymbolKind.Class or SyntacticSymbolKind.Struct)
         {
             GoBindingExtractor.CollectGoStructFields(node, symbolNode, RawTypeBindings, RawImports);
         }
-        else if (symbolNode.Kind == CodeExplorer.Cypher.Common.SyntacticSymbolKind.Interface)
+        else if (symbolNode.Kind == SyntacticSymbolKind.Interface)
         {
             GoBindingExtractor.CollectGoInterfaceMethods(node, symbolNode, RawTypeBindings);
         }
-        else if (symbolNode.Kind == CodeExplorer.Cypher.Common.SyntacticSymbolKind.Function)
+        else if (symbolNode.Kind == SyntacticSymbolKind.Function)
         {
             GoBindingExtractor.CollectGoFunctionSignature(node, symbolNode, RawTypeBindings, RawImports);
         }
 
-        if (symbolNode.Kind == CodeExplorer.Cypher.Common.SyntacticSymbolKind.Function &&
+        if (symbolNode.Kind == SyntacticSymbolKind.Function &&
             symbolNode.Name == "main" &&
             !WorkspaceConventions.IsTestFilePath(RelativePath))
         {
@@ -111,10 +111,10 @@ public partial class GoFileVisitor : BaseParserVisitor
                     }
                 }
             }
-            symbolNode.Children.Add(new SyntacticSymbol(CodeExplorer.Cypher.Common.SyntacticSymbolKind.EntryPoint, $"main-method:{cleanName}", node) { Text = node.Text });
+            symbolNode.Children.Add(new SyntacticSymbol(SyntacticSymbolKind.EntryPoint, $"main-method:{cleanName}", node) { Text = node.Text });
         }
 
-        if (symbolNode.Kind == CodeExplorer.Cypher.Common.SyntacticSymbolKind.EntryPoint)
+        if (symbolNode.Kind == SyntacticSymbolKind.EntryPoint)
         {
             if (IsGoEndpointLiteral(node, out var epMethods, out var epRoute, out var epHandler))
             {
@@ -132,7 +132,7 @@ public partial class GoFileVisitor : BaseParserVisitor
                 for (var i = 1; i < epMethods.Count; i++)
                 {
                     var secMethod = epMethods[i];
-                    var secSymbol = new SyntacticSymbol(CodeExplorer.Cypher.Common.SyntacticSymbolKind.EntryPoint, $"{secMethod}:{epRoute}", node)
+                    var secSymbol = new SyntacticSymbol(SyntacticSymbolKind.EntryPoint, $"{secMethod}:{epRoute}", node)
                     {
                         Protocol = "REST"
                     };
@@ -153,7 +153,7 @@ public partial class GoFileVisitor : BaseParserVisitor
                 {
                     var callArgs = GoAstHelper.GetCallArguments(node);
                     var nonStringArgs = callArgs.Where(c =>
-                        c is not CodeExplorer.Core.Parser.Syntax.LiteralExprSyntax &&
+                        c is not Core.Parser.Syntax.LiteralExprSyntax &&
                         !c.IsAny(TreeSitterSyntax.Go.InterpretedStringLiteral, TreeSitterSyntax.Go.RawStringLiteral, TreeSitterSyntax.Go.StringLiteral)).ToList();
                     var handlerArg = nonStringArgs.Count > 1 ? nonStringArgs[^1] : nonStringArgs.FirstOrDefault();
                     if (handlerArg != null && handlerArg.IsValid())
@@ -182,7 +182,7 @@ public partial class GoFileVisitor : BaseParserVisitor
 
     protected override void VisitDefault(Node node, int depth)
     {
-        if (node is CodeExplorer.Core.Parser.Syntax.CollectionExprSyntax { Kind: CodeExplorer.Core.Parser.Syntax.CollectionSyntaxKind.Initializer })
+        if (node is Core.Parser.Syntax.CollectionExprSyntax { Kind: Core.Parser.Syntax.CollectionSyntaxKind.Initializer })
         {
             GoBindingExtractor.CollectGoCompositeLiteralTypeReference(node, SymbolStack.Peek(), RawImports);
         }
@@ -246,8 +246,8 @@ public partial class GoFileVisitor : BaseParserVisitor
                 ));
             }
         }
-        else if (node is CodeExplorer.Core.Parser.Syntax.VariableDeclSyntax { IsDeclarator: false, IsConstant: false } &&
-                 !node.Children.Any(c => c is CodeExplorer.Core.Parser.Syntax.VariableDeclSyntax { IsDeclarator: true }))
+        else if (node is Core.Parser.Syntax.VariableDeclSyntax { IsDeclarator: false, IsConstant: false } &&
+                 !node.Children.Any(c => c is Core.Parser.Syntax.VariableDeclSyntax { IsDeclarator: true }))
         {
             var leftNode = node.Children.FirstOrDefault();
             var rightNode = node.Children.LastOrDefault();
@@ -255,17 +255,17 @@ public partial class GoFileVisitor : BaseParserVisitor
             if (leftNode.IsValid() && rightNode.IsValid() && leftNode.Id != rightNode.Id)
             {
                 var names = new List<string>();
-                if (leftNode is CodeExplorer.Core.Parser.Syntax.SyntaxList { Kind: CodeExplorer.Core.Parser.Syntax.SyntaxListKind.Expressions })
+                if (leftNode is Core.Parser.Syntax.SyntaxList { Kind: Core.Parser.Syntax.SyntaxListKind.Expressions })
                 {
-                    names.AddRange(leftNode.Children.OfType<CodeExplorer.Core.Parser.Syntax.IdentifierExprSyntax>().Select(c => c.Text.Trim()));
+                    names.AddRange(leftNode.Children.OfType<Core.Parser.Syntax.IdentifierExprSyntax>().Select(c => c.Text.Trim()));
                 }
-                else if (leftNode is CodeExplorer.Core.Parser.Syntax.IdentifierExprSyntax)
+                else if (leftNode is Core.Parser.Syntax.IdentifierExprSyntax)
                 {
                     names.Add(leftNode.Text.Trim());
                 }
 
                 var values = new List<string>();
-                if (rightNode is CodeExplorer.Core.Parser.Syntax.SyntaxList { Kind: CodeExplorer.Core.Parser.Syntax.SyntaxListKind.Expressions })
+                if (rightNode is Core.Parser.Syntax.SyntaxList { Kind: Core.Parser.Syntax.SyntaxListKind.Expressions })
                 {
                     values.AddRange(rightNode.Children.Select(c => c.Text));
                 }
@@ -649,7 +649,7 @@ public partial class GoFileVisitor : BaseParserVisitor
         var args = GoAstHelper.GetCallArguments(node);
         if (args.Count > 0)
         {
-            int targetArgIndex = 0;
+            var targetArgIndex = 0;
             if (methodName == "NewRequest" && args.Count > 1)
             {
                 targetArgIndex = 1;
@@ -699,7 +699,7 @@ public partial class GoFileVisitor : BaseParserVisitor
         fullRoute = "/";
         handlerName = null;
 
-        if (node is not CodeExplorer.Core.Parser.Syntax.CollectionExprSyntax)
+        if (node is not Core.Parser.Syntax.CollectionExprSyntax)
         {
             return false;
         }
@@ -834,21 +834,21 @@ public partial class GoFileVisitor : BaseParserVisitor
         foreach (var rawChild in container.Children)
         {
             var elem = rawChild;
-            if (elem is CodeExplorer.Core.Parser.Syntax.ParenthesizedExprSyntax or CodeExplorer.Core.Parser.Syntax.SyntaxList && elem.Children.Count > 0)
+            if (elem is Core.Parser.Syntax.ParenthesizedExprSyntax or Core.Parser.Syntax.SyntaxList && elem.Children.Count > 0)
             {
                 elem = elem.Children[0];
             }
 
-            if (elem is CodeExplorer.Core.Parser.Syntax.KeyValueExprSyntax && elem.Children.Count >= 2)
+            if (elem is Core.Parser.Syntax.KeyValueExprSyntax && elem.Children.Count >= 2)
             {
                 var keyChild = elem.Children[0];
-                if (keyChild is CodeExplorer.Core.Parser.Syntax.ParenthesizedExprSyntax or CodeExplorer.Core.Parser.Syntax.SyntaxList && keyChild.Children.Count > 0)
+                if (keyChild is Core.Parser.Syntax.ParenthesizedExprSyntax or Core.Parser.Syntax.SyntaxList && keyChild.Children.Count > 0)
                 {
                     keyChild = keyChild.Children[0];
                 }
 
                 var valChild = elem.Children[^1];
-                if (valChild is CodeExplorer.Core.Parser.Syntax.ParenthesizedExprSyntax or CodeExplorer.Core.Parser.Syntax.SyntaxList && valChild.Children.Count > 0)
+                if (valChild is Core.Parser.Syntax.ParenthesizedExprSyntax or Core.Parser.Syntax.SyntaxList && valChild.Children.Count > 0)
                 {
                     valChild = valChild.Children[0];
                 }
@@ -869,7 +869,7 @@ public partial class GoFileVisitor : BaseParserVisitor
         var methods = new List<string>();
         if (!methodsNode.IsValid()) return methods;
 
-        if (methodsNode is CodeExplorer.Core.Parser.Syntax.CollectionExprSyntax)
+        if (methodsNode is Core.Parser.Syntax.CollectionExprSyntax)
         {
             var elements = methodsNode.DescendantsAndSelf()
                 .Where(d => d.IsAny(TreeSitterSyntax.Go.SelectorExpression, TreeSitterSyntax.Go.InterpretedStringLiteral, TreeSitterSyntax.Go.Identifier, TreeSitterSyntax.Go.RawStringLiteral))

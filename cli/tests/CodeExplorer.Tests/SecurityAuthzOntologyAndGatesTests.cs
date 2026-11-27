@@ -1,5 +1,3 @@
-using CodeExplorer.Core.Parser;
-using CodeExplorer.Cypher.Common;
 using CodeExplorer.Core.Gates.Storage;
 using NUnit.Framework;
 

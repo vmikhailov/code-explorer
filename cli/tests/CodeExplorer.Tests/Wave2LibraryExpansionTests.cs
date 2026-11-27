@@ -2,7 +2,6 @@ using System.Collections.Frozen;
 using System.Threading.Channels;
 using CodeExplorer.Core.Common.Nodes;
 using CodeExplorer.Core.Common.Nodes.Layer1_Physical;
-using CodeExplorer.Core.Database;
 using CodeExplorer.Core.Parser.Layers;
 using CodeExplorer.Parsers.CSharp;
 using CodeExplorer.Parsers.Go;
@@ -44,7 +43,7 @@ public class Wave2LibraryExpansionTests
         {
             var channel = Channel.CreateUnbounded<Func<Task>>();
             var client = new InMemoryGraphRepository();
-            var ctx = new ParsingContext(tempDir, tempDir, client, channel);
+            var ctx = new SemanticParseContext(tempDir);
 
             using var syntaxTree = await parser.ParseAsync(filePath, "parent-id", ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
             Layer3SyntacticParser.ProcessVisitor(syntaxTree, ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
@@ -368,7 +367,7 @@ public class Wave2LibraryExpansionTests
         {
             var channel = Channel.CreateUnbounded<Func<Task>>();
             var client = new InMemoryGraphRepository();
-            var ctx = new ParsingContext(tempDir, tempDir, client, channel);
+            var ctx = new SemanticParseContext(tempDir);
             var parser = new CSharpFileParser();
 
             using var syntaxTree = await parser.ParseAsync(filePath, "parent-id", ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
@@ -377,16 +376,16 @@ public class Wave2LibraryExpansionTests
 
             var declarative10 = new DeclarativeSemanticExtension[]
             {
-                new CodeExplorer.Parsers.CSharp.Libraries.FastEndpointsLibraryParser(),
-                new CodeExplorer.Parsers.CSharp.Libraries.CarterLibraryParser(),
-                new CodeExplorer.Parsers.CSharp.Libraries.DaprDotNetLibraryParser(),
-                new CodeExplorer.Parsers.CSharp.Libraries.RebusLibraryParser(),
-                new CodeExplorer.Parsers.CSharp.Libraries.NServiceBusLibraryParser(),
-                new CodeExplorer.Parsers.CSharp.Libraries.YarpReverseProxyLibraryParser(),
-                new CodeExplorer.Parsers.CSharp.Libraries.AzureSdkDotNetLibraryParser(),
-                new CodeExplorer.Parsers.CSharp.Libraries.SemanticKernelAiDotNetLibraryParser(),
-                new CodeExplorer.Parsers.CSharp.Libraries.Linq2DbNHibernateLibraryParser(),
-                new CodeExplorer.Parsers.Java.Libraries.VertxLibraryParser()
+                new Parsers.CSharp.Libraries.FastEndpointsLibraryParser(),
+                new Parsers.CSharp.Libraries.CarterLibraryParser(),
+                new Parsers.CSharp.Libraries.DaprDotNetLibraryParser(),
+                new Parsers.CSharp.Libraries.RebusLibraryParser(),
+                new Parsers.CSharp.Libraries.NServiceBusLibraryParser(),
+                new Parsers.CSharp.Libraries.YarpReverseProxyLibraryParser(),
+                new Parsers.CSharp.Libraries.AzureSdkDotNetLibraryParser(),
+                new Parsers.CSharp.Libraries.SemanticKernelAiDotNetLibraryParser(),
+                new Parsers.CSharp.Libraries.Linq2DbNHibernateLibraryParser(),
+                new Parsers.Java.Libraries.VertxLibraryParser()
             };
 
             var fusedDeclarative = new DeclarativeSemanticExtension
@@ -575,12 +574,12 @@ public class Wave2LibraryExpansionTests
         public IReadOnlyList<string> SupportedPatterns => ["*"];
         public bool IsImplemented => true;
         public LibraryRole LibraryRole => LibraryRole.WebService;
-        public string? MapNodeType(CodeExplorer.Core.Parser.Syntax.SyntaxNode node, ParsingContext ctx) => null;
-        public string? ExtractIdentifier(CodeExplorer.Core.Parser.Syntax.SyntaxNode node, ParsingContext ctx) => null;
+        public string? MapNodeType(Core.Parser.Syntax.SyntaxNode node, SemanticParseContext ctx) => null;
+        public string? ExtractIdentifier(Core.Parser.Syntax.SyntaxNode node, SemanticParseContext ctx) => null;
 
-        public void CollectReferences(CodeExplorer.Core.Parser.Syntax.SyntaxNode node, string scopeSymbolId, List<Reference> references, ParsingContext ctx)
+        public void CollectReferences(Core.Parser.Syntax.SyntaxNode node, string scopeSymbolId, List<Reference> references, SemanticParseContext ctx)
         {
-            if (node is CodeExplorer.Core.Parser.Syntax.TypeDeclSyntax { Kind: CodeExplorer.Core.Parser.Syntax.TypeSyntaxKind.Class } && index == 0)
+            if (node is Core.Parser.Syntax.TypeDeclSyntax { Kind: Core.Parser.Syntax.TypeSyntaxKind.Class } && index == 0)
             {
                 var span = node.AsSpan();
                 var brace = span.IndexOf('{');
@@ -592,7 +591,7 @@ public class Wave2LibraryExpansionTests
                 return;
             }
 
-            if (node is not CodeExplorer.Core.Parser.Syntax.CallExprSyntax { CallKind: CodeExplorer.Core.Parser.Syntax.CallSyntaxKind.Method or CodeExplorer.Core.Parser.Syntax.CallSyntaxKind.Function } callExpr)
+            if (node is not Core.Parser.Syntax.CallExprSyntax { CallKind: Core.Parser.Syntax.CallSyntaxKind.Method or Core.Parser.Syntax.CallSyntaxKind.Function } callExpr)
                 return;
 
             var method = callExpr.MethodNameSpan;
@@ -603,7 +602,7 @@ public class Wave2LibraryExpansionTests
             {
                 for (var i = 0; i < callExpr.Arguments.Count; i++)
                 {
-                    if (callExpr.Arguments[i].Value is CodeExplorer.Core.Parser.Syntax.LiteralExprSyntax { LiteralKind: CodeExplorer.Core.Parser.Syntax.LiteralSyntaxKind.String } lit)
+                    if (callExpr.Arguments[i].Value is Core.Parser.Syntax.LiteralExprSyntax { LiteralKind: Core.Parser.Syntax.LiteralSyntaxKind.String } lit)
                     {
                         firstLiteral = lit.AsSpan().Trim(Quotes);
                         break;

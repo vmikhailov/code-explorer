@@ -1,7 +1,4 @@
-using CodeExplorer.Core.Common.Nodes;
-using CodeExplorer.Core.Common.Nodes.Layer1_Physical;
 using CodeExplorer.Core.Common.Nodes.Layer3_Syntactic;
-using CodeExplorer.Cypher.Common;
 
 namespace CodeExplorer.Core.Parser.Incremental;
 
@@ -49,9 +46,9 @@ internal static class FileSnapshotBuilder
 
     public static void CollectSymbols(
         IOntologyNode node,
-        List<CodeExplorer.Common.Reference> references,
+        List<Reference> references,
         Dictionary<string, SymbolFootprint> symbols,
-        ILookup<string, CodeExplorer.Common.Reference>? refsByScope = null)
+        ILookup<string, Reference>? refsByScope = null)
     {
         refsByScope ??= references.ToLookup(r => r.ScopeSymbolId ?? string.Empty, StringComparer.Ordinal);
         foreach (var child in node.Children)
@@ -98,7 +95,7 @@ internal static class FileSnapshotBuilder
 
     private static SymbolFootprint CreateSymbolFootprint(
         IOntologyNode child,
-        ILookup<string, CodeExplorer.Common.Reference> refsByScope)
+        ILookup<string, Reference> refsByScope)
     {
         var (name, startLine, endLine, startCol, endCol) = child switch
         {

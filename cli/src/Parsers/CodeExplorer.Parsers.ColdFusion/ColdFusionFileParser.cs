@@ -38,14 +38,19 @@ public class ColdFusionFileParser : IFileParser
         return ImportType.Internal;
     }
 
-    public async Task<SyntaxTree> ParseAsync(string filePath, string parentNodeId, string workspaceId, string absoluteWorkspacePath)
+    public async Task<SyntaxTree> ParseAsync(
+        string filePath,
+        string parentNodeId,
+        string workspaceId,
+        string absoluteWorkspacePath,
+        string? preloadedContent = null)
     {
         var relativePath = Path.GetRelativePath(absoluteWorkspacePath, filePath).Replace('\\', '/');
         var fileName = Path.GetFileName(filePath);
         var fileNodeId = $"{workspaceId}:file:{relativePath}";
 
         var fileNode = new FileNode(fileNodeId, fileName, relativePath, filePath);
-        var content = await PhysicalFileStore.ConsumeFileTextAsync(filePath);
+        var content = preloadedContent ?? await FileStreamReader.ReadTextOnceAsync(filePath);
 
         var isCfc = filePath.EndsWith(".cfc", StringComparison.OrdinalIgnoreCase);
         var defaultDs = ColdFusionProjectParser.GetDefaultDatasource(Path.GetDirectoryName(filePath) ?? "") ?? "default";
@@ -223,7 +228,7 @@ public class ColdFusionFileParser : IFileParser
 
         // A) Tag-based <cfquery>
         var queryMatches = Regex.Matches(content, @"<\s*cfquery\b([^>]*)>(.*?)</\s*cfquery\s*>", RegexOptions.IgnoreCase | RegexOptions.Singleline);
-        int queryIdx = 0;
+        var queryIdx = 0;
 
         foreach (Match match in queryMatches)
         {

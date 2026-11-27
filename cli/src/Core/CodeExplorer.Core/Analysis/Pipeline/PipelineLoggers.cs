@@ -68,6 +68,9 @@ public static partial class Layer2LogMessages
 
     [LoggerMessage(EventId = 2006, Level = LogLevel.Warning, Message = "[Layer 2    ] Error getting produced package from {ProjectType} parser in '{ProjectDir}': {ErrorMessage}")]
     public static partial void ProducedPackageError(ILogger logger, string projectType, string projectDir, string errorMessage, Exception? ex);
+
+    [LoggerMessage(EventId = 2007, Level = LogLevel.Warning, Message = "[Layer 2    ] Error enriching shared file '{FilePath}': {ErrorMessage}")]
+    public static partial void SharedFileEnrichError(ILogger logger, string filePath, string errorMessage, Exception? ex);
 }
 
 public readonly struct Layer2Logger(ILogger logger)
@@ -78,6 +81,7 @@ public readonly struct Layer2Logger(ILogger logger)
     public void SiblingLibraryScanError(string libRoot, Exception ex) => Layer2LogMessages.SiblingLibraryScanError(logger, libRoot, ex.Message, ex);
     public void DependencyParseFailed(string projectType, string projectDir, string errorMessage, Exception ex) => Layer2LogMessages.DependencyParseError(logger, projectType, projectDir, errorMessage, ex);
     public void ProducedPackageParseFailed(string projectType, string projectDir, string errorMessage, Exception ex) => Layer2LogMessages.ProducedPackageError(logger, projectType, projectDir, errorMessage, ex);
+    public void SharedFileEnrichFailed(string filePath, Exception ex) => Layer2LogMessages.SharedFileEnrichError(logger, filePath, ex.Message, ex);
 }
 
 public static partial class Layer3LogMessages
@@ -108,6 +112,12 @@ public static partial class Layer3LogMessages
 
     [LoggerMessage(EventId = 3009, Level = LogLevel.Information, Message = "[Layer 3    ] Visitor progress: {Completed}/{TotalFiles} files ({Percentage}%) [{ProjectName}]...")]
     public static partial void VisitorProgress(ILogger logger, int completed, int totalFiles, int percentage, string projectName);
+
+    [LoggerMessage(EventId = 3010, Level = LogLevel.Warning, Message = "[Layer 3    ] Error pre-scanning route/config file '{FilePath}': {ErrorMessage}")]
+    public static partial void RouteConfigPreScanError(ILogger logger, string filePath, string errorMessage, Exception? ex);
+
+    [LoggerMessage(EventId = 3011, Level = LogLevel.Warning, Message = "[Layer 3    ] [{Category}] '{FilePath}:{Line}:{Column}': {ErrorMessage}")]
+    public static partial void SyntaxDiagnosticWarning(ILogger logger, string category, string filePath, int line, int column, string errorMessage);
 }
 
 public readonly struct Layer3Logger(ILogger logger)
@@ -120,6 +130,8 @@ public readonly struct Layer3Logger(ILogger logger)
     public void VisitorProgress(int completed, int totalFiles, int percentage, string projectName) => Layer3LogMessages.VisitorProgress(logger, completed, totalFiles, percentage, projectName);
     public void FileParseFailed(string filePath, string errorMessage, Exception ex) => Layer3LogMessages.FileParseError(logger, filePath, errorMessage, ex);
     public void VisitorFailed(string filePath, string errorMessage, Exception ex) => Layer3LogMessages.VisitorProcessingError(logger, filePath, errorMessage, ex);
+    public void RouteConfigPreScanFailed(string filePath, Exception ex) => Layer3LogMessages.RouteConfigPreScanError(logger, filePath, ex.Message, ex);
+    public void SyntaxDiagnostic(string category, string filePath, int line, int column, string message) => Layer3LogMessages.SyntaxDiagnosticWarning(logger, category, filePath, line, column, message);
     public void ScanCompleted(int syntaxTreeCount, long elapsedMs = 0) => Layer3LogMessages.SyntacticScanComplete(logger, elapsedMs, syntaxTreeCount);
 }
 
@@ -229,6 +241,9 @@ public static partial class Layer5LogMessages
 
     [LoggerMessage(EventId = 5022, Level = LogLevel.Debug, Message = "[Layer 5    ] Failed to resolve inheritance reference '{TargetName}': {ErrorMessage}")]
     public static partial void InheritanceResolutionFailed(ILogger logger, string targetName, string errorMessage);
+
+    [LoggerMessage(EventId = 5023, Level = LogLevel.Warning, Message = "[Layer 5    ] Failed to resolve reference '{TargetName}' in '{ScopeSymbolId}': {ErrorMessage}")]
+    public static partial void ReferenceResolutionError(ILogger logger, string targetName, string scopeSymbolId, string errorMessage, Exception? ex);
 }
 
 public readonly struct Layer5Logger(ILogger logger)
@@ -255,6 +270,7 @@ public readonly struct Layer5Logger(ILogger logger)
     public void PreloadingTargetedSymbols(int symbolCount) => Layer5LogMessages.StartingTargetedPreload(logger, symbolCount);
     public void PreloadedTargetedSymbols(int addedCount) => Layer5LogMessages.TargetedPreloadComplete(logger, addedCount);
     public void InheritanceResolutionFailed(string targetName, string errorMessage) => Layer5LogMessages.InheritanceResolutionFailed(logger, targetName, errorMessage);
+    public void ReferenceResolutionFailed(string targetName, string scopeSymbolId, Exception ex) => Layer5LogMessages.ReferenceResolutionError(logger, targetName, scopeSymbolId, ex.Message, ex);
 }
 
 public static partial class PipelineLogMessages
@@ -306,12 +322,6 @@ public static partial class PipelineLogMessages
 
     [LoggerMessage(EventId = 6015, Level = LogLevel.Debug, Message = "[Database   ] Persisted {RelationshipCount:N0} relationships to database.")]
     public static partial void PersistedRelationshipsFinal(ILogger logger, int relationshipCount);
-
-    [LoggerMessage(EventId = 6016, Level = LogLevel.Warning, Message = "{Tag} [{Category}] '{Location}': {ErrorMessage}")]
-    public static partial void ScanIssueWarning(ILogger logger, string tag, string category, string location, string errorMessage, Exception? ex);
-
-    [LoggerMessage(EventId = 6017, Level = LogLevel.Error, Message = "{Tag} [{Category}] '{Location}': {ErrorMessage}")]
-    public static partial void ScanIssueError(ILogger logger, string tag, string category, string location, string errorMessage, Exception? ex);
 }
 
 public readonly struct PipelineLogger(ILogger logger)
@@ -332,8 +342,6 @@ public readonly struct PipelineLogger(ILogger logger)
     public void PersistedRelationshipsProgress(int relationshipCount) => PipelineLogMessages.PersistedRelationshipsProgress(logger, relationshipCount);
     public void PersistedNodesFinal(int nodeCount) => PipelineLogMessages.PersistedNodesFinal(logger, nodeCount);
     public void PersistedRelationshipsFinal(int relationshipCount) => PipelineLogMessages.PersistedRelationshipsFinal(logger, relationshipCount);
-    public void ScanIssueWarning(string tag, string category, string location, string errorMessage, Exception? ex) => PipelineLogMessages.ScanIssueWarning(logger, tag, category, location, errorMessage, ex);
-    public void ScanIssueError(string tag, string category, string location, string errorMessage, Exception? ex) => PipelineLogMessages.ScanIssueError(logger, tag, category, location, errorMessage, ex);
 }
 
 public static partial class PostIndexLogMessages

@@ -1,5 +1,4 @@
 using System.Text.RegularExpressions;
-using CodeExplorer.Core.Parser;
 using Node = CodeExplorer.Core.Parser.Syntax.SyntaxNode;
 
 namespace CodeExplorer.Parsers.CSharp.Libraries;
@@ -26,7 +25,7 @@ public class ConfluentKafkaLibraryParser : DeclarativeSemanticExtension
         ];
     }
 
-    private static void CollectReferencesCore(Node node, string scopeSymbolId, List<Reference> references, ParsingContext ctx)
+    private static void CollectReferencesCore(Node node, string scopeSymbolId, List<Reference> references, SemanticParseContext ctx)
     {
         if (!node.Is(TreeSitterSyntax.CSharp.InvocationExpression)) return;
 
@@ -63,7 +62,7 @@ public class ConfluentKafkaLibraryParser : DeclarativeSemanticExtension
         }
     }
 
-    private static string ExtractTopicName(Node? argNode, Node invocationNode, ParsingContext ctx)
+    private static string ExtractTopicName(Node? argNode, Node invocationNode, SemanticParseContext ctx)
     {
         if (!argNode.IsValid()) return "";
 

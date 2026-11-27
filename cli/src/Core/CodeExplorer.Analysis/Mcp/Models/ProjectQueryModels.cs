@@ -5,7 +5,7 @@ namespace CodeExplorer.Core.Mcp.Models;
 [method: JsonConstructor]
 public record ProjectQueryParameter(
     [property: JsonPropertyName("name")] string Name,
-    [property: JsonPropertyName("type")] CodeExplorer.Cypher.Common.QueryParameterType Type = CodeExplorer.Cypher.Common.QueryParameterType.String,
+    [property: JsonPropertyName("type")] QueryParameterType Type = QueryParameterType.String,
     [property: JsonPropertyName("required")] bool Required = false,
     [property: JsonPropertyName("description")] string? Description = null,
     [property: JsonPropertyName("defaultValue")] object? DefaultValue = null
@@ -17,7 +17,7 @@ public record ProjectQueryParameter(
         bool Required = false,
         string? Description = null,
         object? DefaultValue = null)
-        : this(Name, CodeExplorer.Cypher.Common.TaxonomyViewEnumExtensions.ParseQueryParameterType(Type), Required, Description, DefaultValue)
+        : this(Name, TaxonomyViewEnumExtensions.ParseQueryParameterType(Type), Required, Description, DefaultValue)
     {
     }
 }

@@ -233,7 +233,7 @@ public static class WorkspacePathFilterHelpers
         string[] dirFilePaths,
         bool includeFallback)
     {
-        var hasCachedChildDirs = PhysicalFileStore.HasCachedDirectChildDirectories(currentDir);
+        var hasCachedChildDirs = WorkspaceDirectoryIndex.HasCachedChildDirsInCurrent(currentDir);
         if (!includeFallback && dirFilePaths.Length == 0 && !hasCachedChildDirs)
         {
             var parentDir = Path.GetDirectoryName(currentDir.TrimEnd('/', '\\'));

@@ -88,12 +88,10 @@ public class ReleaseV14617BugFixTests
     public async Task CanonicalizeDatabasesInMemoryAsync_OrderingDbConfigAndEfCoreSchema_ConsolidatesToOneDatabaseNode()
     {
         const string wsId = "workspace";
-        var ctx = new ParsingContext(wsId, "C:/test", new ResourceReconciliationService());
 
         var wsNode = new WorkspaceNode(wsId, "TestWs", "C:/test");
         var filesStructure = new FilesStructureNode($"{wsId}:files", "Files", "C:/test");
         var fileNode = new FileNode($"{wsId}:file:OrderingContext.cs", "OrderingContext.cs", "src/Ordering.Infrastructure/OrderingContext.cs", "csharp");
-        var l1 = new Layer1Result(wsNode, filesStructure, [fileNode], []);
 
         var projStructure = new ProjectsStructureNode($"{wsId}:projects", "Projects", "C:/test");
         var svcProject = new ProjectNode($"{wsId}:project:Ordering.API", "Ordering.API", "src/Ordering.API", "csharp")
@@ -106,13 +104,10 @@ public class ReleaseV14617BugFixTests
         };
 
         var dependsOnRel = new Relationship(svcProject.Id, libProject.Id, OntologyConstants.Relationships.DependsOn);
-        var l2 = new Layer2Result(l1, projStructure, [svcProject, libProject], [], [dependsOnRel]);
+        var l2 = new Layer2Result(projStructure, [svcProject, libProject], [], [dependsOnRel]);
 
         var syntaxStructure = new SyntaxStructureNode($"{wsId}:syntax", "Syntax", "C:/test");
-        var l3 = new Layer3Result(l2, syntaxStructure, [], [], [], [], [], new Dictionary<(string Kind, string Name), string>());
-
         var semanticStructure = new SemanticStructureNode($"{wsId}:semantic_structure", "Semantic", "C:/test");
-        ctx.SemanticStructure = semanticStructure;
 
         // 1. Config DB node from Ordering.API
         var configDbNode = new DatabaseNode(
@@ -158,7 +153,16 @@ public class ReleaseV14617BugFixTests
             new(astDbNode.Id, tableNode.Id, OntologyConstants.Relationships.Contains)
         };
 
-        var l4 = new Layer4Result(l3, semanticStructure, [configDbNode, astDbNode, tableNode], allRelationships);
+        var l4 = new Layer4Result(semanticStructure, [configDbNode, astDbNode, tableNode], allRelationships);
+        var ctx = new Layer5Context(
+            "C:/test",
+            workspaceId: wsId,
+            workspace: wsNode,
+            filesStructure: filesStructure,
+            files: [fileNode],
+            layer2: l2,
+            syntaxStructure: syntaxStructure,
+            layer4: l4);
 
         var fileToProject = new Dictionary<string, ProjectNode>(StringComparer.OrdinalIgnoreCase)
         {

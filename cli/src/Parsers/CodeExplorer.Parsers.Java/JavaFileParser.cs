@@ -117,10 +117,11 @@ public class JavaFileParser : IFileParser
         string filePath,
         string parentNodeId,
         string workspaceId,
-        string absoluteWorkspacePath)
+        string absoluteWorkspacePath,
+        string? preloadedContent = null)
     {
         var relativePath = Path.GetRelativePath(absoluteWorkspacePath, filePath).Replace('\\', '/');
-        return await SyntaxTree.ParseAsync(filePath, relativePath, parentNodeId, this, workspaceId, absoluteWorkspacePath);
+        return await SyntaxTree.ParseAsync(filePath, relativePath, parentNodeId, this, workspaceId, absoluteWorkspacePath, preloadedContent);
     }
 
     public ImportType ResolveImportType(string importPath, string filePath, string? absoluteWorkspacePath)

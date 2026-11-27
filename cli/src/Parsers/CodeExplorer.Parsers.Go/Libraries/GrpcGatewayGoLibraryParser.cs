@@ -1,8 +1,5 @@
-using System.Collections.Concurrent;
 using System.Collections.Frozen;
 using System.Text.RegularExpressions;
-using CodeExplorer.Core.Parser;
-using CodeExplorer.Core.Parser.Syntax;
 using Node = CodeExplorer.Core.Parser.Syntax.SyntaxNode;
 
 namespace CodeExplorer.Parsers.Go.Libraries;
@@ -48,7 +45,7 @@ public class GrpcGatewayGoLibraryParser : DeclarativeSemanticExtension
         ];
     }
 
-    private static void EnrichGrpcGatewaySymbol(Node node, SyntacticSymbol symbol, ParsingContext ctx)
+    private static void EnrichGrpcGatewaySymbol(Node node, SyntacticSymbol symbol, SemanticParseContext ctx)
     {
         if (IsGrpcGatewayCall(node, out var verb, out _, out var service, out var method))
         {
@@ -57,11 +54,11 @@ public class GrpcGatewayGoLibraryParser : DeclarativeSemanticExtension
             symbol.Properties["grpc_service"] = service;
             symbol.Properties["grpc_method"] = method;
             symbol.Properties["operation"] = verb;
-            symbol.OperationType = CodeExplorer.Cypher.Common.OperationType.Unary;
+            symbol.OperationType = OperationType.Unary;
         }
     }
 
-    private static void CollectGrpcGatewayReferences(Node node, string scopeSymbolId, List<Reference> references, ParsingContext ctx)
+    private static void CollectGrpcGatewayReferences(Node node, string scopeSymbolId, List<Reference> references, SemanticParseContext ctx)
     {
         if (IsGrpcGatewayCall(node, out _, out _, out var service, out var method))
         {

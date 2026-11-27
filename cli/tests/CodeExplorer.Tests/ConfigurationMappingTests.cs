@@ -1,4 +1,3 @@
-using CodeExplorer.Core.Database;
 using System.Threading.Channels;
 using CodeExplorer.Core.Common.Nodes.Layer4_Semantic;
 using CodeExplorer.Core.Parser.Layers;
@@ -51,17 +50,9 @@ public class ConfigurationMappingTests
         """;
         await File.WriteAllTextAsync(Path.Combine(projDir, "appsettings.json"), appsettings);
 
-        var channel = Channel.CreateUnbounded<Func<Task>>();
-
-        await using var client = new InMemoryGraphRepository();
-
-        var ctx = new ParsingContext(_tempDir, _tempDir, client, channel);
-
         WorkspaceIndexer.AutoRegisterParsers();
-        var l1 = await new Layer1PhysicalParser().ParseAsync(ctx);
-        var l2 = await new Layer2ProjectParser().ParseAsync(l1, ctx);
-        var l3 = await new Layer3SyntacticParser().ParseAsync(l2, ctx);
-        var l4 = await new Layer4SemanticParser().ParseAsync(l3, ctx);
+        using var scan = await WorkspaceIndexer.ScanInMemoryAsync(_tempDir, new WorkspaceScanOptions { MaxLayer = AnalysisLayer.Layer4_Semantic });
+        var l4 = scan.Layer4!;
 
         var databases = l4.SemanticNodes.OfType<DatabaseNode>().ToList();
 
@@ -109,17 +100,9 @@ public class ConfigurationMappingTests
         """;
         await File.WriteAllTextAsync(Path.Combine(_tempDir, "docker-compose.yml"), composeContent);
 
-        var channel = Channel.CreateUnbounded<Func<Task>>();
-
-        await using var client = new InMemoryGraphRepository();
-
-        var ctx = new ParsingContext(_tempDir, _tempDir, client, channel);
-
         WorkspaceIndexer.AutoRegisterParsers();
-        var l1 = await new Layer1PhysicalParser().ParseAsync(ctx);
-        var l2 = await new Layer2ProjectParser().ParseAsync(l1, ctx);
-        var l3 = await new Layer3SyntacticParser().ParseAsync(l2, ctx);
-        var l4 = await new Layer4SemanticParser().ParseAsync(l3, ctx);
+        using var scan = await WorkspaceIndexer.ScanInMemoryAsync(_tempDir, new WorkspaceScanOptions { MaxLayer = AnalysisLayer.Layer4_Semantic });
+        var l4 = scan.Layer4!;
 
         var databases = l4.SemanticNodes.OfType<DatabaseNode>().ToList();
         databases.Should().BeEmpty("Docker compose should not generate false DatabaseNode dependencies");
@@ -138,17 +121,9 @@ public class ConfigurationMappingTests
         """;
         await File.WriteAllTextAsync(Path.Combine(_tempDir, ".env"), envContent);
 
-        var channel = Channel.CreateUnbounded<Func<Task>>();
-
-        await using var client = new InMemoryGraphRepository();
-
-        var ctx = new ParsingContext(_tempDir, _tempDir, client, channel);
-
         WorkspaceIndexer.AutoRegisterParsers();
-        var l1 = await new Layer1PhysicalParser().ParseAsync(ctx);
-        var l2 = await new Layer2ProjectParser().ParseAsync(l1, ctx);
-        var l3 = await new Layer3SyntacticParser().ParseAsync(l2, ctx);
-        var l4 = await new Layer4SemanticParser().ParseAsync(l3, ctx);
+        using var scan = await WorkspaceIndexer.ScanInMemoryAsync(_tempDir, new WorkspaceScanOptions { MaxLayer = AnalysisLayer.Layer4_Semantic });
+        var l4 = scan.Layer4!;
 
         var databases = l4.SemanticNodes.OfType<DatabaseNode>().ToList();
 

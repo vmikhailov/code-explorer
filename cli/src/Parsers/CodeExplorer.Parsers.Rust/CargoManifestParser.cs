@@ -8,7 +8,10 @@ namespace CodeExplorer.Parsers.Rust;
 /// </summary>
 public static class CargoManifestParser
 {
-    public static CargoManifest ParseManifest(string cargoTomlPath, string? workspaceRootCargoTomlPath = null)
+    public static CargoManifest ParseManifest(
+        string cargoTomlPath,
+        string? workspaceRootCargoTomlPath = null,
+        bool resolveInheritance = true)
     {
         var fullPath = Path.GetFullPath(cargoTomlPath);
         var dirPath = Path.GetDirectoryName(fullPath) ?? string.Empty;
@@ -21,7 +24,7 @@ public static class CargoManifestParser
         TomlTable? model;
         try
         {
-            var content = PhysicalFileStore.ReadAllText(fullPath);
+            var content = FileStreamReader.ReadTextOnce(fullPath);
             model = TomlSerializer.Deserialize<TomlTable>(content);
         }
         catch
@@ -185,7 +188,10 @@ public static class CargoManifestParser
         }
 
         // 9. Resolve workspace inheritance if needed
-        ResolveWorkspaceInheritance(manifest, workspaceRootCargoTomlPath);
+        if (resolveInheritance)
+        {
+            ResolveWorkspaceInheritance(manifest, workspaceRootCargoTomlPath);
+        }
 
         return manifest;
     }
@@ -200,8 +206,8 @@ public static class CargoManifestParser
             {
                 try
                 {
-                    var text = PhysicalFileStore.ReadAllText(candidateCargoToml);
-                    if (text.Contains("[workspace]"))
+                    var parsedCandidate = ParseManifest(candidateCargoToml, resolveInheritance: false);
+                    if (parsedCandidate.HasWorkspace)
                     {
                         return candidateCargoToml;
                     }
@@ -460,7 +466,24 @@ public static class CargoManifestParser
 
     private static void ResolveWorkspaceInheritance(CargoManifest manifest, string? workspaceRootCargoTomlPath)
     {
-        var wsRoot = workspaceRootCargoTomlPath ?? FindWorkspaceRoot(manifest.DirectoryPath);
+        if (manifest.HasWorkspace)
+        {
+            return;
+        }
+
+        var needsInheritance =
+            manifest.Package?.VersionIsWorkspace == true ||
+            manifest.Package?.EditionIsWorkspace == true ||
+            manifest.Dependencies.Any(d => d.IsWorkspace) ||
+            manifest.DevDependencies.Any(d => d.IsWorkspace) ||
+            manifest.BuildDependencies.Any(d => d.IsWorkspace);
+        if (!needsInheritance)
+        {
+            return;
+        }
+
+        var parentDir = Directory.GetParent(manifest.DirectoryPath)?.FullName;
+        var wsRoot = workspaceRootCargoTomlPath ?? (!string.IsNullOrEmpty(parentDir) ? FindWorkspaceRoot(parentDir) : null);
         if (string.IsNullOrEmpty(wsRoot) || wsRoot.Equals(manifest.FilePath, StringComparison.OrdinalIgnoreCase))
         {
             return;
@@ -474,7 +497,7 @@ public static class CargoManifestParser
         CargoManifest rootManifest;
         try
         {
-            rootManifest = ParseManifest(wsRoot);
+            rootManifest = ParseManifest(wsRoot, resolveInheritance: false);
         }
         catch
         {

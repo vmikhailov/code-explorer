@@ -1,4 +1,3 @@
-using CodeExplorer.Core.Database;
 using System.Threading.Channels;
 using CodeExplorer.Core.Common.Nodes;
 using CodeExplorer.Core.Common.Nodes.Layer4_Semantic;
@@ -78,7 +77,7 @@ func setupRouter() {
         {
             var channel = Channel.CreateUnbounded<Func<Task>>();
             await using var client = new InMemoryGraphRepository();
-            var ctx = new ParsingContext(tempDir, tempDir, client, channel);
+            var ctx = new SemanticParseContext(tempDir);
             var parser = new GoFileParser();
 
             using var syntaxTree = await parser.ParseAsync(filePath, "parent-id", ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
@@ -142,7 +141,7 @@ func setupApp() {
         {
             var channel = Channel.CreateUnbounded<Func<Task>>();
             await using var client = new InMemoryGraphRepository();
-            var ctx = new ParsingContext(tempDir, tempDir, client, channel);
+            var ctx = new SemanticParseContext(tempDir);
             var parser = new GoFileParser();
 
             using var syntaxTree = await parser.ParseAsync(filePath, "parent-id", ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
@@ -207,7 +206,7 @@ func initRoutes(app *fiber.App) {
         {
             var channel = Channel.CreateUnbounded<Func<Task>>();
             await using var client = new InMemoryGraphRepository();
-            var ctx = new ParsingContext(tempDir, tempDir, client, channel);
+            var ctx = new SemanticParseContext(tempDir);
             var parser = new GoFileParser();
 
             using var syntaxTree = await parser.ParseAsync(filePath, "parent-id", ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
@@ -267,7 +266,7 @@ func initRoutes(app *fiber.App) {
         {
             var channel = Channel.CreateUnbounded<Func<Task>>();
             await using var client = new InMemoryGraphRepository();
-            var ctx = new ParsingContext(tempDir, tempDir, client, channel);
+            var ctx = new SemanticParseContext(tempDir);
             var parser = new GoFileParser();
 
             // Layer 3 Step 1 order: constants are registered for every file of the package
@@ -334,7 +333,7 @@ func (r *Resolver) initRoutes() {
         {
             var channel = Channel.CreateUnbounded<Func<Task>>();
             await using var client = new InMemoryGraphRepository();
-            var ctx = new ParsingContext(tempDir, tempDir, client, channel);
+            var ctx = new SemanticParseContext(tempDir);
             var parser = new GoFileParser();
 
             using var syntaxTree = await parser.ParseAsync(filePath, "parent-id", ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
@@ -386,7 +385,7 @@ func setupEcho() {
         {
             var channel = Channel.CreateUnbounded<Func<Task>>();
             await using var client = new InMemoryGraphRepository();
-            var ctx = new ParsingContext(tempDir, tempDir, client, channel);
+            var ctx = new SemanticParseContext(tempDir);
             var parser = new GoFileParser();
 
             using var syntaxTree = await parser.ParseAsync(filePath, "parent-id", ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
@@ -492,7 +491,7 @@ func setupRouter() {
         {
             var channel = Channel.CreateUnbounded<Func<Task>>();
             await using var client = new InMemoryGraphRepository();
-            var ctx = new ParsingContext(tempDir, tempDir, client, channel);
+            var ctx = new SemanticParseContext(tempDir);
             var parser = new GoFileParser();
 
             using var syntaxTree = await parser.ParseAsync(filePath, "parent-id", ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
@@ -560,7 +559,7 @@ var (
         {
             var channel = Channel.CreateUnbounded<Func<Task>>();
             await using var client = new InMemoryGraphRepository();
-            var ctx = new ParsingContext(tempDir, tempDir, client, channel);
+            var ctx = new SemanticParseContext(tempDir);
             var parser = new GoFileParser();
 
             using var syntaxTree = await parser.ParseAsync(filePath, "parent-id", ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
@@ -631,7 +630,7 @@ func (s *Service) GetDetails(ctx context.Context, q *Query) (*AppResponse, error
         {
             var channel = Channel.CreateUnbounded<Func<Task>>();
             await using var client = new InMemoryGraphRepository();
-            var ctx = new ParsingContext(tempDir, tempDir, client, channel);
+            var ctx = new SemanticParseContext(tempDir);
             var parser = new GoFileParser();
 
             using var syntaxTree = await parser.ParseAsync(filePath, "parent-id", ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
@@ -681,7 +680,7 @@ func setupRouter() {
         {
             var channel = Channel.CreateUnbounded<Func<Task>>();
             await using var client = new InMemoryGraphRepository();
-            var ctx = new ParsingContext(tempDir, tempDir, client, channel);
+            var ctx = new SemanticParseContext(tempDir);
             var parser = new GoFileParser();
 
             using var syntaxTree = await parser.ParseAsync(filePath, "parent-id", ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
@@ -742,7 +741,7 @@ func (a *api) Endpoints() []endpoints.Endpoint {
         {
             var channel = Channel.CreateUnbounded<Func<Task>>();
             await using var client = new InMemoryGraphRepository();
-            var ctx = new ParsingContext(tempDir, tempDir, client, channel);
+            var ctx = new SemanticParseContext(tempDir);
             var parser = new GoFileParser();
 
             using var syntaxTree = await parser.ParseAsync(filePath, "parent-id", ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
@@ -791,7 +790,7 @@ func (s *Server) CallLocal(ctx context.Context, in *internalv1pb.InternalInvokeR
         {
             var channel = Channel.CreateUnbounded<Func<Task>>();
             await using var client = new InMemoryGraphRepository();
-            var ctx = new ParsingContext(tempDir, tempDir, client, channel);
+            var ctx = new SemanticParseContext(tempDir);
             var parser = new GoFileParser();
 
             using var syntaxTree = await parser.ParseAsync(filePath, "parent-id", ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
@@ -835,10 +834,10 @@ func (ctrl *ApplicationController) Stop() {}
             syntaxTree.Should().NotBeNull();
             syntaxTree.FileNode.Should().NotBeNull();
 
-            var structNode = syntaxTree.FileNode.Children.OfType<CodeExplorer.Core.Common.Nodes.Layer3_Syntactic.TypeNode>().FirstOrDefault(c => c.Name == "ApplicationController");
+            var structNode = syntaxTree.FileNode.Children.OfType<Core.Common.Nodes.Layer3_Syntactic.TypeNode>().FirstOrDefault(c => c.Name == "ApplicationController");
             structNode.Should().NotBeNull();
-            structNode!.Children.OfType<CodeExplorer.Core.Common.Nodes.Layer3_Syntactic.FunctionNode>().Should().Contain(c => c.Name == "Run");
-            structNode!.Children.OfType<CodeExplorer.Core.Common.Nodes.Layer3_Syntactic.FunctionNode>().Should().Contain(c => c.Name == "Stop");
+            structNode!.Children.OfType<Core.Common.Nodes.Layer3_Syntactic.FunctionNode>().Should().Contain(c => c.Name == "Run");
+            structNode!.Children.OfType<Core.Common.Nodes.Layer3_Syntactic.FunctionNode>().Should().Contain(c => c.Name == "Stop");
         }
         finally
         {

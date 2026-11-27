@@ -1,6 +1,5 @@
 using System.Text.Json;
 using CodeExplorer.Core.Diagrams;
-using CodeExplorer.Core.Parser;
 using CodeExplorer.Core.Parser.Sql;
 using CodeExplorer.Core.Parser.Sql.Ast;
 using NUnit.Framework;
@@ -119,7 +118,7 @@ public class SqlDataSchemaAndProceduresTests
             erDiagram.Should().Contain("customer_id FK");
 
             // 6. inspect_data_lineage surfaces schema, FKs, views, procedures, and triggers
-            var lineageYaml = await CodeExplorer.Core.Mcp.McpLineageFormatter.InspectDataLineageYamlAsync(db, "orders", samplePath, CancellationToken.None);
+            var lineageYaml = await McpLineageFormatter.InspectDataLineageYamlAsync(db, "orders", samplePath, CancellationToken.None);
             lineageYaml.Should().Contain("subKind: table");
             lineageYaml.Should().Contain("customers");
             lineageYaml.Should().Contain("order_items");

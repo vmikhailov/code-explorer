@@ -38,7 +38,7 @@ public class GrpcJavaLibraryParser : DeclarativeSemanticExtension
         ];
     }
 
-    private static string? MapNodeTypeCore(Node node, ParsingContext ctx)
+    private static string? MapNodeTypeCore(Node node, SemanticParseContext ctx)
     {
         if (IsGrpcJavaMethod(node)) return OntologyConstants.NodeLabels.EntryPoint;
         if (HasGrpcClient(node)) return OntologyConstants.NodeLabels.ExternalService;
@@ -61,7 +61,7 @@ public class GrpcJavaLibraryParser : DeclarativeSemanticExtension
         return null;
     }
 
-    private static void CollectReferencesCore(Node node, string scopeSymbolId, List<Reference> references, ParsingContext ctx)
+    private static void CollectReferencesCore(Node node, string scopeSymbolId, List<Reference> references, SemanticParseContext ctx)
     {
         if (HasGrpcClient(node))
         {
@@ -73,18 +73,18 @@ public class GrpcJavaLibraryParser : DeclarativeSemanticExtension
         }
     }
 
-    private static void EnrichSymbolCore(Node node, SyntacticSymbol symbol, ParsingContext ctx)
+    private static void EnrichSymbolCore(Node node, SyntacticSymbol symbol, SemanticParseContext ctx)
     {
         if (!IsGrpcJavaMethod(node)) return;
 
         symbol.Protocol = "gRPC";
-        symbol.OperationType = CodeExplorer.Cypher.Common.OperationType.Unary;
+        symbol.OperationType = OperationType.Unary;
 
         var paramList = node.GetField(TreeSitterSyntax.Fields.Parameters);
         if (paramList.IsValid())
         {
-            bool hasClientStream = false;
-            bool hasServerStream = false;
+            var hasClientStream = false;
+            var hasServerStream = false;
 
             foreach (var param in paramList.Children)
             {
@@ -121,10 +121,10 @@ public class GrpcJavaLibraryParser : DeclarativeSemanticExtension
                 symbol.RequestType = ExtractStreamObserverGenericType(typeNode.Text);
             }
 
-            if (hasClientStream && hasServerStream) symbol.OperationType = CodeExplorer.Cypher.Common.OperationType.BidirectionalStreaming;
-            else if (hasClientStream) symbol.OperationType = CodeExplorer.Cypher.Common.OperationType.ClientStreaming;
-            else if (hasServerStream) symbol.OperationType = CodeExplorer.Cypher.Common.OperationType.ServerStreaming;
-            else symbol.OperationType = CodeExplorer.Cypher.Common.OperationType.Unary;
+            if (hasClientStream && hasServerStream) symbol.OperationType = OperationType.BidirectionalStreaming;
+            else if (hasClientStream) symbol.OperationType = OperationType.ClientStreaming;
+            else if (hasServerStream) symbol.OperationType = OperationType.ServerStreaming;
+            else symbol.OperationType = OperationType.Unary;
         }
     }
 

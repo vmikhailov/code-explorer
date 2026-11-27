@@ -1,5 +1,4 @@
 using Node = CodeExplorer.Core.Parser.Syntax.SyntaxNode;
-using CodeExplorer.Parsers.TypeScript.Libraries;
 
 namespace CodeExplorer.Parsers.TypeScript;
 
@@ -277,7 +276,7 @@ internal static class TypeScriptImportAndCallbackHelper
 
     public static void CollectCallbackArgumentReferences(Node callNode, SyntacticSymbol currentScope)
     {
-        if (currentScope.Kind == CodeExplorer.Cypher.Common.SyntacticSymbolKind.File)
+        if (currentScope.Kind == SyntacticSymbolKind.File)
         {
             return;
         }
@@ -296,7 +295,7 @@ internal static class TypeScriptImportAndCallbackHelper
 
         foreach (var rawArg in argsNode.Children)
         {
-            var arg = rawArg is CodeExplorer.Core.Parser.Syntax.ArgumentSyntax argSyn && argSyn.Value != null
+            var arg = rawArg is Core.Parser.Syntax.ArgumentSyntax argSyn && argSyn.Value != null
                 ? argSyn.Value
                 : rawArg;
             if (!arg.IsValid() || !arg.Is(TreeSitterSyntax.TypeScript.Identifier))
@@ -354,7 +353,7 @@ internal static class TypeScriptImportAndCallbackHelper
             return specifiers;
         }
 
-        if (node is CodeExplorer.Core.Parser.Syntax.ImportDeclSyntax { IsWildcard: true } || node.Children.Any(c => c.Type == "*"))
+        if (node is Core.Parser.Syntax.ImportDeclSyntax { IsWildcard: true } || node.Children.Any(c => c.Type == "*"))
         {
             specifiers.Add(new ImportSpecifier(WildcardSymbol, WildcardSymbol, IsNamespace: true));
         }

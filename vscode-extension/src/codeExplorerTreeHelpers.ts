@@ -526,6 +526,13 @@ export function buildDiagramItems(): CodeExplorerTreeItem[] {
       tooltip: 'Project Map — Internal modules of one project, lifted call dependencies, resources, and dependency cycles',
     },
     {
+      mode: 'project-dependencies',
+      label: 'Project Dependencies',
+      desc: 'Orbital project dependency graph & cycles',
+      icon: 'references',
+      tooltip: 'Project Dependencies — Orbital project-to-project dependency topology, foundation kernel, fan-in/fan-out, and circular dependency detection',
+    },
+    {
       mode: 'layers',
       label: 'Architecture Tiers',
       desc: 'Tiered projects & databases',

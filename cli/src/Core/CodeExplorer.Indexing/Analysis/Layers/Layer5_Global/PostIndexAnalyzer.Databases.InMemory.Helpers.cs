@@ -1,7 +1,6 @@
 using CodeExplorer.Core.Common.Nodes.Layer2_Boundaries;
 using CodeExplorer.Core.Common.Nodes.Layer4_Semantic;
 using CodeExplorer.Core.Parser.Layers;
-using CodeExplorer.Cypher.Common;
 
 namespace CodeExplorer.Core.Parser;
 
@@ -175,7 +174,7 @@ public partial class PostIndexAnalyzer
     }
 
     internal static async Task PropagateSchemaAndUploadNodesInMemoryAsync(
-        ParsingContext ctx,
+        Layer5Context ctx,
         Layer4Result l4Result,
         Dictionary<string, DatabaseNode> canonicalDbNodes,
         string? primaryRelationalEngine)
@@ -402,7 +401,7 @@ public partial class PostIndexAnalyzer
     }
 
     internal static async Task<List<Relationship>> UploadCanonicalRelationshipsInMemoryAsync(
-        ParsingContext ctx,
+        Layer5Context ctx,
         List<(ProjectNode Owner, string RawTarget, Relationship Rel, bool IsImplicitEdge)> projectDbEdges,
         Dictionary<string, DatabaseNode> canonicalDbNodes,
         Dictionary<string, HashSet<string>> ownerConcreteEngines,
@@ -524,7 +523,7 @@ public partial class PostIndexAnalyzer
     }
 
     internal static async Task CleanupDatabaseEntitiesInMemoryAsync(
-        ParsingContext ctx,
+        Layer5Context ctx,
         Dictionary<string, string> rawToCanonical,
         Dictionary<string, DatabaseNode> canonicalDbNodes)
     {

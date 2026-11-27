@@ -1,5 +1,4 @@
 using System.Text;
-using CodeExplorer.Cypher.Common;
 
 namespace CodeExplorer.Core.Parser.Canonical;
 
@@ -43,7 +42,7 @@ public static class TableCanonicalParser
 
         var parts = SplitQualifiedParts(span);
         string? catalog = null;
-        string? schema = explicitSchema;
+        var schema = explicitSchema;
         string tableName;
 
         if (parts.Count >= 3)

@@ -41,7 +41,7 @@ public class WolverineLibraryParser : DeclarativeSemanticExtension
         ];
     }
 
-    private static void CollectReferencesCore(Node node, string scopeSymbolId, List<Reference> references, ParsingContext ctx)
+    private static void CollectReferencesCore(Node node, string scopeSymbolId, List<Reference> references, SemanticParseContext ctx)
     {
         if (IsWolverineHandlerMethod(node, out var handledMessage))
         {

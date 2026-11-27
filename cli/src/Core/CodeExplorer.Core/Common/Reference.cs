@@ -1,6 +1,4 @@
 using System.Text.Json.Serialization;
-using CodeExplorer.Core.Common;
-using CodeExplorer.Cypher.Common;
 
 namespace CodeExplorer.Common;
 

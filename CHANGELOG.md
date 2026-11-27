@@ -5,6 +5,24 @@ All notable changes to the CodeExplorer project (CLI, MCP Server, and VS Code Ex
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.107.0] - 2026-11-27
+
+### Added
+- **Interactive 3D Graph Canvas & Project Dependencies View (`UniversalGraph3DCanvas`, `ProjectDependenciesView`, `UniversalGraphMap`, `DomainArchitectureView`)**: Added interactive 3D graph projection modes (`echelon`, `gyro`, `sphere`) alongside 2D layouts in `UniversalGraphMap` and `DomainArchitectureView`, plus a dedicated tiered `Project Dependencies` architecture view (`Core & Foundation Kernel` through `External Packages`) in the VS Code Extension.
+- **Project Manifest Single-Pass Ownership Gate (`SIG-P-B-013`)**: Added an architectural invariant gate verifying that project manifests are parsed once inside `IProjectParser` into `ParsedProjectDescriptor` / `ParsedProjectManifestMetadata` with zero direct file reads in Layer 2 boundary orchestration.
+
+### Changed
+- **Unified `WorkspaceIndexer.IndexAsync` & Per-Layer Context Decomposition (`WorkspaceIndexer`, `Layer1Context`..`Layer5Context`, `SemanticParseContext`, `IntentContext`, `Layer1Result`..`Layer5Result`)**: Unified full, subtree, and incremental indexing into a single compact `WorkspaceIndexer.IndexAsync` pipeline (`IncrementalScanPlanner`, `DatabasePersistenceWriter`, `FileRegistrySynchronizer`) and replaced the monolithic `ParsingContext` and `.Prev` result chains with narrow per-layer contexts and flat layer results so AST syntax trees, directory indices, and Git registries are deterministically released before Layer 5.
+- **Stateless `FileStreamReader` & Scoped `WorkspaceDirectoryIndex`**: Replaced `PhysicalFileStore` with stateless pooled `FileStreamReader` streaming and scoped `WorkspaceDirectoryIndex` directory lookups.
+- **Dedicated `CodeExplorer.Intent` Assembly & Central Package Management (`cli/Directory.Packages.props`)**: Extracted `LLamaSharp` local GGUF inference, domain clustering, and model management into `CodeExplorer.Intent` and migrated all 27 .NET projects to NuGet Central Package Management.
+
+### Fixed
+- **Callable `SERVICE_CALL` Target Validation (`Layer5RuntimeCallBinder`, `Layer5GlobalAnalyzer`, `PostIndexAnalyzer`, `WorkspaceCoarsener`)**: Blocked inbound `SERVICE_CALL` edges targeting `terraform`, `shell`, `powershell`, `ScriptProject`, `Library`, and `Test` projects, required host/service-name matched targets to expose at least one `Endpoint` or RPC `EntryPoint`, removed unseparated suffix matching (`"actions"` -> `*-github-actions`) and `exactAny` library fallback in `FindMatchingServiceProject`, and rejected generic single-word target tokens (`prod`, `dev`, `roles`, `helm`, `login`, `key_vault`, `config`, `common`, `actions`, `scripts`, `branches`, `infra`, `modules`).
+- **`Table` Extraction Hygiene & `shared_table` Cross-Domain Noise Suppression (`ResourceNamingHelper`, `DeclarativeExtendedRules`, `SqlAlchemyLibraryParser`, `NestedSqlParser`, `EndpointSemanticAnalyzer`, `WorkspaceCoarsener`)**: Rejected `Table` identifiers containing newlines/tabs, length `<= 2`, SQL catalog views (`information_schema.*`, `pg_catalog.*`, `sys.*`, `columns`, `tables`, `schemata`, `key_column_usage`, `table_constraints`), dynamic Python argument names (`attrs`), and classless `MatchesClassHierarchyRule` body matches (`*Plugin`), while suppressing unqualified generic table names (`users`, `groups`, `roles`, `events`, `logs`, `tasks`, `jobs`, `items`, `config`, `settings`, `locations`, `metadata`, `audit`), scoping `shared_table` keys by `(schema/db, table)`, capping `unit_degree <= 5`, and applying `1 / log2(2 + unit_degree)` IDF damping in `ce domains` and `ce slice`.
+- **Deduplicated `internal_pkg` vs `package_dep` Subgraph Signals (`WorkspaceCoarsener`)**: Deduplicated `(source_unit, target_unit, package_name)` across `Project -[:DEPENDS_ON]-> Package <-[:PRODUCES]- Project` (`internal_pkg`) and `Project -[:DEPENDS_ON]-> Project` (`package_dep`) so internal package dependencies are weighted once under `internal_pkg:<name>`.
+- **Loopback `ExternalService` Purge (`PostIndexAnalyzer`)**: Purged `localhost`, `localhost:<port>`, `127.0.0.1`, `0.0.0.0`, and `::1` from persisted `ExternalService` nodes and `Project -[:SERVICE_CALL]-> ExternalService` edges while preserving Layer 3 -> Layer 5 `http://localhost:<port>/...` internal `Endpoint` late-binding.
+- **Cached Compiled Wildcard Regexes in `SemanticExtensionRegistry`**: Deduplicated compiled wildcard import patterns across parser instances in a bounded cache and raised the glob match timeout from `100ms` to `5s` to eliminate repeated `DynamicMethod` JIT compilation and spurious `RegexMatchTimeoutException` failures under GC contention.
+
 ## [1.106.4] - 2026-11-27
 
 ### Changed

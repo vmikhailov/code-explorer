@@ -33,7 +33,7 @@ public class CeleryLibraryParser : DeclarativeSemanticExtension
         ];
     }
 
-    private static void CollectCeleryReferences(Node node, string scopeSymbolId, List<Reference> references, ParsingContext ctx)
+    private static void CollectCeleryReferences(Node node, string scopeSymbolId, List<Reference> references, SemanticParseContext ctx)
     {
         if (IsCeleryTaskDecorator(node, out var subscribedTask))
         {

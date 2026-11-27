@@ -1,4 +1,3 @@
-using CodeExplorer.Cypher.Common;
 using Microsoft.Data.Sqlite;
 using NUnit.Framework;
 

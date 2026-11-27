@@ -124,7 +124,7 @@ public static partial class AstValueResolver
         // 2d. Annotation / Attribute default reference via UAST Arguments
         if (node is AnnotationSyntax ann)
         {
-            for (int i = 0; i < ann.Arguments.Count; i++)
+            for (var i = 0; i < ann.Arguments.Count; i++)
             {
                 var arg = ann.Arguments[i];
                 if (arg.NameSpan is "default" && arg.Value is LiteralExprSyntax { ValueText: { Length: > 0 } fnName })
@@ -341,7 +341,7 @@ public static partial class AstValueResolver
         var sb = new System.Text.StringBuilder();
         var allResolved = true;
 
-        for (int i = 0; i < node.Children.Count; i++)
+        for (var i = 0; i < node.Children.Count; i++)
         {
             var child = node.Children[i];
             if (!child.IsValid()) continue;
@@ -507,8 +507,8 @@ public static partial class AstValueResolver
     private static bool IsAllCapsConstantIdentifier(string identifier)
     {
         if (identifier.Length < 3) return false;
-        bool hasLetter = false;
-        for (int i = 0; i < identifier.Length; i++)
+        var hasLetter = false;
+        for (var i = 0; i < identifier.Length; i++)
         {
             var ch = identifier[i];
             if (ch is >= 'A' and <= 'Z')

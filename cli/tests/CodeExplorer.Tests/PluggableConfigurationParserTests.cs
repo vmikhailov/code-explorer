@@ -20,7 +20,7 @@ public class PluggableConfigurationParserTests
     {
         var container = new ProjectNode("ws:project:order-service:", "order-service", "services/order-service", "java", "Service", false);
         var relationships = new List<Relationship>();
-        var ctx = new ParsingContext("ws", "/workspace", new ResourceReconciliationService());
+        var ctx = new SemanticParseContext("ws", "/workspace", new ResourceReconciliationService());
 
         var handled = LibraryConfigurationRegistry.TryProcess(
             "spring.datasource.url",
@@ -41,7 +41,7 @@ public class PluggableConfigurationParserTests
     {
         var container = new ProjectNode("ws:project:worker-service:", "worker-service", "services/worker-service", "java", "Worker", false);
         var relationships = new List<Relationship>();
-        var ctx = new ParsingContext("ws", "/workspace", new ResourceReconciliationService());
+        var ctx = new SemanticParseContext("ws", "/workspace", new ResourceReconciliationService());
 
         var handled = LibraryConfigurationRegistry.TryProcess(
             "spring.rabbitmq.host",
@@ -62,7 +62,7 @@ public class PluggableConfigurationParserTests
     {
         var container = new ProjectNode("ws:project:inventory:", "inventory", "services/inventory", "java", "Service", false);
         var relationships = new List<Relationship>();
-        var ctx = new ParsingContext("ws", "/workspace", new ResourceReconciliationService());
+        var ctx = new SemanticParseContext("ws", "/workspace", new ResourceReconciliationService());
 
         var handled = LibraryConfigurationRegistry.TryProcess(
             "url",
@@ -83,7 +83,7 @@ public class PluggableConfigurationParserTests
     {
         var container = new ProjectNode("ws:project:order-service:", "order-service", "services/order-service", "java", "Service", false);
         var relationships = new List<Relationship>();
-        var ctx = new ParsingContext("ws", "/workspace", new ResourceReconciliationService());
+        var ctx = new SemanticParseContext("ws", "/workspace", new ResourceReconciliationService());
 
         var handledSerializer = LibraryConfigurationRegistry.TryProcess(
             "spring.kafka.producer.key-serializer",
@@ -116,7 +116,7 @@ public class PluggableConfigurationParserTests
     {
         var container = new ProjectNode("ws:project:order-service:", "order-service", "services/order-service", "java", "Service", false);
         var relationships = new List<Relationship>();
-        var ctx = new ParsingContext("ws", "/workspace", new ResourceReconciliationService());
+        var ctx = new SemanticParseContext("ws", "/workspace", new ResourceReconciliationService());
 
         var handledDefaultTopic = LibraryConfigurationRegistry.TryProcess(
             "spring.kafka.template.default-topic",
@@ -137,7 +137,7 @@ public class PluggableConfigurationParserTests
     {
         var container = new ProjectNode("ws:project:root:", "twenty", "", "typescript", "SharedLibrary", true);
         var relationships = new List<Relationship>();
-        var ctx = new ParsingContext("ws", "/workspace", new ResourceReconciliationService());
+        var ctx = new SemanticParseContext("ws", "/workspace", new ResourceReconciliationService());
 
         var dbDescriptor = new DatabaseConfigurationDescriptor();
         var handledPodman = dbDescriptor.TryHandle(

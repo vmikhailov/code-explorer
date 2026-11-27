@@ -14,8 +14,8 @@ public static class GoDeclarationExtractor
 
     private static void ExtractInternal(Node node, string? currentScope, Action<string, Node?, string?> register)
     {
-        if (node is CodeExplorer.Core.Parser.Syntax.MemberDeclSyntax { Kind: CodeExplorer.Core.Parser.Syntax.MemberSyntaxKind.Constant } or
-            CodeExplorer.Core.Parser.Syntax.VariableDeclSyntax { IsDeclarator: true })
+        if (node is Core.Parser.Syntax.MemberDeclSyntax { Kind: Core.Parser.Syntax.MemberSyntaxKind.Constant } or
+            Core.Parser.Syntax.VariableDeclSyntax { IsDeclarator: true })
         {
             var nameNode = node.GetChildForField(TreeSitterSyntax.Fields.Name) ??
                            node.Children.FirstOrDefault(c => c.Is(TreeSitterSyntax.Go.Identifier));
@@ -40,15 +40,15 @@ public static class GoDeclarationExtractor
             return;
         }
 
-        if (node is CodeExplorer.Core.Parser.Syntax.KeyValueExprSyntax && node.Children.Count >= 2)
+        if (node is Core.Parser.Syntax.KeyValueExprSyntax && node.Children.Count >= 2)
         {
             var keyChild = node.Children[0];
-            if (keyChild.IsValid() && keyChild is CodeExplorer.Core.Parser.Syntax.ParenthesizedExprSyntax && keyChild.Children.Count > 0)
+            if (keyChild.IsValid() && keyChild is Core.Parser.Syntax.ParenthesizedExprSyntax && keyChild.Children.Count > 0)
             {
                 keyChild = keyChild.Children[0];
             }
             var valChild = node.Children[^1];
-            if (valChild.IsValid() && valChild is CodeExplorer.Core.Parser.Syntax.ParenthesizedExprSyntax && valChild.Children.Count > 0)
+            if (valChild.IsValid() && valChild is Core.Parser.Syntax.ParenthesizedExprSyntax && valChild.Children.Count > 0)
             {
                 valChild = valChild.Children[0];
             }

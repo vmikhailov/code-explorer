@@ -1,19 +1,14 @@
 using System.Diagnostics;
 using System.Text.RegularExpressions;
 using System.Threading.Channels;
-using CodeExplorer.Core.Analysis;
-using CodeExplorer.Core.Analysis.Layers.Layer4_Semantic.Analyzers;
 using CodeExplorer.Core.Common.Nodes;
 using CodeExplorer.Core.Common.Nodes.Layer1_Physical;
 using CodeExplorer.Core.Common.Nodes.Layer2_Boundaries;
 using CodeExplorer.Core.Common.Nodes.Layer3_Syntactic;
 using CodeExplorer.Core.Common.Nodes.Layer4_Semantic;
 using CodeExplorer.Core.Common.Relationships;
-using CodeExplorer.Core.Database;
-using CodeExplorer.Core.Parser;
 using CodeExplorer.Core.Parser.Canonical;
 using CodeExplorer.Core.Parser.Layers;
-using CodeExplorer.Cypher.Common;
 using CodeExplorer.Parsers.CSharp;
 using CodeExplorer.Parsers.Go;
 using CodeExplorer.Parsers.Java;
@@ -191,9 +186,9 @@ public class RouteCanonicalBijectionTests
         var epSegs = cleanEpRoute.Split('/', StringSplitOptions.RemoveEmptyEntries);
         if (callSegs.Length == 0 || epSegs.Length == 0) return 0.0;
 
-        int matchCount = 0;
-        int minLen = Math.Min(callSegs.Length, epSegs.Length);
-        for (int i = 0; i < minLen; i++)
+        var matchCount = 0;
+        var minLen = Math.Min(callSegs.Length, epSegs.Length);
+        for (var i = 0; i < minLen; i++)
         {
             var cSeg = callSegs[i];
             var eSeg = epSegs[i];
@@ -229,7 +224,7 @@ public class RouteCanonicalBijectionTests
         var prepEndpoints = new List<Layer5AnalysisParser.PreparedEndpoint>(endpointCount);
         var endpointsByShape = new Dictionary<string, List<Layer5AnalysisParser.PreparedEndpoint>>(StringComparer.OrdinalIgnoreCase);
 
-        for (int i = 0; i < endpointCount; i++)
+        for (var i = 0; i < endpointCount; i++)
         {
             var svcIndex = i % 50;
             var proj = new ProjectNode($"p_{svcIndex}", $"service-{svcIndex}", $"services/service-{svcIndex}", "CSharp", "Service", false);
@@ -249,7 +244,7 @@ public class RouteCanonicalBijectionTests
 
         var callRoutes = new string[callCount];
         var prepCalls = new List<Layer5AnalysisParser.PreparedExternalService>(callCount);
-        for (int i = 0; i < callCount; i++)
+        for (var i = 0; i < callCount; i++)
         {
             var targetIdx = (i * 2) % endpointCount;
             var svcIndex = targetIdx % 50;
@@ -270,10 +265,10 @@ public class RouteCanonicalBijectionTests
         const int scoringCalls = 250;
         var swLegacyScoring = Stopwatch.StartNew();
         double legacySum = 0;
-        for (int c = 0; c < scoringCalls; c++)
+        for (var c = 0; c < scoringCalls; c++)
         {
             var r = callRoutes[c];
-            for (int e = 0; e < endpointCount; e++)
+            for (var e = 0; e < endpointCount; e++)
             {
                 legacySum += LegacyScoreEndpointMatch(r, "GET", scoringEndpoints[e]);
             }
@@ -282,10 +277,10 @@ public class RouteCanonicalBijectionTests
 
         var swCanonicalScoring = Stopwatch.StartNew();
         double canonicalSum = 0;
-        for (int c = 0; c < scoringCalls; c++)
+        for (var c = 0; c < scoringCalls; c++)
         {
             var parsedCall = RouteCanonicalParser.Parse(callRoutes[c], RouteDialect.OutboundClient);
-            for (int e = 0; e < endpointCount; e++)
+            for (var e = 0; e < endpointCount; e++)
             {
                 canonicalSum += EndpointScoringEngine.ScoreEndpointMatch(parsedCall, "GET", scoringEndpoints[e]);
             }
@@ -294,7 +289,7 @@ public class RouteCanonicalBijectionTests
 
         // 2. Benchmark Layer 5 Late-Binding: 1,000 calls x 2,000 endpoints = 2,000,000 pairs
         var swLinearL5 = Stopwatch.StartNew();
-        int linearMatches = 0;
+        var linearMatches = 0;
         foreach (var ext in prepCalls)
         {
             foreach (var ep in prepEndpoints)
@@ -312,7 +307,7 @@ public class RouteCanonicalBijectionTests
         swLinearL5.Stop();
 
         var swHashJoinL5 = Stopwatch.StartNew();
-        int hashMatches = 0;
+        var hashMatches = 0;
         foreach (var ext in prepCalls)
         {
             if (ext.HasStaticSegment && endpointsByShape.TryGetValue(ext.Canonical.CanonicalShape, out var candidates))
@@ -352,7 +347,7 @@ public class RouteCanonicalBijectionTests
             await File.WriteAllTextAsync(filePath, code);
             var channel = Channel.CreateUnbounded<Func<Task>>();
             var client = new InMemoryGraphRepository();
-            var ctx = new ParsingContext(tempDir, tempDir, client, channel);
+            var ctx = new SemanticParseContext(tempDir);
             using var syntaxTree = await parser.ParseAsync(filePath, "parent-id", ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
             Layer3SyntacticParser.ProcessVisitor(syntaxTree, ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
             var list = new List<ExternalServiceNode>();
@@ -606,17 +601,15 @@ public class RouteCanonicalBijectionTests
 
         var semanticStructure = new SemanticStructureNode("ws0:sem", "SemanticStructure", ".");
         var l1Result = new Layer1Result(ws, filesStructure, [], []);
-        var l2Result = new Layer2Result(l1Result, projectsStructure, [], [], []);
-        var l3Result = new Layer3Result(l2Result, syntaxStructure, [], [], [], [], [], new Dictionary<(string Kind, string Name), string>());
-        var l4Result = new Layer4Result(
-            l3Result,
+        var l2Result = new Layer2Result(projectsStructure, [], [], []);
+                var l4Result = new Layer4Result(
             semanticStructure,
             [extService, endpoint],
             []);
 
         var channel = Channel.CreateUnbounded<Func<Task>>();
         var client = new InMemoryGraphRepository();
-        var ctx = new ParsingContext(".", ".", client, channel);
+        var ctx = new Layer5Context(".", client, workspaceId: "ws0", workspace: ws, filesStructure: filesStructure, layer2: l2Result, syntaxStructure: syntaxStructure, layer4: l4Result);
 
         var lateBoundRels = new List<Relationship>
         {

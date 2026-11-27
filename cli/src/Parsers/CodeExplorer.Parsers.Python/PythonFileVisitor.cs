@@ -44,8 +44,8 @@ public class PythonFileVisitor : BaseParserVisitor
         }
         return node switch
         {
-            CodeExplorer.Core.Parser.Syntax.TypeDeclSyntax { Kind: CodeExplorer.Core.Parser.Syntax.TypeSyntaxKind.Class } => "Class",
-            CodeExplorer.Core.Parser.Syntax.FunctionDeclSyntax => OntologyConstants.NodeLabels.Function,
+            Core.Parser.Syntax.TypeDeclSyntax { Kind: Core.Parser.Syntax.TypeSyntaxKind.Class } => "Class",
+            Core.Parser.Syntax.FunctionDeclSyntax => OntologyConstants.NodeLabels.Function,
             _ => null
         };
     }
@@ -83,7 +83,7 @@ public class PythonFileVisitor : BaseParserVisitor
 
     private bool IsPythonMainGuard(Node node)
     {
-        if (node is not CodeExplorer.Core.Parser.Syntax.ControlFlowStmtSyntax { Kind: CodeExplorer.Core.Parser.Syntax.ControlFlowKind.If } || WorkspaceConventions.IsTestFilePath(RelativePath))
+        if (node is not Core.Parser.Syntax.ControlFlowStmtSyntax { Kind: Core.Parser.Syntax.ControlFlowKind.If } || WorkspaceConventions.IsTestFilePath(RelativePath))
             return false;
 
         var cond = node.GetChildForField("condition");
@@ -104,7 +104,7 @@ public class PythonFileVisitor : BaseParserVisitor
 
     protected override void CollectCustomReferencesForSymbol(Node node, SyntacticSymbol symbolNode, SyntacticSymbol parentNode)
     {
-        if (symbolNode.Kind == CodeExplorer.Cypher.Common.SyntacticSymbolKind.Function)
+        if (symbolNode.Kind == SyntacticSymbolKind.Function)
         {
             var parent = node.Parent;
             if (parent.IsValid() && parent.Is(TreeSitterSyntax.Python.DecoratedDefinition))
@@ -122,7 +122,7 @@ public class PythonFileVisitor : BaseParserVisitor
                 }
             }
         }
-        else if (symbolNode.Kind == CodeExplorer.Cypher.Common.SyntacticSymbolKind.EntryPoint && IsDjangoPath(node))
+        else if (symbolNode.Kind == SyntacticSymbolKind.EntryPoint && IsDjangoPath(node))
         {
             var route = ExtractDjangoPathRoute(node);
             if (!string.IsNullOrEmpty(route))
@@ -191,7 +191,7 @@ public class PythonFileVisitor : BaseParserVisitor
         {
             foreach (var child in node.Children)
             {
-                if (child is CodeExplorer.Core.Parser.Syntax.MemberAccessExprSyntax or CodeExplorer.Core.Parser.Syntax.IdentifierExprSyntax or CodeExplorer.Core.Parser.Syntax.KeyValueExprSyntax ||
+                if (child is Core.Parser.Syntax.MemberAccessExprSyntax or Core.Parser.Syntax.IdentifierExprSyntax or Core.Parser.Syntax.KeyValueExprSyntax ||
                     child.IsAny(TreeSitterSyntax.Python.DottedName, TreeSitterSyntax.Python.AliasedName))
                 {
                     var importPath = child.Text;
@@ -405,7 +405,7 @@ public class PythonFileVisitor : BaseParserVisitor
             return false;
         }
 
-        string objName = obj?.Text ?? string.Empty;
+        var objName = obj?.Text ?? string.Empty;
         if (objName is "requests" or "httpx" or "urllib.request" or "urllib")
         {
             return attrName is "get" or "post" or "put" or "delete" or "request" or "patch" or "head" or "urlopen";
@@ -417,7 +417,7 @@ public class PythonFileVisitor : BaseParserVisitor
         }
 
         // Exclude dict properties, headers, configs, or request objects (e.g. request.headers.get, settings.session_limits.get)
-        string lowerObj = objName.ToLowerInvariant();
+        var lowerObj = objName.ToLowerInvariant();
         if (lowerObj.EndsWith(".headers") || lowerObj.EndsWith(".cookies") || lowerObj.EndsWith(".params") ||
             lowerObj.Contains("headers") || lowerObj.Contains("limits") || lowerObj.Contains("request") ||
             lowerObj.Contains("settings") || lowerObj.Contains("config"))
@@ -458,7 +458,7 @@ public class PythonFileVisitor : BaseParserVisitor
     {
         if (PythonAstHelper.TryGetMemberAccess(node, out var obj, out var attrName) && obj != null && !string.IsNullOrEmpty(attrName))
         {
-            string objName = obj?.Text ?? string.Empty;
+            var objName = obj?.Text ?? string.Empty;
             if (IsTelegramBotCall(objName, attrName))
             {
                 return $"https://api.telegram.org/bot/{attrName}";

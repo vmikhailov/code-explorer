@@ -267,7 +267,7 @@ public static class OntologyEnumMaps
     {
         if (string.IsNullOrEmpty(camelOrPascal)) return "";
         var sb = new System.Text.StringBuilder();
-        for (int i = 0; i < camelOrPascal.Length; i++)
+        for (var i = 0; i < camelOrPascal.Length; i++)
         {
             var c = camelOrPascal[i];
             if (char.IsUpper(c) && i > 0 && !char.IsUpper(camelOrPascal[i - 1]))

@@ -14,7 +14,7 @@ public class GoTestComponentParser : IComponentLibraryParser
 
     public bool CanHandle(ProjectContext context)
     {
-        return context.ProjectType == CodeExplorer.Cypher.Common.ProjectLanguage.Go &&
+        return context.ProjectType == ProjectLanguage.Go &&
                (Libraries.GoTestLibraryParser.Instance.GetPackageDescriptors().Any(p => p.Matches(context)) ||
                 context.FilesInDirectory.Any(f => f.EndsWith("_test.go")) ||
                 context.ManifestProperties.GetValueOrDefault("manifest_type") == "test" ||
@@ -44,14 +44,14 @@ public class GoTestComponentParser : IComponentLibraryParser
         };
     }
 
-    public void EnrichWithSyntax(ComponentAnalysisResult? result, SyntaxTree syntaxTree, ParsingContext ctx)
+    public void EnrichWithSyntax(ComponentAnalysisResult? result, SyntaxTree syntaxTree, SemanticParseContext ctx)
     {
         if (syntaxTree.Tree == null) return;
 
         var isTestFile = syntaxTree.RelativePath.EndsWith("_test.go", StringComparison.OrdinalIgnoreCase);
         var root = syntaxTree.Tree.RootNode;
 
-        void WalkNode(CodeExplorer.Core.Parser.Syntax.SyntaxNode node)
+        void WalkNode(Core.Parser.Syntax.SyntaxNode node)
         {
             if (node.IsAny(TreeSitterSyntax.Go.FunctionDeclaration, TreeSitterSyntax.Go.MethodDeclaration))
             {
@@ -76,7 +76,7 @@ public class GoTestComponentParser : IComponentLibraryParser
                 }
             }
 
-            for (int i = 0; i < node.Children.Count; i++)
+            for (var i = 0; i < node.Children.Count; i++)
             {
                 var child = node.Children[i];
                 if (child.IsValid())

@@ -28,7 +28,7 @@ public class UrllibLibraryParser : DeclarativeSemanticExtension
 
     public override IReadOnlyList<CustomAstRule> CustomAstRules => Rules;
 
-    private static string? ExtractIdentifierStatic(Node node, ParsingContext ctx, string? projectName)
+    private static string? ExtractIdentifierStatic(Node node, SemanticParseContext ctx, string? projectName)
     {
         if (IsUrllibCall(node))
         {
@@ -42,7 +42,7 @@ public class UrllibLibraryParser : DeclarativeSemanticExtension
         return null;
     }
 
-    private static void CollectReferencesCore(Node node, string scopeSymbolId, List<Reference> references, ParsingContext ctx)
+    private static void CollectReferencesCore(Node node, string scopeSymbolId, List<Reference> references, SemanticParseContext ctx)
     {
         if (IsUrllibCall(node))
         {

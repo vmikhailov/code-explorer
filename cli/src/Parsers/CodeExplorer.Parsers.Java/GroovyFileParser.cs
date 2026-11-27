@@ -1,7 +1,6 @@
 using System.Text.RegularExpressions;
 using CodeExplorer.Core.Common.Nodes.Layer1_Physical;
 using CodeExplorer.Core.Common.Nodes.Layer3_Syntactic;
-using CodeExplorer.Core.Parser;
 using CodeExplorer.Core.Parser.Syntax;
 using Node = CodeExplorer.Core.Parser.Syntax.SyntaxNode;
 
@@ -92,7 +91,8 @@ public class GroovyFileParser : IFileParser
         string filePath,
         string parentNodeId,
         string workspaceId,
-        string absoluteWorkspacePath)
+        string absoluteWorkspacePath,
+        string? preloadedContent = null)
     {
         var relativePath = Path.GetRelativePath(absoluteWorkspacePath, filePath).Replace('\\', '/');
         var fileName = Path.GetFileName(filePath);
@@ -100,7 +100,7 @@ public class GroovyFileParser : IFileParser
         var fileNode = new FileNode(fileId, fileName, relativePath, filePath);
         var rawImports = new List<RawImport>();
 
-        var content = await PhysicalFileStore.ConsumeFileTextAsync(filePath);
+        var content = preloadedContent ?? await FileStreamReader.ReadTextOnceAsync(filePath);
         var doc = SyntaxDocument.Create(content, LanguageName, filePath, relativePath);
         if (string.IsNullOrWhiteSpace(content))
         {

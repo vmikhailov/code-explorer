@@ -1,6 +1,5 @@
 using CodeExplorer.Core.Diagrams;
 using CodeExplorer.Core.Protocol;
-using CodeExplorer.Cypher.Common;
 using NUnit.Framework;
 
 namespace CodeExplorer.Tests;
@@ -479,11 +478,11 @@ public class GoPolicyGraphRegressionTests
                 (n.Kind == NodeKind.Table && (n.Name == "qa_entries" || n.Name == "nodes")));
 
             // Bug #5: Incremental scan auto-invalidates when indexer_version changes
-            var noOpChanged = await indexer.IndexIncrementalAsync(tempWorkspace);
+            var noOpChanged = (await indexer.IndexAsync(tempWorkspace)).HasChanges;
             noOpChanged.Should().BeFalse("matching indexer_version and unchanged files should skip rescan");
 
             await db.SetMetadataAsync(WorkspaceIndexer.IndexerVersionMetadataKey, "1.101.0");
-            var versionUpgradeChanged = await indexer.IndexIncrementalAsync(tempWorkspace);
+            var versionUpgradeChanged = (await indexer.IndexAsync(tempWorkspace)).HasChanges;
             versionUpgradeChanged.Should().BeTrue("upgrading ce indexer_version must trigger a clean full rescan");
             var persistedVer = await db.GetMetadataAsync(WorkspaceIndexer.IndexerVersionMetadataKey);
             persistedVer.Should().Be(WorkspaceIndexer.CurrentIndexerVersion);

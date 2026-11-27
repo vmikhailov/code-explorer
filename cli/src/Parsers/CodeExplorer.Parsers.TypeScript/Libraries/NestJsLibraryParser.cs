@@ -49,7 +49,7 @@ public class NestJsLibraryParser : DeclarativeSemanticExtension
 
     public override IReadOnlyList<CustomAstRule> CustomAstRules => Rules;
 
-    private static string? MapNodeTypeCore(Node node, ParsingContext ctx)
+    private static string? MapNodeTypeCore(Node node, SemanticParseContext ctx)
     {
         if ((_decoratorEntryPointSelector.Matches(node) && !IsParameterDecorator(node)) || IsNestFactoryCreate(node)) return OntologyConstants.NodeLabels.EntryPoint;
         return null;
@@ -62,7 +62,7 @@ public class NestJsLibraryParser : DeclarativeSemanticExtension
         return func.IsValid() && func.Text.StartsWith("NestFactory.create", StringComparison.Ordinal);
     }
 
-    private static string? ExtractIdentifierStatic(Node node, ParsingContext ctx, string? projectName)
+    private static string? ExtractIdentifierStatic(Node node, SemanticParseContext ctx, string? projectName)
     {
         if (IsNestFactoryCreate(node))
         {
@@ -155,7 +155,7 @@ public class NestJsLibraryParser : DeclarativeSemanticExtension
             var idx = children.FindIndex(c => c.Id == node.Id);
             if (idx >= 0)
             {
-                for (int i = 0; i < children.Count; i++)
+                for (var i = 0; i < children.Count; i++)
                 {
                     if (children[i].Is(TreeSitterSyntax.TypeScript.Decorator))
                     {
@@ -249,7 +249,7 @@ public class NestJsLibraryParser : DeclarativeSemanticExtension
             var idx = children.FindIndex(c => c.Id == node.Id);
             if (idx >= 0)
             {
-                for (int i = idx + 1; i < children.Count; i++)
+                for (var i = idx + 1; i < children.Count; i++)
                 {
                     if (children[i].Is(TreeSitterSyntax.TypeScript.MethodDefinition))
                     {
@@ -322,7 +322,7 @@ public class NestJsLibraryParser : DeclarativeSemanticExtension
         return null;
     }
 
-    private static void CollectReferencesCore(Node node, string scopeSymbolId, List<Reference> references, ParsingContext ctx)
+    private static void CollectReferencesCore(Node node, string scopeSymbolId, List<Reference> references, SemanticParseContext ctx)
     {
         if (node.Is(TreeSitterSyntax.TypeScript.MethodDefinition))
         {
@@ -379,7 +379,7 @@ public class NestJsLibraryParser : DeclarativeSemanticExtension
         return result;
     }
 
-    private static void EnrichSymbolCore(Node node, SyntacticSymbol symbol, ParsingContext ctx)
+    private static void EnrichSymbolCore(Node node, SyntacticSymbol symbol, SemanticParseContext ctx)
     {
         var decorators = new List<Node>();
         Node? methodNode = null;
@@ -394,13 +394,13 @@ public class NestJsLibraryParser : DeclarativeSemanticExtension
                 var idx = children.FindIndex(c => c.Id == node.Id);
                 if (idx >= 0)
                 {
-                    for (int i = 0; i < children.Count; i++)
+                    for (var i = 0; i < children.Count; i++)
                     {
                         if (children[i].Is(TreeSitterSyntax.TypeScript.Decorator))
                             decorators.Add(children[i]);
                     }
 
-                    for (int i = idx + 1; i < children.Count; i++)
+                    for (var i = idx + 1; i < children.Count; i++)
                     {
                         if (children[i].Is(TreeSitterSyntax.TypeScript.MethodDefinition))
                         {
@@ -486,15 +486,15 @@ public class NestJsLibraryParser : DeclarativeSemanticExtension
                 symbol.Protocol = "GraphQL";
                 symbol.OperationType = decName switch
                 {
-                    "Mutation" => CodeExplorer.Cypher.Common.OperationType.Mutation,
-                    "Subscription" => CodeExplorer.Cypher.Common.OperationType.Subscription,
-                    _ => CodeExplorer.Cypher.Common.OperationType.Query
+                    "Mutation" => OperationType.Mutation,
+                    "Subscription" => OperationType.Subscription,
+                    _ => OperationType.Query
                 };
             }
             else if (decName is "GrpcMethod" or "GrpcStreamMethod")
             {
                 symbol.Protocol = "gRPC";
-                symbol.OperationType = decName == "GrpcStreamMethod" ? CodeExplorer.Cypher.Common.OperationType.ServerStreaming : CodeExplorer.Cypher.Common.OperationType.Unary;
+                symbol.OperationType = decName == "GrpcStreamMethod" ? OperationType.ServerStreaming : OperationType.Unary;
             }
             else if (decName is "SubscribeMessage")
             {
@@ -510,7 +510,7 @@ public class NestJsLibraryParser : DeclarativeSemanticExtension
             }
             else if (decName is "Module" or "NgModule" &&
                      node.Is(TreeSitterSyntax.TypeScript.ClassDeclaration) &&
-                     symbol.Kind == CodeExplorer.Cypher.Common.SyntacticSymbolKind.Class)
+                     symbol.Kind == SyntacticSymbolKind.Class)
             {
                 ExtractNestModuleRelationships(dec, symbol);
             }
@@ -549,11 +549,11 @@ public class NestJsLibraryParser : DeclarativeSemanticExtension
 
             if (key == "imports")
             {
-                CollectModuleArrayReferences(valNode, symbol, CodeExplorer.Cypher.Common.RelationshipKind.DependsOn);
+                CollectModuleArrayReferences(valNode, symbol, RelationshipKind.DependsOn);
             }
             else if (key is "providers" or "controllers" or "exports")
             {
-                CollectModuleArrayReferences(valNode, symbol, CodeExplorer.Cypher.Common.RelationshipKind.UsesType);
+                CollectModuleArrayReferences(valNode, symbol, RelationshipKind.UsesType);
             }
         }
     }
@@ -561,7 +561,7 @@ public class NestJsLibraryParser : DeclarativeSemanticExtension
     private static void CollectModuleArrayReferences(
         Node exprNode,
         SyntacticSymbol symbol,
-        CodeExplorer.Cypher.Common.RelationshipKind relEnum)
+        RelationshipKind relEnum)
     {
         foreach (var child in exprNode.Children)
         {
@@ -724,7 +724,7 @@ public class NestJsLibraryParser : DeclarativeSemanticExtension
         return type is "string" or "number" or "boolean" or "any" or "unknown" or "void" or "null" or "undefined" or "never" or "object" or "Record<string, any>" or "Request" or "Response";
     }
 
-    public override void DiscoverDeclarations(string filePath, string content, string? projectName, ParsingContext? ctx)
+    public override void DiscoverDeclarations(string filePath, string content, string? projectName, SemanticParseContext? ctx)
     {
         if (string.IsNullOrWhiteSpace(content) || !content.Contains("setGlobalPrefix")) return;
 
@@ -748,7 +748,7 @@ public class NestJsLibraryParser : DeclarativeSemanticExtension
         }
     }
 
-    public override void DiscoverDeclarations(Node rootNode, string relativePath, string? projectName, ParsingContext? ctx)
+    public override void DiscoverDeclarations(Node rootNode, string relativePath, string? projectName, SemanticParseContext? ctx)
     {
         if (!rootNode.IsValid()) return;
         var srcText = rootNode.Document?.SourceText;
@@ -796,7 +796,7 @@ public class NestJsLibraryParser : DeclarativeSemanticExtension
         if (cleaned.Contains("||") || cleaned.Contains("??"))
         {
             var fallbackParts = cleaned.Split(["||", "??"], StringSplitOptions.TrimEntries);
-            for (int i = fallbackParts.Length - 1; i >= 0; i--)
+            for (var i = fallbackParts.Length - 1; i >= 0; i--)
             {
                 var resolvedPart = ResolveGlobalPrefix(fallbackParts[i], fileText, projectName);
                 if (!string.IsNullOrEmpty(resolvedPart) && !resolvedPart.Contains("process.env") && !resolvedPart.Contains("get("))

@@ -14,7 +14,7 @@ public static class TypeScriptDeclarationExtractor
 
     private static void ExtractInternal(Node node, string? currentScope, Action<string, Node?, string?> register)
     {
-        if (node is CodeExplorer.Core.Parser.Syntax.TypeDeclSyntax { Kind: CodeExplorer.Core.Parser.Syntax.TypeSyntaxKind.Enum } enumDecl)
+        if (node is Core.Parser.Syntax.TypeDeclSyntax { Kind: Core.Parser.Syntax.TypeSyntaxKind.Enum } enumDecl)
         {
             var nameNode = node.GetChildForField(TreeSitterSyntax.Fields.Name);
             var enumName = nameNode.IsValid() ? nameNode.Text : (!string.IsNullOrEmpty(enumDecl.Name) ? enumDecl.Name : "Enum");
@@ -24,7 +24,7 @@ public static class TypeScriptDeclarationExtractor
             {
                 foreach (var child in body.Children)
                 {
-                    if (child is CodeExplorer.Core.Parser.Syntax.MemberDeclSyntax { Kind: CodeExplorer.Core.Parser.Syntax.MemberSyntaxKind.EnumMember } ||
+                    if (child is Core.Parser.Syntax.MemberDeclSyntax { Kind: Core.Parser.Syntax.MemberSyntaxKind.EnumMember } ||
                         child.IsAny(TreeSitterSyntax.TypeScript.EnumAssignment, TreeSitterSyntax.TypeScript.PropertyIdentifier))
                     {
                         var prop = child.GetChildForField(TreeSitterSyntax.Fields.Name) ??
@@ -44,7 +44,7 @@ public static class TypeScriptDeclarationExtractor
             return;
         }
 
-        if (node is CodeExplorer.Core.Parser.Syntax.VariableDeclSyntax { IsDeclarator: false })
+        if (node is Core.Parser.Syntax.VariableDeclSyntax { IsDeclarator: false })
         {
             var declarators = node.FindChildrenOfType(TreeSitterSyntax.TypeScript.VariableDeclarator);
 
@@ -53,7 +53,7 @@ public static class TypeScriptDeclarationExtractor
                 var nameNode = decl.GetChildForField(TreeSitterSyntax.Fields.Name) ??
                                decl.FindChildOfType(TreeSitterSyntax.TypeScript.Identifier);
 
-                if (nameNode.IsValid() && nameNode is not CodeExplorer.Core.Parser.Syntax.PatternSyntax { Kind: CodeExplorer.Core.Parser.Syntax.PatternKind.Object })
+                if (nameNode.IsValid() && nameNode is not Core.Parser.Syntax.PatternSyntax { Kind: Core.Parser.Syntax.PatternKind.Object })
                 {
                     var valNode = decl.GetChildForField(TreeSitterSyntax.Fields.Value);
                     if (!valNode.IsValid() && decl.Children.Count >= 3 && decl.Children[1].Type == "=")
@@ -65,7 +65,7 @@ public static class TypeScriptDeclarationExtractor
 
                     if (valNode.IsValid())
                     {
-                        if (valNode is CodeExplorer.Core.Parser.Syntax.ConditionalExprSyntax condExpr)
+                        if (valNode is Core.Parser.Syntax.ConditionalExprSyntax condExpr)
                         {
                             valNode = condExpr.WhenTrue ?? condExpr.WhenFalse ?? valNode;
                         }
@@ -116,9 +116,9 @@ public static class TypeScriptDeclarationExtractor
             return;
         }
 
-        if (node is CodeExplorer.Core.Parser.Syntax.TypeDeclSyntax
+        if (node is Core.Parser.Syntax.TypeDeclSyntax
             {
-                Kind: CodeExplorer.Core.Parser.Syntax.TypeSyntaxKind.Class or CodeExplorer.Core.Parser.Syntax.TypeSyntaxKind.Interface
+                Kind: Core.Parser.Syntax.TypeSyntaxKind.Class or Core.Parser.Syntax.TypeSyntaxKind.Interface
             } classDecl)
         {
             var nameNode = node.GetChildForField(TreeSitterSyntax.Fields.Name);
@@ -130,9 +130,9 @@ public static class TypeScriptDeclarationExtractor
             return;
         }
 
-        if (node is CodeExplorer.Core.Parser.Syntax.MemberDeclSyntax
+        if (node is Core.Parser.Syntax.MemberDeclSyntax
             {
-                Kind: CodeExplorer.Core.Parser.Syntax.MemberSyntaxKind.Field or CodeExplorer.Core.Parser.Syntax.MemberSyntaxKind.Property
+                Kind: Core.Parser.Syntax.MemberSyntaxKind.Field or Core.Parser.Syntax.MemberSyntaxKind.Property
             } memberDecl)
         {
             var nameNode = node.GetChildForField(TreeSitterSyntax.Fields.Name) ??
@@ -141,7 +141,7 @@ public static class TypeScriptDeclarationExtractor
             var valNode = memberDecl.Initializer ?? node.GetChildForField(TreeSitterSyntax.Fields.Value);
             if (!string.IsNullOrEmpty(fieldName) && valNode.IsValid())
             {
-                if (valNode is CodeExplorer.Core.Parser.Syntax.ConditionalExprSyntax condField)
+                if (valNode is Core.Parser.Syntax.ConditionalExprSyntax condField)
                 {
                     valNode = condField.WhenTrue ?? condField.WhenFalse ?? valNode;
                 }
@@ -155,9 +155,9 @@ public static class TypeScriptDeclarationExtractor
         }
 
         // Do not recurse into local scopes (functions, methods, arrow functions, blocks)
-        if (node is CodeExplorer.Core.Parser.Syntax.FunctionDeclSyntax or
-                    CodeExplorer.Core.Parser.Syntax.LambdaExprSyntax or
-                    CodeExplorer.Core.Parser.Syntax.BlockStmtSyntax)
+        if (node is Core.Parser.Syntax.FunctionDeclSyntax or
+                    Core.Parser.Syntax.LambdaExprSyntax or
+                    Core.Parser.Syntax.BlockStmtSyntax)
         {
             return;
         }

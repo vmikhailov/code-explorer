@@ -1,9 +1,7 @@
-using System.Text.Json;
 using CodeExplorer.Core.Gates.Engine;
 using CodeExplorer.Core.Gates.Models;
 using CodeExplorer.Core.Gates.Storage;
 using CodeExplorer.Core.Mcp.Models;
-using CodeExplorer.Cypher.Common;
 using CodeExplorer.Cypher.Parser;
 
 namespace CodeExplorer.Core.Mcp;
@@ -283,18 +281,8 @@ public partial class CodeExplorerRepository
         int relsCount;
         Dictionary<string, int> nodesByKind;
 
-        if (!clear)
+        if (!clear && hadActiveWatcher && PathsEqualNormalized(targetDir, ws.RootDirectory))
         {
-            var isRootScan = PathsEqualNormalized(targetDir, ws.RootDirectory);
-            if (!hadActiveWatcher || !isRootScan)
-            {
-                await indexer.IndexIncrementalAsync(
-                    targetDir,
-                    ws.RootDirectory,
-                    cancellationToken,
-                    enableIntentAnalysis: false);
-            }
-
             (nodesCount, relsCount) = await client.GetGraphCountsAsync(cancellationToken);
             nodesByKind = await client.GetNodesBreakdownAsync(cancellationToken);
         }
@@ -303,13 +291,12 @@ public partial class CodeExplorerRepository
             if (clear)
             {
                 indexer.ResetFileRegistry();
-                await client.ClearWorkspaceAsync(targetDir);
             }
 
             (nodesCount, relsCount, nodesByKind) = await indexer.IndexAsync(
                 targetDir,
                 ws.RootDirectory,
-                clear: false,
+                clear: clear,
                 cancellationToken: cancellationToken);
         }
 
@@ -421,8 +408,8 @@ public partial class CodeExplorerRepository
 
         var nodesRoot = ToonYamlSerializer.ParseYamlOrJson(nodesJson);
 
-        int nodesIngested = 0;
-        int relsIngested = 0;
+        var nodesIngested = 0;
+        var relsIngested = 0;
 
         if (nodesRoot.Kind == CypherValueKind.Array)
         {
@@ -509,7 +496,7 @@ public partial class CodeExplorerRepository
         InvariantScope? scopeFilter = !string.IsNullOrWhiteSpace(scope) && Enum.TryParse<InvariantScope>(scope, true, out var s) ? s : null;
         InvariantDimension? dimFilter = !string.IsNullOrWhiteSpace(dimension) && Enum.TryParse<InvariantDimension>(dimension, true, out var d) ? d : null;
         GateCategory? categoryFilter = !string.IsNullOrWhiteSpace(category) && Enum.TryParse<GateCategory>(category, true, out var c) ? c : null;
-        string? platformFilter = !string.IsNullOrWhiteSpace(platform) ? platform.Trim() : null;
+        var platformFilter = !string.IsNullOrWhiteSpace(platform) ? platform.Trim() : null;
 
         if (!string.IsNullOrWhiteSpace(gateId))
         {

@@ -14,12 +14,12 @@ public static class CSharpDeclarationExtractor
 
     private static void ExtractInternal(Node node, string? currentScope, Action<string, Node?, string?> register)
     {
-        if (node is CodeExplorer.Core.Parser.Syntax.FunctionDeclSyntax or CodeExplorer.Core.Parser.Syntax.BlockStmtSyntax)
+        if (node is Core.Parser.Syntax.FunctionDeclSyntax or Core.Parser.Syntax.BlockStmtSyntax)
         {
             return;
         }
 
-        if (node is CodeExplorer.Core.Parser.Syntax.TypeDeclSyntax { Kind: CodeExplorer.Core.Parser.Syntax.TypeSyntaxKind.Class or CodeExplorer.Core.Parser.Syntax.TypeSyntaxKind.Struct or CodeExplorer.Core.Parser.Syntax.TypeSyntaxKind.Record } typeDecl)
+        if (node is Core.Parser.Syntax.TypeDeclSyntax { Kind: Core.Parser.Syntax.TypeSyntaxKind.Class or Core.Parser.Syntax.TypeSyntaxKind.Struct or Core.Parser.Syntax.TypeSyntaxKind.Record } typeDecl)
         {
             var nameNode = node.GetChildForField(TreeSitterSyntax.Fields.Name);
             var className = nameNode.IsValid() ? nameNode.Text : (!string.IsNullOrEmpty(typeDecl.Name) ? typeDecl.Name : currentScope);
@@ -31,7 +31,7 @@ public static class CSharpDeclarationExtractor
             return;
         }
 
-        if (node is CodeExplorer.Core.Parser.Syntax.TypeDeclSyntax { Kind: CodeExplorer.Core.Parser.Syntax.TypeSyntaxKind.Enum } enumDecl)
+        if (node is Core.Parser.Syntax.TypeDeclSyntax { Kind: Core.Parser.Syntax.TypeSyntaxKind.Enum } enumDecl)
         {
             var nameNode = node.GetChildForField(TreeSitterSyntax.Fields.Name);
             var enumName = nameNode.IsValid() ? nameNode.Text : (!string.IsNullOrEmpty(enumDecl.Name) ? enumDecl.Name : "Enum");
@@ -53,8 +53,8 @@ public static class CSharpDeclarationExtractor
             return;
         }
 
-        if (node is CodeExplorer.Core.Parser.Syntax.MemberDeclSyntax { Kind: CodeExplorer.Core.Parser.Syntax.MemberSyntaxKind.Field or CodeExplorer.Core.Parser.Syntax.MemberSyntaxKind.Constant } or
-            CodeExplorer.Core.Parser.Syntax.VariableDeclSyntax { IsDeclarator: false })
+        if (node is Core.Parser.Syntax.MemberDeclSyntax { Kind: Core.Parser.Syntax.MemberSyntaxKind.Field or Core.Parser.Syntax.MemberSyntaxKind.Constant } or
+            Core.Parser.Syntax.VariableDeclSyntax { IsDeclarator: false })
         {
             if (HasAnyModifier(node, "const", "readonly", "static"))
             {
@@ -80,7 +80,7 @@ public static class CSharpDeclarationExtractor
             return;
         }
 
-        if (node is CodeExplorer.Core.Parser.Syntax.MemberDeclSyntax { Kind: CodeExplorer.Core.Parser.Syntax.MemberSyntaxKind.Property } propDecl)
+        if (node is Core.Parser.Syntax.MemberDeclSyntax { Kind: Core.Parser.Syntax.MemberSyntaxKind.Property } propDecl)
         {
             if (HasAnyModifier(node, "static"))
             {
@@ -110,11 +110,11 @@ public static class CSharpDeclarationExtractor
 
     private static bool HasAnyModifier(Node node, params string[] modifiers)
     {
-        if (node is CodeExplorer.Core.Parser.Syntax.DeclarationSyntax decl)
+        if (node is Core.Parser.Syntax.DeclarationSyntax decl)
         {
-            if (modifiers.Contains("const") && decl.Modifiers.HasFlag(CodeExplorer.Core.Parser.Syntax.SyntaxModifiers.Const)) return true;
-            if (modifiers.Contains("readonly") && decl.Modifiers.HasFlag(CodeExplorer.Core.Parser.Syntax.SyntaxModifiers.ReadOnly)) return true;
-            if (modifiers.Contains("static") && decl.Modifiers.HasFlag(CodeExplorer.Core.Parser.Syntax.SyntaxModifiers.Static)) return true;
+            if (modifiers.Contains("const") && decl.Modifiers.HasFlag(Core.Parser.Syntax.SyntaxModifiers.Const)) return true;
+            if (modifiers.Contains("readonly") && decl.Modifiers.HasFlag(Core.Parser.Syntax.SyntaxModifiers.ReadOnly)) return true;
+            if (modifiers.Contains("static") && decl.Modifiers.HasFlag(Core.Parser.Syntax.SyntaxModifiers.Static)) return true;
         }
         return false;
     }

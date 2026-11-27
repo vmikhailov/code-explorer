@@ -1,4 +1,3 @@
-using CodeExplorer.Core.Database;
 using System.Diagnostics;
 using System.Threading.Channels;
 using CodeExplorer.Core.Parser.Layers;
@@ -14,19 +13,10 @@ public class Layer5BenchmarkTests
     public async Task Benchmark_ResolveGlobalReferences_100K()
     {
         var dbClient = new InMemoryGraphRepository();
-        var channel = Channel.CreateUnbounded<Func<Task>>();
-        var ctx = new ParsingContext(
-            absoluteWorkspacePath: "C:/mock/workspace",
-            hostWorkspacePath: "C:/mock/workspace",
-            dbClient: dbClient,
-            sharedChannel: channel,
-            clear: false,
-            logger: NullLogger.Instance
-        );
-        ctx.WorkspaceId = "1";
+        var ctx = new Layer5Context("C:/mock/workspace", dbClient, workspaceId: "1");
 
         // 1. Setup 2,000 RawTypeBindings
-        for (int i = 0; i < 2_000; i++)
+        for (var i = 0; i < 2_000; i++)
         {
             var file = $"src/File_{i % 200}.cs";
             var varName = $"var_{i % 50}";
@@ -36,7 +26,7 @@ public class Layer5BenchmarkTests
         }
 
         // 2. Setup 6,000 GlobalSymbols
-        for (int i = 0; i < 2_000; i++)
+        for (var i = 0; i < 2_000; i++)
         {
             ctx.AddGlobalSymbol(OntologyConstants.NodeLabels.Type, $"Type_{i}", $"1:symbol:src/File_{i}.cs:Type:Type_{i}:1");
             ctx.AddGlobalSymbol(OntologyConstants.NodeLabels.Function, $"Type_{i % 200}.Method_{i % 20}", $"1:symbol:src/File_{i}.cs:Function:Method_{i % 20}:10");
@@ -45,14 +35,14 @@ public class Layer5BenchmarkTests
 
         // 3. Setup 100,000 GlobalReferences (identical distribution to pow3 at 100k scale)
         // - 500 Implements/InheritsFrom
-        for (int i = 0; i < 500; i++)
+        for (var i = 0; i < 500; i++)
         {
             var kind = i % 2 == 0 ? OntologyConstants.Relationships.Implements : OntologyConstants.Relationships.InheritsFrom;
             ctx.GlobalReferences.Add(new Reference($"1:symbol:src/File_{i % 200}.cs:Type:Class_{i}:5", $"Type_{i % 2000}", kind));
         }
 
         // - 65,000 Calls with dot (half matching a binding, half unresolvable like static/BCL)
-        for (int i = 0; i < 65_000; i++)
+        for (var i = 0; i < 65_000; i++)
         {
             var file = $"src/File_{i % 200}.cs";
             var scope = $"1:symbol:{file}:Function:Method_{i % 20}:20";
@@ -69,7 +59,7 @@ public class Layer5BenchmarkTests
         }
 
         // - 25,000 UsesType / PotentialType
-        for (int i = 0; i < 25_000; i++)
+        for (var i = 0; i < 25_000; i++)
         {
             var file = $"src/File_{i % 200}.cs";
             var scope = $"1:symbol:{file}:Function:Method_{i % 20}:30";
@@ -78,7 +68,7 @@ public class Layer5BenchmarkTests
         }
 
         // - 9,500 other references
-        for (int i = 0; i < 9_500; i++)
+        for (var i = 0; i < 9_500; i++)
         {
             var file = $"src/File_{i % 200}.cs";
             var scope = $"1:symbol:{file}:Function:Method_{i % 20}:40";

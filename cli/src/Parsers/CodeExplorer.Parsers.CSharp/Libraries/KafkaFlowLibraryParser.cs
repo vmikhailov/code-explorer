@@ -45,7 +45,7 @@ public class KafkaFlowLibraryParser : DeclarativeSemanticExtension
         "PublishAsync"
     ];
 
-    private static void CollectKafkaFlowReferences(Node node, string scopeSymbolId, List<Reference> references, ParsingContext ctx)
+    private static void CollectKafkaFlowReferences(Node node, string scopeSymbolId, List<Reference> references, SemanticParseContext ctx)
     {
         // 1. Ingress: Handler classes subscribe to message types
         if (IsConsumerClass(node))
@@ -92,7 +92,7 @@ public class KafkaFlowLibraryParser : DeclarativeSemanticExtension
         }
     }
 
-    private static void EnrichKafkaFlowSymbol(Node node, SyntacticSymbol symbol, ParsingContext ctx)
+    private static void EnrichKafkaFlowSymbol(Node node, SyntacticSymbol symbol, SemanticParseContext ctx)
     {
         if (IsConsumerClass(node))
         {

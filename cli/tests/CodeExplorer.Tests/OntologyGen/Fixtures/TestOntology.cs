@@ -8,7 +8,6 @@
 
 using CodeExplorer.Core.Common.Nodes;
 using CodeExplorer.Core.Common.Relationships;
-using CodeExplorer.Cypher.Common;
 
 namespace CodeExplorer.Tests.OntologyGen.Fixtures;
 

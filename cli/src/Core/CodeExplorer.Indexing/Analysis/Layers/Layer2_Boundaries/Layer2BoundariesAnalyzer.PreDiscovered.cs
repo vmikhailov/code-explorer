@@ -72,11 +72,20 @@ public partial class Layer2ProjectParser
             precomputedCounts: node.LanguageCounts);
         if (activeResults.Count == 0)
         {
+            if (node.IsRoot || node.HasManifestInDir)
+            {
+                InspectUmbrellaDirectoryManifests(dir, filesInDir, state);
+            }
             for (var i = 0; i < node.Children.Count; i++)
             {
                 await WalkScopedNodeAsync(node.Children[i], enclosingScope, state);
             }
             return;
+        }
+
+        if (node.IsRoot)
+        {
+            InspectUmbrellaDirectoryManifests(dir, filesInDir, state, activeResults);
         }
 
         var nextScope = await InstantiateMatchedProjectsInDirectoryAsync(dir, filesInDir, activeResults, state)
@@ -93,7 +102,7 @@ public partial class Layer2ProjectParser
         List<(IProjectParser Parser, ProjectParseResult Result)> matches,
         SubtreeLanguageCounts? precomputedCounts = null)
     {
-        if (matches.Count <= 1 || (precomputedCounts == null && !PhysicalFileStore.HasCachedDirectory(dir)))
+        if (matches.Count <= 1 || (precomputedCounts == null && !WorkspaceDirectoryIndex.HasCachedDirectoryInCurrent(dir)))
         {
             return matches;
         }
@@ -154,7 +163,7 @@ public partial class Layer2ProjectParser
     private static SubtreeLanguageCounts CountLanguageFilesInSubtree(string dir)
     {
         int ts = 0, js = 0, py = 0, java = 0, kt = 0, cs = 0, go = 0, rs = 0, php = 0, pl = 0, rb = 0, cpp = 0, swift = 0, tf = 0, cf = 0;
-        foreach (var file in PhysicalFileStore.EnumerateCachedFilesInSubtree(dir))
+        foreach (var file in WorkspaceDirectoryIndex.EnumerateSubtreeInCurrent(dir))
         {
             switch (Path.GetExtension(file).ToLowerInvariant())
             {

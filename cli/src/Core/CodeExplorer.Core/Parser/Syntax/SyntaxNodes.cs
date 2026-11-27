@@ -1,5 +1,4 @@
 using System.Collections.Concurrent;
-using CodeExplorer.Cypher.Common;
 
 namespace CodeExplorer.Core.Parser.Syntax;
 
@@ -374,7 +373,7 @@ public abstract class SyntaxNode
 
     private int IndexInParent(SyntaxNode parent)
     {
-        for (int i = 0; i < parent.Children.Count; i++)
+        for (var i = 0; i < parent.Children.Count; i++)
         {
             if (ReferenceEquals(parent.Children[i], this)) return i;
         }
@@ -422,7 +421,7 @@ public abstract class SyntaxNode
     public IEnumerable<SyntaxNode> DescendantsAndSelf()
     {
         yield return this;
-        for (int i = 0; i < Children.Count; i++)
+        for (var i = 0; i < Children.Count; i++)
         {
             foreach (var descendant in Children[i].DescendantsAndSelf())
             {
@@ -433,7 +432,7 @@ public abstract class SyntaxNode
 
     public IEnumerable<SyntaxNode> Descendants()
     {
-        for (int i = 0; i < Children.Count; i++)
+        for (var i = 0; i < Children.Count; i++)
         {
             foreach (var descendant in Children[i].DescendantsAndSelf())
             {
@@ -470,7 +469,7 @@ public abstract class SyntaxNode
     /// </summary>
     public T? FirstChildOfType<T>() where T : SyntaxNode
     {
-        for (int i = 0; i < Children.Count; i++)
+        for (var i = 0; i < Children.Count; i++)
         {
             if (Children[i] is T match) return match;
         }
@@ -483,7 +482,7 @@ public abstract class SyntaxNode
     /// </summary>
     public T? LastChildOfType<T>() where T : SyntaxNode
     {
-        for (int i = Children.Count - 1; i >= 0; i--)
+        for (var i = Children.Count - 1; i >= 0; i--)
         {
             if (Children[i] is T match) return match;
         }
@@ -495,8 +494,8 @@ public abstract class SyntaxNode
     /// </summary>
     public T? NthChildOfType<T>(int index) where T : SyntaxNode
     {
-        int seen = 0;
-        for (int i = 0; i < Children.Count; i++)
+        var seen = 0;
+        for (var i = 0; i < Children.Count; i++)
         {
             if (Children[i] is T match)
             {
@@ -528,7 +527,7 @@ public abstract class SyntaxNode
     /// </summary>
     public SyntaxNode? GetChildForField(string fieldName)
     {
-        for (int i = 0; i < Children.Count; i++)
+        for (var i = 0; i < Children.Count; i++)
         {
             var c = Children[i];
             if (string.Equals(c.FieldRole, fieldName, StringComparison.Ordinal))
@@ -544,7 +543,7 @@ public abstract class SyntaxNode
     /// </summary>
     public IEnumerable<SyntaxNode> GetChildrenForField(string fieldName)
     {
-        for (int i = 0; i < Children.Count; i++)
+        for (var i = 0; i < Children.Count; i++)
         {
             var c = Children[i];
             if (string.Equals(c.FieldRole, fieldName, StringComparison.Ordinal))
@@ -587,7 +586,7 @@ public abstract class SyntaxNode
     public bool StartsWithSelfOrSuper()
     {
         var curr = this;
-        for (int depth = 0; depth < 8; depth++)
+        for (var depth = 0; depth < 8; depth++)
         {
             if (curr is MemberAccessExprSyntax mem)
             {
@@ -732,7 +731,7 @@ public sealed class SyntaxDocument : SyntaxNode, IDisposable
     {
         if (_functionsByName != null) return _functionsByName;
         var dict = new Dictionary<string, FunctionDeclSyntax>(AllFunctions.Count, StringComparer.Ordinal);
-        for (int i = 0; i < AllFunctions.Count; i++)
+        for (var i = 0; i < AllFunctions.Count; i++)
         {
             var fn = AllFunctions[i];
             var fnName = !string.IsNullOrEmpty(fn.Name)
@@ -782,14 +781,14 @@ public sealed class SyntaxDocument : SyntaxNode, IDisposable
 
     public void Compact()
     {
-        for (int i = 0; i < AllFunctions.Count; i++)
+        for (var i = 0; i < AllFunctions.Count; i++)
         {
             var fn = AllFunctions[i];
             fn.Body = null;
             if (fn.Children.Count > 0)
             {
                 var retained = new List<SyntaxNode>(4);
-                for (int c = 0; c < fn.Children.Count; c++)
+                for (var c = 0; c < fn.Children.Count; c++)
                 {
                     if (fn.Children[c] is not BlockStmtSyntax)
                     {
@@ -872,14 +871,14 @@ public sealed class SyntaxDocument : SyntaxNode, IDisposable
                     case SqlStmtSyntax sq: allSql.Add(sq); break;
                     case ImportDeclSyntax im: imports.Add(im); break;
                 }
-                for (int i = 0; i < node.Children.Count; i++)
+                for (var i = 0; i < node.Children.Count; i++)
                 {
                     node.Children[i].ChildIndex = i;
                     AttachRecursive(node.Children[i], node);
                 }
             }
 
-            for (int i = 0; i < children.Count; i++)
+            for (var i = 0; i < children.Count; i++)
             {
                 var c = children[i];
                 c.ChildIndex = i;
@@ -906,9 +905,9 @@ public sealed class SyntaxDocument : SyntaxNode, IDisposable
 
     private static TextSpan ComputeTextSpan(string sourceText)
     {
-        int lines = 0;
-        int lastLineStart = 0;
-        for (int i = 0; i < sourceText.Length; i++)
+        var lines = 0;
+        var lastLineStart = 0;
+        for (var i = 0; i < sourceText.Length; i++)
         {
             if (sourceText[i] == '\n')
             {
@@ -1000,7 +999,7 @@ public sealed class FunctionDeclSyntax : DeclarationSyntax
     public IReadOnlyList<ParameterDeclSyntax> Parameters { get; set; } = [];
     public BlockStmtSyntax? Body { get; set; }
     public ExprSyntax? ExpressionBody { get; set; }
-    public CodeExplorer.Core.Analysis.Dataflow.FunctionDataflowSummary? DataflowSummary { get; set; }
+    public Analysis.Dataflow.FunctionDataflowSummary? DataflowSummary { get; set; }
     public bool IsAsync => Modifiers.HasFlag(SyntaxModifiers.Async);
     protected override string GetCanonicalKindString() => Kind switch
     {

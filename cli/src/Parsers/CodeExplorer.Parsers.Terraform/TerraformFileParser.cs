@@ -1,6 +1,4 @@
-using CodeExplorer.Core.Common;
 using CodeExplorer.Core.Common.Nodes.Layer1_Physical;
-using CodeExplorer.Core.Parser;
 using CodeExplorer.Core.Parser.Syntax;
 using CodeExplorer.Parsers.Terraform.Hcl;
 
@@ -67,13 +65,14 @@ public sealed class TerraformFileParser : IFileParser
         string filePath,
         string parentNodeId,
         string workspaceId,
-        string absoluteWorkspacePath)
+        string absoluteWorkspacePath,
+        string? preloadedContent = null)
     {
         var relativePath = Path.GetRelativePath(absoluteWorkspacePath, filePath).Replace('\\', '/');
         var fileNodeId = $"{workspaceId}:{OntologyConstants.IdPrefixes.File}:{relativePath}";
         var fileNode = new FileNode(fileNodeId, Path.GetFileName(filePath), relativePath, filePath);
 
-        var sourceText = await PhysicalFileStore.ConsumeFileTextAsync(filePath);
+        var sourceText = preloadedContent ?? await FileStreamReader.ReadTextOnceAsync(filePath);
         var hclFile = HclParser.Parse(sourceText, relativePath);
         var moduleDir = TerraformDeclarationMapper.GetModuleDir(relativePath);
 

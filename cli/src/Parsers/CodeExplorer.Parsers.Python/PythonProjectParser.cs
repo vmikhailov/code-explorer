@@ -1,3 +1,4 @@
+using System.Text;
 using System.Text.RegularExpressions;
 
 [assembly: ParserAssembly]
@@ -43,8 +44,8 @@ public class PythonProjectParser : IProjectParser
         string[] childFiles,
         IProjectParser candidateChildParser)
     {
-        if (PhysicalFileStore.TryGetConfiguredProject(childDirectoryPath, out _) ||
-            (PhysicalFileStore.IsGitRepositoryRoot(childDirectoryPath) && !PhysicalFileStore.HasChildGitRepositories(childDirectoryPath)))
+        if (WorkspaceDirectoryIndex.TryGetConfiguredProjectInCurrent(childDirectoryPath, out _) ||
+            (WorkspaceDirectoryIndex.IsGitRepoRootInCurrent(childDirectoryPath) && !WorkspaceDirectoryIndex.HasChildGitReposInCurrent(childDirectoryPath)))
         {
             return true;
         }
@@ -128,13 +129,13 @@ public class PythonProjectParser : IProjectParser
         {
             var folderName = Path.GetFileName(directoryPath.TrimEnd('/', '\\'));
             if (folderName.Equals("requirements", StringComparison.OrdinalIgnoreCase) &&
-                PhysicalFileStore.HasCachedDirectory(directoryPath) &&
+                WorkspaceDirectoryIndex.HasCachedDirectoryInCurrent(directoryPath) &&
                 !HasPythonFilesInSubtree(directoryPath))
             {
                 return false;
             }
 
-            if (hasOtherManifest || PhysicalFileStore.HasCachedDirectory(directoryPath))
+            if (hasOtherManifest || WorkspaceDirectoryIndex.HasCachedDirectoryInCurrent(directoryPath))
             {
                 var (pyFiles, otherFiles) = CountPythonVsOtherSourceFiles(directoryPath, filesInDirectory);
                 if (pyFiles == 0 && (hasOtherManifest || otherFiles > 0))
@@ -150,8 +151,8 @@ public class PythonProjectParser : IProjectParser
             return true;
         }
 
-        if (PhysicalFileStore.HasChildGitRepositories(directoryPath) ||
-            PhysicalFileStore.HasChildConfiguredProjects(directoryPath))
+        if (WorkspaceDirectoryIndex.HasChildGitReposInCurrent(directoryPath) ||
+            WorkspaceDirectoryIndex.HasChildConfiguredProjectsInCurrent(directoryPath))
         {
             return false;
         }
@@ -202,14 +203,14 @@ public class PythonProjectParser : IProjectParser
             }
         }
 
-        return PhysicalFileStore.FileExistsInCachedDirectory(Path.Combine(directoryPath, "public", "index.php")) ||
-               PhysicalFileStore.FileExistsInCachedDirectory(Path.Combine(directoryPath, "www", "index.php")) ||
-               PhysicalFileStore.FileExistsInCachedDirectory(Path.Combine(directoryPath, "application", "Bootstrap.php"));
+        return WorkspaceDirectoryIndex.FileExistsInCurrentOrDisk(Path.Combine(directoryPath, "public", "index.php")) ||
+               WorkspaceDirectoryIndex.FileExistsInCurrentOrDisk(Path.Combine(directoryPath, "www", "index.php")) ||
+               WorkspaceDirectoryIndex.FileExistsInCurrentOrDisk(Path.Combine(directoryPath, "application", "Bootstrap.php"));
     }
 
     private static bool SubtreeHasOtherEcosystemManifests(string directoryPath)
     {
-        foreach (var file in PhysicalFileStore.EnumerateCachedFilesInSubtree(directoryPath))
+        foreach (var file in WorkspaceDirectoryIndex.EnumerateSubtreeInCurrent(directoryPath))
         {
             var fn = Path.GetFileName(file);
             var lowerFn = fn.ToLowerInvariant();
@@ -273,9 +274,9 @@ public class PythonProjectParser : IProjectParser
     {
         var pyCount = 0;
         var otherCount = 0;
-        if (PhysicalFileStore.HasCachedDirectory(directoryPath))
+        if (WorkspaceDirectoryIndex.HasCachedDirectoryInCurrent(directoryPath))
         {
-            foreach (var file in PhysicalFileStore.EnumerateCachedFilesInSubtree(directoryPath))
+            foreach (var file in WorkspaceDirectoryIndex.EnumerateSubtreeInCurrent(directoryPath))
             {
                 var ext = Path.GetExtension(file).ToLowerInvariant();
                 if (ext is ".py" or ".pyi") pyCount++;
@@ -294,7 +295,7 @@ public class PythonProjectParser : IProjectParser
         ReadOnlySpan<string> commonSourceDirs = ["src", "app", "apps", "packages", "lib"];
         foreach (var sub in commonSourceDirs)
         {
-            var subFiles = PhysicalFileStore.GetDirectoryFiles(Path.Combine(directoryPath, sub));
+            var subFiles = WorkspaceDirectoryIndex.GetDirectoryFilesOrFallback(Path.Combine(directoryPath, sub));
             for (var i = 0; i < subFiles.Length; i++)
             {
                 var ext = Path.GetExtension(subFiles[i]).ToLowerInvariant();
@@ -307,7 +308,7 @@ public class PythonProjectParser : IProjectParser
 
     private static bool IsPythonContainerRoot(string directoryPath, string[] filesInDirectory)
     {
-        if (!PhysicalFileStore.HasCachedDirectory(directoryPath))
+        if (!WorkspaceDirectoryIndex.HasCachedDirectoryInCurrent(directoryPath))
         {
             return false;
         }
@@ -315,7 +316,7 @@ public class PythonProjectParser : IProjectParser
         var folderName = Path.GetFileName(directoryPath.TrimEnd('/', '\\'));
         var parentDir = Directory.GetParent(directoryPath);
         if (parentDir != null &&
-            PhysicalFileStore.HasCachedDirectory(parentDir.FullName) &&
+            WorkspaceDirectoryIndex.HasCachedDirectoryInCurrent(parentDir.FullName) &&
             InternalPythonSubfolders.Contains(folderName))
         {
             return false;
@@ -340,14 +341,14 @@ public class PythonProjectParser : IProjectParser
                    fn.Equals("tox.ini", StringComparison.OrdinalIgnoreCase);
         });
 
-        if (PhysicalFileStore.IsGitRepositoryRoot(directoryPath) &&
-            !PhysicalFileStore.HasChildGitRepositories(directoryPath))
+        if (WorkspaceDirectoryIndex.IsGitRepoRootInCurrent(directoryPath) &&
+            !WorkspaceDirectoryIndex.HasChildGitReposInCurrent(directoryPath))
         {
             var phpCount = 0;
             var pyCount = 0;
             var perlCount = 0;
             var otherCodeCount = 0;
-            foreach (var file in PhysicalFileStore.EnumerateCachedFilesInSubtree(directoryPath))
+            foreach (var file in WorkspaceDirectoryIndex.EnumerateSubtreeInCurrent(directoryPath))
             {
                 if (file.EndsWith(".py", StringComparison.OrdinalIgnoreCase)) pyCount++;
                 else if (file.EndsWith(".php", StringComparison.OrdinalIgnoreCase) || file.EndsWith(".phtml", StringComparison.OrdinalIgnoreCase) || file.EndsWith(".inc", StringComparison.OrdinalIgnoreCase)) phpCount++;
@@ -360,7 +361,7 @@ public class PythonProjectParser : IProjectParser
             }
         }
 
-        var childDirs = PhysicalFileStore.GetCachedDirectChildDirectories(directoryPath);
+        var childDirs = WorkspaceDirectoryIndex.GetCachedChildDirsInCurrent(directoryPath);
         var pyChildCount = 0;
         for (var i = 0; i < childDirs.Count; i++)
         {
@@ -370,7 +371,7 @@ public class PythonProjectParser : IProjectParser
                 continue;
             }
 
-            if (PhysicalFileStore.EnumerateCachedFilesInSubtree(childDirs[i].DirectoryPath)
+            if (WorkspaceDirectoryIndex.EnumerateSubtreeInCurrent(childDirs[i].DirectoryPath)
                 .Any(f => f.EndsWith(".py", StringComparison.OrdinalIgnoreCase)))
             {
                 pyChildCount++;
@@ -392,30 +393,30 @@ public class PythonProjectParser : IProjectParser
 
     private static bool HasAncestorPythonProject(string directoryPath)
     {
-        if ((PhysicalFileStore.IsGitRepositoryRoot(directoryPath) && !PhysicalFileStore.HasChildGitRepositories(directoryPath)) ||
-            (PhysicalFileStore.HasAnyConfiguredProjects && PhysicalFileStore.TryGetConfiguredProject(directoryPath, out _)))
+        if ((WorkspaceDirectoryIndex.IsGitRepoRootInCurrent(directoryPath) && !WorkspaceDirectoryIndex.HasChildGitReposInCurrent(directoryPath)) ||
+            (WorkspaceDirectoryIndex.HasAnyConfiguredProjectsInCurrent && WorkspaceDirectoryIndex.TryGetConfiguredProjectInCurrent(directoryPath, out _)))
         {
             return false;
         }
 
-        var useCacheBound = PhysicalFileStore.HasCachedDirectory(directoryPath);
+        var useCacheBound = WorkspaceDirectoryIndex.HasCachedDirectoryInCurrent(directoryPath);
         var current = Directory.GetParent(directoryPath);
         var depth = 0;
         while (current != null && depth < 16)
         {
             depth++;
-            if (useCacheBound && !PhysicalFileStore.HasCachedDirectory(current.FullName))
+            if (useCacheBound && !WorkspaceDirectoryIndex.HasCachedDirectoryInCurrent(current.FullName))
             {
                 break;
             }
 
-            if (PhysicalFileStore.HasChildGitRepositories(current.FullName) ||
-                PhysicalFileStore.HasChildConfiguredProjects(current.FullName))
+            if (WorkspaceDirectoryIndex.HasChildGitReposInCurrent(current.FullName) ||
+                WorkspaceDirectoryIndex.HasChildConfiguredProjectsInCurrent(current.FullName))
             {
                 break;
             }
 
-            var parentFiles = PhysicalFileStore.GetDirectoryFiles(current.FullName);
+            var parentFiles = WorkspaceDirectoryIndex.GetDirectoryFilesOrFallback(current.FullName);
             if (parentFiles.Any(f =>
                 {
                     var fn = Path.GetFileName(f).ToLowerInvariant();
@@ -428,7 +429,7 @@ public class PythonProjectParser : IProjectParser
                 return true;
             }
 
-            if (PhysicalFileStore.IsGitRepositoryRoot(current.FullName))
+            if (WorkspaceDirectoryIndex.IsGitRepoRootInCurrent(current.FullName))
             {
                 break;
             }
@@ -441,7 +442,9 @@ public class PythonProjectParser : IProjectParser
     private static bool HasNestedRequirementsManifest(string directoryPath)
     {
         var reqDir = Path.Combine(directoryPath, "requirements");
-        if (!PhysicalFileStore.TryGetCachedDirectoryFiles(reqDir, out var reqFiles) || reqFiles.Length == 0)
+        if (WorkspaceDirectoryIndex.Current == null ||
+            !WorkspaceDirectoryIndex.Current.TryGetCachedDirectoryFiles(reqDir, out var reqFiles) ||
+            reqFiles.Length == 0)
         {
             return false;
         }
@@ -464,27 +467,132 @@ public class PythonProjectParser : IProjectParser
 
     private static bool HasPythonFilesInSubtree(string directoryPath)
     {
-        if (!PhysicalFileStore.HasCachedDirectory(directoryPath))
+        if (!WorkspaceDirectoryIndex.HasCachedDirectoryInCurrent(directoryPath))
         {
             return false;
         }
 
-        return PhysicalFileStore.EnumerateCachedFilesInSubtree(directoryPath)
+        return WorkspaceDirectoryIndex.EnumerateSubtreeInCurrent(directoryPath)
             .Any(f => f.EndsWith(".py", StringComparison.OrdinalIgnoreCase));
     }
 
-    public Dictionary<string, string> ExtractManifestProperties(string directoryPath, string[] filesInDirectory)
+    private sealed record PythonManifestBundle(
+        string? PyProjectText,
+        string? SetupPyText,
+        string? RequirementsText,
+        string CombinedLowerText);
+
+    private static PythonManifestBundle ReadPythonBundleOnce(string directoryPath, string[] filesInDirectory)
+    {
+        string? pyProjectText = null;
+        string? setupPyText = null;
+        string? reqText = null;
+        var allText = new StringBuilder();
+
+        foreach (var file in filesInDirectory)
+        {
+            var fn = Path.GetFileName(file).ToLowerInvariant();
+            if (fn is "pyproject.toml" or "requirements.txt" or "setup.py" or "setup.cfg" or "pipfile")
+            {
+                var content = FileStreamReader.ReadTextOnce(file);
+                if (!string.IsNullOrEmpty(content))
+                {
+                    allText.AppendLine(content);
+                    if (fn == "pyproject.toml") pyProjectText = content;
+                    else if (fn == "setup.py") setupPyText = content;
+                    else if (fn == "requirements.txt") reqText = content;
+                }
+            }
+        }
+
+        if (pyProjectText == null)
+        {
+            var pyProjPath = Path.Combine(directoryPath, "pyproject.toml");
+            if (WorkspaceDirectoryIndex.FileExistsInCurrentOrDisk(pyProjPath) && File.Exists(pyProjPath))
+            {
+                pyProjectText = FileStreamReader.ReadTextOnce(pyProjPath);
+                if (!string.IsNullOrEmpty(pyProjectText)) allText.AppendLine(pyProjectText);
+            }
+        }
+
+        if (setupPyText == null)
+        {
+            var setupPath = Path.Combine(directoryPath, "setup.py");
+            if (WorkspaceDirectoryIndex.FileExistsInCurrentOrDisk(setupPath) && File.Exists(setupPath))
+            {
+                setupPyText = FileStreamReader.ReadTextOnce(setupPath);
+                if (!string.IsNullOrEmpty(setupPyText)) allText.AppendLine(setupPyText);
+            }
+        }
+
+        if (reqText == null)
+        {
+            var reqPath = Path.Combine(directoryPath, "requirements.txt");
+            if (!WorkspaceDirectoryIndex.FileExistsInCurrentOrDisk(reqPath))
+            {
+                reqPath = Path.Combine(directoryPath, "requirements", "requirements.txt");
+            }
+            if (WorkspaceDirectoryIndex.FileExistsInCurrentOrDisk(reqPath) && File.Exists(reqPath))
+            {
+                reqText = FileStreamReader.ReadTextOnce(reqPath);
+            }
+        }
+
+        return new PythonManifestBundle(pyProjectText, setupPyText, reqText, allText.ToString().ToLowerInvariant());
+    }
+
+    public bool TryParse(ProjectParseContext context, out ProjectParseResult? result)
+    {
+        var activeIndex = context.DirectoryIndex ?? WorkspaceDirectoryIndex.Current;
+        if (activeIndex != null && activeIndex.TryGetCachedProjectParse(this, context.DirectoryPath, out var cached))
+        {
+            result = cached.Result;
+            return cached.Matched;
+        }
+
+        var dir = context.DirectoryPath;
+        var files = context.FilesInDirectory;
+        if (!IsProjectDirectory(dir, files))
+        {
+            activeIndex?.StoreProjectParse(this, dir, false, null);
+            result = null;
+            return false;
+        }
+
+        var bundle = ReadPythonBundleOnce(dir, files);
+        var name = Path.GetFileName(dir.TrimEnd('/', '\\'));
+        var props = ExtractManifestPropertiesFromBundle(files, bundle);
+        var produced = ExtractProducedPackageFromBundle(bundle);
+        var deps = ExtractDependenciesFromBundle(bundle);
+
+        result = new ProjectParseResult(
+            Project: new ParsedProjectDescriptor(
+                Name: name,
+                DirectoryPath: dir,
+                ProjectType: ProjectType,
+                ManifestProperties: props,
+                ProducedPackage: produced,
+                Dependencies: deps),
+            ClaimMode: ParserClaimMode.AbsorbSecondaryInDirectory);
+        activeIndex?.StoreProjectParse(this, dir, true, result);
+        return true;
+    }
+
+    public Dictionary<string, string> ExtractManifestProperties(string directoryPath, string[] filesInDirectory) =>
+        ExtractManifestPropertiesFromBundle(filesInDirectory, ReadPythonBundleOnce(directoryPath, filesInDirectory));
+
+    private static Dictionary<string, string> ExtractManifestPropertiesFromBundle(
+        string[] filesInDirectory,
+        PythonManifestBundle bundle)
     {
         var props = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
 
-        // 1. Alembic migrations
         if (filesInDirectory.Any(f => Path.GetFileName(f).Equals("alembic.ini", StringComparison.OrdinalIgnoreCase)))
         {
             props["manifest_type"] = "migration";
             return props;
         }
 
-        // 2. Django manage.py
         if (filesInDirectory.Any(f => Path.GetFileName(f).Equals("manage.py", StringComparison.OrdinalIgnoreCase)))
         {
             props["manifest_type"] = "application";
@@ -492,27 +600,8 @@ public class PythonProjectParser : IProjectParser
             return props;
         }
 
-        // 2. Read dependencies / content from manifest files
-        var allText = new System.Text.StringBuilder();
-        foreach (var file in filesInDirectory)
-        {
-            var fn = Path.GetFileName(file).ToLowerInvariant();
-            if (fn is "pyproject.toml" or "requirements.txt" or "setup.py" or "setup.cfg" or "pipfile")
-            {
-                try
-                {
-                    allText.AppendLine(PhysicalFileStore.ReadAllText(file));
-                }
-                catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
-                {
-                    // Ignore unreadable manifest files during best-effort property extraction
-                }
-            }
-        }
+        var text = bundle.CombinedLowerText;
 
-        var text = allText.ToString().ToLowerInvariant();
-
-        // Check for Web / RPC frameworks
         if (text.Contains("fastapi") || text.Contains("flask") || text.Contains("django") ||
             text.Contains("uvicorn") || text.Contains("gunicorn") || text.Contains("tornado") ||
             text.Contains("sanic") || text.Contains("grpcio") || text.Contains("grpc"))
@@ -522,7 +611,6 @@ public class PythonProjectParser : IProjectParser
             return props;
         }
 
-        // Check for Workers
         if (text.Contains("celery") || text.Contains("rq") || text.Contains("dramatiq") || text.Contains("huey"))
         {
             props["manifest_type"] = "worker";
@@ -530,7 +618,6 @@ public class PythonProjectParser : IProjectParser
             return props;
         }
 
-        // Check for CLI
         if (text.Contains("[project.scripts]") || text.Contains("click") || text.Contains("typer") || text.Contains("argparse"))
         {
             props["manifest_type"] = "cli";
@@ -538,178 +625,134 @@ public class PythonProjectParser : IProjectParser
             return props;
         }
 
-        // Default Python standalone package without web frameworks is a Library
         props["manifest_type"] = "library";
         return props;
     }
 
-    public async Task<ProducedPackageInfo?> GetProducedPackageAsync(string projectDirectory)
+    public Task<ProducedPackageInfo?> GetProducedPackageAsync(string projectDirectory)
     {
-        var pyprojectPath = Path.Combine(projectDirectory, "pyproject.toml");
-        if (File.Exists(pyprojectPath))
+        var files = WorkspaceDirectoryIndex.GetDirectoryFilesOrFallback(projectDirectory);
+        return Task.FromResult(ExtractProducedPackageFromBundle(ReadPythonBundleOnce(projectDirectory, files)));
+    }
+
+    private static ProducedPackageInfo? ExtractProducedPackageFromBundle(PythonManifestBundle bundle)
+    {
+        if (!string.IsNullOrEmpty(bundle.PyProjectText))
         {
-            try
+            string? name = null;
+            var version = "1.0.0";
+            var inProjectSection = false;
+
+            foreach (var rawLine in bundle.PyProjectText.Split(['\r', '\n'], StringSplitOptions.None))
             {
-                var lines = PhysicalFileStore.ReadLines(pyprojectPath);
-                string? name = null;
-                var version = "1.0.0";
-
-                var inProjectSection = false;
-                foreach (var rawLine in lines)
+                var line = rawLine.Trim();
+                if (line.StartsWith("[project]") || line.StartsWith("[tool.poetry]"))
                 {
-                    var line = rawLine.Trim();
-                    if (line.StartsWith("[project]") || line.StartsWith("[tool.poetry]"))
-                    {
-                        inProjectSection = true;
-                        continue;
-                    }
-
-                    if (line.StartsWith("[") && line.EndsWith("]"))
-                    {
-                        inProjectSection = false;
-                    }
-
-                    if (inProjectSection)
-                    {
-                        if (line.StartsWith("name"))
-                        {
-                            var parts = line.Split('=', 2);
-                            if (parts.Length == 2)
-                            {
-                                name = parts[1].Trim(' ', '"', '\'');
-                            }
-                        }
-                        else if (line.StartsWith("version"))
-                        {
-                            var parts = line.Split('=', 2);
-                            if (parts.Length == 2)
-                            {
-                                version = parts[1].Trim(' ', '"', '\'');
-                            }
-                        }
-                    }
+                    inProjectSection = true;
+                    continue;
                 }
 
-                if (!string.IsNullOrEmpty(name))
+                if (line.StartsWith('[') && line.EndsWith(']'))
                 {
-                    return new ProducedPackageInfo(name, version, "pip");
+                    inProjectSection = false;
+                }
+
+                if (!inProjectSection) continue;
+                if (line.StartsWith("name"))
+                {
+                    var parts = line.Split('=', 2);
+                    if (parts.Length == 2) name = parts[1].Trim(' ', '"', '\'');
+                }
+                else if (line.StartsWith("version"))
+                {
+                    var parts = line.Split('=', 2);
+                    if (parts.Length == 2) version = parts[1].Trim(' ', '"', '\'');
                 }
             }
-            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+
+            const string pipEcosystem = "pip";
+            if (!string.IsNullOrEmpty(name))
             {
-                // Ignore
+                return new ProducedPackageInfo(name, version, pipEcosystem);
             }
         }
 
-        var setupPyPath = Path.Combine(projectDirectory, "setup.py");
-        if (File.Exists(setupPyPath))
+        if (!string.IsNullOrEmpty(bundle.SetupPyText))
         {
-            try
+            const string pipEcosystem = "pip";
+            const string defaultVer = "1.0.0";
+            var nameMatch = Regex.Match(bundle.SetupPyText, @"name\s*=\s*['""]([^'""]+)['""]");
+            if (nameMatch.Success)
             {
-                var content = await PhysicalFileStore.ReadAllTextAsync(setupPyPath);
-                var nameMatch = Regex.Match(content, @"name\s*=\s*['""]([^'""]+)['""]");
-                if (nameMatch.Success)
-                {
-                    var name = nameMatch.Groups[1].Value;
-                    var versionMatch = Regex.Match(content, @"version\s*=\s*['""]([^'""]+)['""]");
-                    var version = versionMatch.Success ? versionMatch.Groups[1].Value : "1.0.0";
-
-                    return new ProducedPackageInfo(name, version, "pip");
-                }
-            }
-            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
-            {
-                // Ignore
+                var name = nameMatch.Groups[1].Value;
+                var versionMatch = Regex.Match(bundle.SetupPyText, @"version\s*=\s*['""]([^'""]+)['""]");
+                var version = versionMatch.Success ? versionMatch.Groups[1].Value : defaultVer;
+                return new ProducedPackageInfo(name, version, pipEcosystem);
             }
         }
 
         return null;
     }
 
-    public async Task<ProjectDependencyInfo> ParseDependenciesAsync(string projectDirectory)
+    public Task<ProjectDependencyInfo> ParseDependenciesAsync(string projectDirectory)
     {
-        var localProjectPaths = new List<string>();
+        var files = WorkspaceDirectoryIndex.GetDirectoryFilesOrFallback(projectDirectory);
+        return Task.FromResult(ExtractDependenciesFromBundle(ReadPythonBundleOnce(projectDirectory, files)));
+    }
+
+    private static ProjectDependencyInfo ExtractDependenciesFromBundle(PythonManifestBundle bundle)
+    {
+        const string pipEcosystem = "pip";
         var externalPackages = new List<ProducedPackageInfo>();
 
-        // 1. Try parsing pyproject.toml dependencies
-        var pyprojectPath = Path.Combine(projectDirectory, "pyproject.toml");
-        if (File.Exists(pyprojectPath))
+        if (!string.IsNullOrEmpty(bundle.PyProjectText))
         {
-            try
+            var inDependencies = false;
+            foreach (var rawLine in bundle.PyProjectText.Split(['\r', '\n'], StringSplitOptions.None))
             {
-                var lines = PhysicalFileStore.ReadLines(pyprojectPath);
-                var inDependencies = false;
-                foreach (var rawLine in lines)
+                var line = rawLine.Trim();
+                if (string.IsNullOrEmpty(line)) continue;
+
+                if (line.StartsWith("[project.dependencies]") || line.StartsWith("[tool.poetry.dependencies]"))
                 {
-                    var line = rawLine.Trim();
-                    if (string.IsNullOrEmpty(line)) continue;
-
-                    if (line.StartsWith("[project.dependencies]") || line.StartsWith("[tool.poetry.dependencies]"))
-                    {
-                        inDependencies = true;
-                        continue;
-                    }
-                    else if (line.StartsWith("[") && line.EndsWith("]"))
-                    {
-                        inDependencies = false;
-                    }
-
-                    if (inDependencies)
-                    {
-                        var parts = line.Split('=', 2);
-                        if (parts.Length >= 1)
-                        {
-                            var name = parts[0].Trim();
-                            if (name.ToLowerInvariant() == "python") continue; // skip python version constraint
-
-                            var version = parts.Length == 2 ? parts[1].Trim(' ', '"', '\'') : "unknown";
-                            externalPackages.Add(new ProducedPackageInfo(name, version, "pip"));
-                        }
-                    }
+                    inDependencies = true;
+                    continue;
                 }
-            }
-            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
-            {
-                // Ignore
-            }
-        }
-
-        // 2. Try parsing requirements.txt dependencies if externalPackages is empty
-        if (externalPackages.Count == 0)
-        {
-            var reqPath = Path.Combine(projectDirectory, "requirements.txt");
-            if (!PhysicalFileStore.FileExistsInCachedDirectory(reqPath))
-            {
-                reqPath = Path.Combine(projectDirectory, "requirements", "requirements.txt");
-            }
-            if (PhysicalFileStore.FileExistsInCachedDirectory(reqPath))
-            {
-                try
+                if (line.StartsWith('[') && line.EndsWith(']'))
                 {
-                    var lines = PhysicalFileStore.ReadLines(reqPath);
-                    foreach (var rawLine in lines)
-                    {
-                        var line = rawLine.Trim();
-                        if (string.IsNullOrEmpty(line) || line.StartsWith("#") || line.StartsWith("-")) continue;
-
-                        // Parse package name and specifier, e.g. requests>=2.25.1 -> name = requests, version = >=2.25.1
-                        var match = Regex.Match(line, @"^([a-zA-Z0-9_\-\[\]]+)(.*)$");
-                        if (match.Success)
-                        {
-                            var name = match.Groups[1].Value;
-                            var versionSpec = match.Groups[2].Value.Trim();
-                            var version = string.IsNullOrEmpty(versionSpec) ? "unknown" : versionSpec;
-                            externalPackages.Add(new ProducedPackageInfo(name, version, "pip"));
-                        }
-                    }
+                    inDependencies = false;
                 }
-                catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+
+                if (!inDependencies) continue;
+                var parts = line.Split('=', 2);
+                if (parts.Length >= 1)
                 {
-                    // Ignore
+                    var name = parts[0].Trim();
+                    if (name.Equals("python", StringComparison.OrdinalIgnoreCase)) continue;
+                    var version = parts.Length == 2 ? parts[1].Trim(' ', '"', '\'') : "unknown";
+                    externalPackages.Add(new ProducedPackageInfo(name, version, pipEcosystem));
                 }
             }
         }
 
-        return await Task.FromResult(new ProjectDependencyInfo(localProjectPaths, externalPackages));
+        if (externalPackages.Count == 0 && !string.IsNullOrEmpty(bundle.RequirementsText))
+        {
+            foreach (var rawLine in bundle.RequirementsText.Split(['\r', '\n'], StringSplitOptions.None))
+            {
+                var line = rawLine.Trim();
+                if (string.IsNullOrEmpty(line) || line.StartsWith('#') || line.StartsWith('-')) continue;
+
+                var match = Regex.Match(line, @"^([a-zA-Z0-9_\-\[\]]+)(.*)$");
+                if (match.Success)
+                {
+                    var name = match.Groups[1].Value;
+                    var versionSpec = match.Groups[2].Value.Trim();
+                    var version = string.IsNullOrEmpty(versionSpec) ? "unknown" : versionSpec;
+                    externalPackages.Add(new ProducedPackageInfo(name, version, pipEcosystem));
+                }
+            }
+        }
+
+        return new ProjectDependencyInfo([], externalPackages);
     }
 }

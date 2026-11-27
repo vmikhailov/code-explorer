@@ -54,7 +54,7 @@ namespace CodeExplorer.Core.Parser
         public static bool IsAny([NotNullWhen(true)] this Node? node, params string[] expectedTypes)
         {
             if (!node.IsValid()) return false;
-            for (int i = 0; i < expectedTypes.Length; i++)
+            for (var i = 0; i < expectedTypes.Length; i++)
             {
                 if (SyntaxKindResolver.Matches(node, expectedTypes[i])) return true;
             }
@@ -71,7 +71,7 @@ namespace CodeExplorer.Core.Parser
         public static Node? FindChildOfType(this Node? node, string type)
         {
             if (!node.IsValid()) return null;
-            for (int i = 0; i < node.Children.Count; i++)
+            for (var i = 0; i < node.Children.Count; i++)
             {
                 var child = node.Children[i];
                 if (SyntaxKindResolver.Matches(child, type)) return child;
@@ -82,7 +82,7 @@ namespace CodeExplorer.Core.Parser
         public static IEnumerable<Node> FindChildrenOfType(this Node? node, string type)
         {
             if (!node.IsValid()) yield break;
-            for (int i = 0; i < node.Children.Count; i++)
+            for (var i = 0; i < node.Children.Count; i++)
             {
                 var child = node.Children[i];
                 if (SyntaxKindResolver.Matches(child, type)) yield return child;
@@ -98,7 +98,7 @@ namespace CodeExplorer.Core.Parser
             while (queue.Count > 0)
             {
                 var curr = queue.Dequeue();
-                for (int i = 0; i < curr.Children.Count; i++)
+                for (var i = 0; i < curr.Children.Count; i++)
                 {
                     var child = curr.Children[i];
                     if (child.IsValid())
@@ -121,7 +121,7 @@ namespace CodeExplorer.Core.Parser
             while (queue.Count > 0)
             {
                 var curr = queue.Dequeue();
-                for (int i = 0; i < curr.Children.Count; i++)
+                for (var i = 0; i < curr.Children.Count; i++)
                 {
                     var child = curr.Children[i];
                     if (child.IsValid())

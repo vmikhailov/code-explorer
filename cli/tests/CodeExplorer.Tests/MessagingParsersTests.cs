@@ -1,6 +1,6 @@
-using CodeExplorer.Core.Database;
 using System.Threading.Channels;
 using CodeExplorer.Core.Common.Nodes;
+using CodeExplorer.Core.Common.Nodes.Layer1_Physical;
 using CodeExplorer.Core.Common.Nodes.Layer2_Boundaries;
 using CodeExplorer.Core.Common.Nodes.Layer3_Syntactic;
 using CodeExplorer.Core.Common.Nodes.Layer4_Semantic;
@@ -104,7 +104,7 @@ public class SubmitOrderConsumer : IConsumer<SubmitOrder>
 
             await using var client = new InMemoryGraphRepository();
 
-            var ctx = new ParsingContext(tempDir, tempDir, client, channel);
+            var ctx = new SemanticParseContext(tempDir);
 
             using var syntaxTree = await parser.ParseAsync(tempFilePath, "parent-id", ctx.WorkspaceId,
                 ctx.AbsoluteWorkspacePath);
@@ -186,7 +186,7 @@ public class UserCreatedNotificationHandler : INotificationHandler<UserCreatedEv
 
             await using var client = new InMemoryGraphRepository();
 
-            var ctx = new ParsingContext(tempDir, tempDir, client, channel);
+            var ctx = new SemanticParseContext(tempDir);
 
             using var syntaxTree = await parser.ParseAsync(tempFilePath, "parent-id", ctx.WorkspaceId,
                 ctx.AbsoluteWorkspacePath);
@@ -258,7 +258,7 @@ public class OrderDirectiveHandler : IMessageHandler<OrderDirectiveMessage>
 
             await using var client = new InMemoryGraphRepository();
 
-            var ctx = new ParsingContext(tempDir, tempDir, client, channel);
+            var ctx = new SemanticParseContext(tempDir);
 
             using var syntaxTree = await parser.ParseAsync(tempFilePath, "parent-id", ctx.WorkspaceId,
                 ctx.AbsoluteWorkspacePath);
@@ -319,7 +319,7 @@ func consumeRabbit(ctx context.Context, ch *amqp.Channel, q string, h any) {}
 
             await using var client = new InMemoryGraphRepository();
 
-            var ctx = new ParsingContext(tempDir, tempDir, client, channel);
+            var ctx = new SemanticParseContext(tempDir);
 
             using var syntaxTree = await parser.ParseAsync(tempFilePath, "parent-id", ctx.WorkspaceId,
                 ctx.AbsoluteWorkspacePath);
@@ -392,7 +392,7 @@ func RunPubSub(ctx context.Context, client *pubsub.Client) {
 
             await using var client = new InMemoryGraphRepository();
 
-            var ctx = new ParsingContext(tempDir, tempDir, client, channel);
+            var ctx = new SemanticParseContext(tempDir);
 
             using var syntaxTree = await parser.ParseAsync(tempFilePath, "parent-id", ctx.WorkspaceId,
                 ctx.AbsoluteWorkspacePath);
@@ -456,7 +456,7 @@ func EnsureSubscription(ctx context.Context, client *pubsub.Client) {
 
             await using var client = new InMemoryGraphRepository();
 
-            var ctx = new ParsingContext(tempDir, tempDir, client, channel);
+            var ctx = new SemanticParseContext(tempDir);
 
             using var syntaxTree = await parser.ParseAsync(tempFilePath, "parent-id", ctx.WorkspaceId,
                 ctx.AbsoluteWorkspacePath);
@@ -515,7 +515,7 @@ export async function sendPartner() {
 
             await using var client = new InMemoryGraphRepository();
 
-            var ctx = new ParsingContext(tempDir, tempDir, client, channel);
+            var ctx = new SemanticParseContext(tempDir);
 
             using var syntaxTree = await parser.ParseAsync(tempFilePath, "parent-id", ctx.WorkspaceId,
                 ctx.AbsoluteWorkspacePath);
@@ -577,7 +577,7 @@ export class AppService {
 
             await using var client = new InMemoryGraphRepository();
 
-            var ctx = new ParsingContext(tempDir, tempDir, client, channel);
+            var ctx = new SemanticParseContext(tempDir);
 
             using var syntaxTree = await parser.ParseAsync(tempFilePath, "parent-id", ctx.WorkspaceId,
                 ctx.AbsoluteWorkspacePath);
@@ -647,7 +647,7 @@ export class RuleTreeService {
 
             await using var client = new InMemoryGraphRepository();
 
-            var ctx = new ParsingContext(tempDir, tempDir, client, channel);
+            var ctx = new SemanticParseContext(tempDir);
 
             using var syntaxTree = await parser.ParseAsync(tempFilePath, "parent-id", ctx.WorkspaceId,
                 ctx.AbsoluteWorkspacePath);
@@ -715,7 +715,7 @@ export class LegacyQueueService {
 
             await using var client = new InMemoryGraphRepository();
 
-            var ctx = new ParsingContext(tempDir, tempDir, client, channel);
+            var ctx = new SemanticParseContext(tempDir);
 
             using var syntaxTree = await parser.ParseAsync(tempFilePath, "parent-id", ctx.WorkspaceId,
                 ctx.AbsoluteWorkspacePath);
@@ -771,7 +771,7 @@ export class HelperService {
 
             await using var client = new InMemoryGraphRepository();
 
-            var ctx = new ParsingContext(tempDir, tempDir, client, channel);
+            var ctx = new SemanticParseContext(tempDir);
 
             using var syntaxTree = await parser.ParseAsync(tempFilePath, "parent-id", ctx.WorkspaceId,
                 ctx.AbsoluteWorkspacePath);
@@ -829,7 +829,7 @@ export class OrderPublisher {
 
             await using var client = new InMemoryGraphRepository();
 
-            var ctx = new ParsingContext(tempDir, tempDir, client, channel);
+            var ctx = new SemanticParseContext(tempDir);
 
             using var syntaxTree = await parser.ParseAsync(serviceFilePath, "parent-id", ctx.WorkspaceId,
                 ctx.AbsoluteWorkspacePath);
@@ -902,7 +902,7 @@ public class OrderStartedIntegrationEventHandler : IIntegrationEventHandler<Orde
 
             await using var client = new InMemoryGraphRepository();
 
-            var ctx = new ParsingContext(tempDir, tempDir, client, channel);
+            var ctx = new SemanticParseContext(tempDir);
 
             using var syntaxTree = await parser.ParseAsync(tempFilePath, "parent-id", ctx.WorkspaceId,
                 ctx.AbsoluteWorkspacePath);
@@ -931,7 +931,7 @@ public class OrderStartedIntegrationEventHandler : IIntegrationEventHandler<Orde
             pubRel.Should().NotBeNull("Expected PUBLISHES_TO reference for OrderStartedIntegrationEvent message");
 
             // Verify Layer5 TopicNode creation:
-            var newTopicNodes = Layer5AnalysisParser.ResolveMessagingReferenceForTest(pubRel!, ctx);
+            var newTopicNodes = Layer5AnalysisParser.ResolveMessagingReferenceForTest(pubRel!, new Layer5Context(tempDir, client, workspaceId: ctx.WorkspaceId));
 
             newTopicNodes.Should().ContainSingle();
             var topic = newTopicNodes[0];
@@ -1032,7 +1032,7 @@ public class OrderStatusChangedToStockConfirmedIntegrationEventHandler : IIntegr
         {
             var channel = Channel.CreateUnbounded<Func<Task>>();
             await using var client = new InMemoryGraphRepository();
-            var ctx = new ParsingContext(tempDir, tempDir, client, channel);
+            var ctx = new SemanticParseContext(tempDir);
 
             using var syntaxTree = await parser.ParseAsync(tempFilePath, "parent-id", ctx.WorkspaceId,
                 ctx.AbsoluteWorkspacePath);
@@ -1054,11 +1054,15 @@ public class OrderStatusChangedToStockConfirmedIntegrationEventHandler : IIntegr
             refs.Any(r => r.Kind == RelationshipKind.PublishesTo && r.TargetName == "eventbus:OrderPaymentFailedIntegrationEvent")
                 .Should().BeTrue("Expected failed branch to emit PUBLISHES_TO");
 
-            await OntologyUploader.UploadNodeTreeAsync(fileNode, "parent-id", ctx);
+            var l1 = new Layer1Result(new WorkspaceNode("ws", "ws", tempDir), new FilesStructureNode("ws:files", "files", tempDir), [fileNode], []);
+            var l2 = new Layer2Result(new ProjectsStructureNode("ws:projects", "projects", tempDir), [], [], []);
+            var l3 = new Layer3Result(new SyntaxStructureNode("ws:syntax", "syntax", tempDir), [], [], [], [], [], new());
+            var l4Ctx = new Layer4Context(l1, l2, l3, tempDir, "", client);
+            await OntologyUploader.UploadNodeTreeAsync(fileNode, "parent-id", l4Ctx);
 
-            ctx.GlobalReferences.Any(r => r.Kind == RelationshipKind.PublishesTo && r.TargetName == "eventbus:OrderPaymentSucceededIntegrationEvent")
+            l4Ctx.GlobalReferences.Any(r => r.Kind == RelationshipKind.PublishesTo && r.TargetName == "eventbus:OrderPaymentSucceededIntegrationEvent")
                 .Should().BeTrue("Expected OntologyUploader to preserve OrderPaymentSucceededIntegrationEvent in ctx.GlobalReferences");
-            ctx.GlobalReferences.Any(r => r.Kind == RelationshipKind.PublishesTo && r.TargetName == "eventbus:OrderPaymentFailedIntegrationEvent")
+            l4Ctx.GlobalReferences.Any(r => r.Kind == RelationshipKind.PublishesTo && r.TargetName == "eventbus:OrderPaymentFailedIntegrationEvent")
                 .Should().BeTrue("Expected OntologyUploader to preserve OrderPaymentFailedIntegrationEvent in ctx.GlobalReferences");
         }
         finally

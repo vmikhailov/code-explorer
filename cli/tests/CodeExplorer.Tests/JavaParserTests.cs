@@ -1,4 +1,3 @@
-using CodeExplorer.Core.Database;
 using System.Threading.Channels;
 using CodeExplorer.Core.Common.Nodes;
 using CodeExplorer.Core.Common.Nodes.Layer2_Boundaries;
@@ -79,7 +78,7 @@ public class JavaParserTests
 
         await using var client = new InMemoryGraphRepository();
 
-        var ctx = new ParsingContext(workspacePath, workspacePath, client, channel);
+        var ctx = new SemanticParseContext(workspacePath);
 
         using var syntaxTree = await parser.ParseAsync(tempFile.FilePath, "parent-id", ctx.WorkspaceId,
             ctx.AbsoluteWorkspacePath);
@@ -122,7 +121,7 @@ public class JavaParserTests
 
         await using var client = new InMemoryGraphRepository();
 
-        var ctx = new ParsingContext(workspacePath, workspacePath, client, channel);
+        var ctx = new SemanticParseContext(workspacePath);
 
         using var syntaxTree = await parser.ParseAsync(tempFile.FilePath, "parent-id", ctx.WorkspaceId,
             ctx.AbsoluteWorkspacePath);
@@ -162,7 +161,7 @@ public class JavaParserTests
 
         await using var client = new InMemoryGraphRepository();
 
-        var ctx = new ParsingContext(workspacePath, workspacePath, client, channel);
+        var ctx = new SemanticParseContext(workspacePath);
 
         using var syntaxTree = await parser.ParseAsync(tempFile.FilePath, "parent-id", ctx.WorkspaceId,
             ctx.AbsoluteWorkspacePath);

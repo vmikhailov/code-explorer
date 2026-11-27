@@ -22,7 +22,7 @@ public class KafkaJsLibraryParser : DeclarativeSemanticExtension
         ];
     }
 
-    private static void CollectKafkaJsReferences(Node node, string scopeSymbolId, List<Reference> references, ParsingContext ctx)
+    private static void CollectKafkaJsReferences(Node node, string scopeSymbolId, List<Reference> references, SemanticParseContext ctx)
     {
         if (!node.Is(TreeSitterSyntax.TypeScript.CallExpression)) return;
 

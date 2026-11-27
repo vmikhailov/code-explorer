@@ -1,5 +1,3 @@
-using System.Text;
-using System.Text.RegularExpressions;
 using CodeExplorer.Core.Parser.Syntax;
 using Node = CodeExplorer.Core.Parser.Syntax.SyntaxNode;
 
@@ -76,8 +74,8 @@ public static partial class AstValueResolver
         hasObfuscatedEscapes = false;
         if (raw.IsEmpty) return SourceSlice.Empty;
 
-        int start = 0;
-        int end = raw.Length;
+        var start = 0;
+        var end = raw.Length;
         while (start < end && char.IsWhiteSpace(raw[start])) start++;
         while (end > start && char.IsWhiteSpace(raw[end - 1])) end--;
         var trimmed = raw.Slice(start, end - start);
@@ -92,8 +90,8 @@ public static partial class AstValueResolver
 
         if (trimmed.StartsWith("\"\"\"", StringComparison.Ordinal) && trimmed.EndsWith("\"\"\"", StringComparison.Ordinal) && trimmed.Length >= 6)
         {
-            int innerStart = start + 3;
-            int innerEnd = end - 3;
+            var innerStart = start + 3;
+            var innerEnd = end - 3;
             while (innerStart < innerEnd && raw[innerStart] is '\r' or '\n') innerStart++;
             while (innerEnd > innerStart && raw[innerEnd - 1] is '\r' or '\n') innerEnd--;
             return new SourceSlice(baseOffset + innerStart, innerEnd - innerStart);

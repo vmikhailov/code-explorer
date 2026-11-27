@@ -32,7 +32,7 @@ public class NestJsCqrsLibraryParser : DeclarativeSemanticExtension
 
     public override IReadOnlyList<CustomAstRule> CustomAstRules => Rules;
 
-    private static void CollectReferencesCore(Node node, string scopeSymbolId, List<Reference> references, ParsingContext ctx)
+    private static void CollectReferencesCore(Node node, string scopeSymbolId, List<Reference> references, SemanticParseContext ctx)
     {
         // 1. Ingress: @CommandHandler(CreateOrderCommand), @EventsHandler(OrderCreatedEvent)
         if (IsCqrsHandlerClass(node))

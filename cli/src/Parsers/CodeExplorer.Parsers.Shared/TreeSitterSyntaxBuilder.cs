@@ -241,7 +241,7 @@ public abstract class TreeSitterSyntaxConverterBase
 
     protected virtual bool HasInterpolationChild(LiteralExprSyntax litExpr)
     {
-        for (int i = 0; i < litExpr.Children.Count; i++)
+        for (var i = 0; i < litExpr.Children.Count; i++)
         {
             if (litExpr.Children[i] is ParenthesizedExprSyntax { IsInterpolation: true })
                 return true;
@@ -318,7 +318,7 @@ public abstract class TreeSitterSyntaxConverterBase
 
                 var snippet = rawSpan.ToString().Replace('\r', ' ').Replace('\n', ' ').Trim();
                 diagnostics.Add(new SyntaxDiagnostic(
-                    CodeExplorer.Cypher.Common.SyntaxDiagnosticKind.SyntaxError,
+                    SyntaxDiagnosticKind.SyntaxError,
                     string.IsNullOrEmpty(snippet)
                         ? $"Syntax error in {parent.SyntaxKind}"
                         : $"Syntax error in {parent.SyntaxKind} near '{snippet}'",
@@ -363,8 +363,8 @@ public abstract class TreeSitterSyntaxConverterBase
                     }
                     else if (childType is "modifier" or "visibility_modifier" or "accessibility_modifier")
                     {
-                        int modStart = childTsNode.StartIndex;
-                        int modEnd = Math.Min(sourceText.Length, childTsNode.EndIndex);
+                        var modStart = childTsNode.StartIndex;
+                        var modEnd = Math.Min(sourceText.Length, childTsNode.EndIndex);
                         if (modEnd > modStart)
                         {
                             ApplyNamedModifierSpan(syntaxNode, sourceText.AsSpan(modStart, modEnd - modStart).Trim());
@@ -502,7 +502,7 @@ public abstract class TreeSitterSyntaxConverterBase
 
     private static bool HasVariableDeclChild(VariableDeclSyntax vd)
     {
-        for (int i = 0; i < vd.Children.Count; i++)
+        for (var i = 0; i < vd.Children.Count; i++)
         {
             if (vd.Children[i] is VariableDeclSyntax)
                 return true;
@@ -661,9 +661,9 @@ public abstract class TreeSitterSyntaxConverterBase
             );
         }
 
-        int lines = 0;
-        int lastLineStart = 0;
-        for (int i = 0; i < sourceText.Length; i++)
+        var lines = 0;
+        var lastLineStart = 0;
+        for (var i = 0; i < sourceText.Length; i++)
         {
             if (sourceText[i] == '\n')
             {

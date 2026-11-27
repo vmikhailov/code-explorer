@@ -70,10 +70,10 @@ public class SpringRuntimeLibraryParser : DeclarativeSemanticExtension
                shortName.Equals(ScheduledAnnotation, StringComparison.OrdinalIgnoreCase);
     }
 
-    private static string? MapScheduledNodeType(Node node, ParsingContext ctx) =>
+    private static string? MapScheduledNodeType(Node node, SemanticParseContext ctx) =>
         IsScheduledAnnotation(node) ? OntologyConstants.NodeLabels.EntryPoint : null;
 
-    private static string? ExtractScheduledIdentifier(Node node, ParsingContext ctx, string? projectName, string? relativePath)
+    private static string? ExtractScheduledIdentifier(Node node, SemanticParseContext ctx, string? projectName, string? relativePath)
     {
         if (!IsScheduledAnnotation(node)) return null;
 
@@ -84,7 +84,7 @@ public class SpringRuntimeLibraryParser : DeclarativeSemanticExtension
             : $"{ScheduledPrefix}{methodName}";
     }
 
-    private static void EnrichScheduledSymbol(Node node, SyntacticSymbol symbol, ParsingContext ctx)
+    private static void EnrichScheduledSymbol(Node node, SyntacticSymbol symbol, SemanticParseContext ctx)
     {
         if (IsScheduledAnnotation(node))
         {

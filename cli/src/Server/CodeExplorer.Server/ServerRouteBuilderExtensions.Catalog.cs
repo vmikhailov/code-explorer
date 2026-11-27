@@ -18,7 +18,7 @@ public static partial class ServerRouteBuilderExtensions
         {
             try
             {
-                var engine = new CodeExplorer.Core.Analysis.ArchitectureViewEngine(graphClient, logger);
+                var engine = new ArchitectureViewEngine(graphClient, logger);
                 var items = await engine.GetCatalogEntryPointsAsync(ct);
                 return Results.Ok(new { items, count = items.Count });
             }
@@ -33,7 +33,7 @@ public static partial class ServerRouteBuilderExtensions
         {
             try
             {
-                var engine = new CodeExplorer.Core.Analysis.ArchitectureViewEngine(graphClient, logger);
+                var engine = new ArchitectureViewEngine(graphClient, logger);
                 var items = await engine.GetCatalogDatabasesAsync(ct);
                 return Results.Ok(new { items, count = items.Count });
             }

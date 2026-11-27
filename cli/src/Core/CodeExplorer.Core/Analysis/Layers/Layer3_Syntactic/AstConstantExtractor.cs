@@ -69,7 +69,7 @@ public static class AstConstantExtractor
         var resolved = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
         // Multi-pass topological resolution
-        for (int pass = 0; pass < 10; pass++)
+        for (var pass = 0; pass < 10; pass++)
         {
             var progress = false;
 

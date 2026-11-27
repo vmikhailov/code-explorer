@@ -102,7 +102,7 @@ public partial class PostIndexAnalyzer
         }
 
         var callersByExtService = new Dictionary<string, List<string>>(StringComparer.OrdinalIgnoreCase);
-        for (int pass = 0; pass < 2; pass++)
+        for (var pass = 0; pass < 2; pass++)
         {
             foreach (var rel in allRelationships)
             {
@@ -163,12 +163,40 @@ public partial class PostIndexAnalyzer
             return found;
         }
 
+        var callableProjectIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var rel in allRelationships)
+        {
+            if (rel.Kind == RelationshipKind.CallsEndpoint ||
+                rel.To.Contains($":{OntologyConstants.IdPrefixes.Endpoint}:", StringComparison.OrdinalIgnoreCase) ||
+                rel.To.Contains(":endpoint:", StringComparison.OrdinalIgnoreCase))
+            {
+                var epOwner = ResolveOwningProject(rel.To);
+                if (epOwner != null) callableProjectIds.Add(epOwner.Id);
+            }
+            else if (rel.Kind is RelationshipKind.Exposes or RelationshipKind.ExposedBy)
+            {
+                var epOwner = ResolveOwningProject(rel.From) ?? ResolveOwningProject(rel.To);
+                if (epOwner != null) callableProjectIds.Add(epOwner.Id);
+            }
+        }
+        if (nodeKindsById != null)
+        {
+            foreach (var (nId, nKind) in nodeKindsById)
+            {
+                if (string.Equals(nKind, OntologyConstants.NodeLabels.Endpoint, StringComparison.OrdinalIgnoreCase))
+                {
+                    var epOwner = ResolveOwningProject(nId);
+                    if (epOwner != null) callableProjectIds.Add(epOwner.Id);
+                }
+            }
+        }
+
         var matchingServiceCache = new Dictionary<string, ProjectNode?>(StringComparer.OrdinalIgnoreCase);
         ProjectNode? GetCachedMatchingServiceProject(string key)
         {
             if (string.IsNullOrWhiteSpace(key)) return null;
             if (matchingServiceCache.TryGetValue(key, out var cached)) return cached;
-            var matched = FindMatchingServiceProject(key, projList);
+            var matched = FindMatchingServiceProject(key, projList, callableProjectIds);
             matchingServiceCache[key] = matched;
             return matched;
         }
@@ -315,7 +343,7 @@ public partial class PostIndexAnalyzer
 
                     foreach (var callerOwner in callerOwners)
                     {
-                        if (callerOwner.Id != targetOwner.Id)
+                        if (Layer5RuntimeCallBinder.CanEmitRuntimeServiceCall(callerOwner, targetOwner))
                         {
                             AddMaterialized(
                                 callerOwner.Id,
@@ -338,11 +366,11 @@ public partial class PostIndexAnalyzer
                 var serviceKey = to.Split(":service_target:", 2)[1];
                 var targetProj = GetCachedMatchingServiceProject(serviceKey);
                 var callerOwner = ResolveOwningProject(from);
-                if (callerOwner != null && targetProj != null && callerOwner.Id != targetProj.Id)
+                if (Layer5RuntimeCallBinder.CanEmitRuntimeServiceCall(callerOwner, targetProj))
                 {
                     AddMaterialized(
-                        callerOwner.Id,
-                        targetProj.Id,
+                        callerOwner!.Id,
+                        targetProj!.Id,
                         RelationshipKind.ServiceCall,
                         r =>
                         {
@@ -389,11 +417,11 @@ public partial class PostIndexAnalyzer
                         var extDomain = ExtractDomainFromExternalServiceId(extId);
                         var internalTargetProj = GetCachedMatchingServiceProject(extDomain);
 
-                        if (internalTargetProj != null && callerOwner.Id != internalTargetProj.Id)
+                        if (Layer5RuntimeCallBinder.CanEmitRuntimeServiceCall(callerOwner, internalTargetProj))
                         {
                             AddMaterialized(
                                 callerOwner.Id,
-                                internalTargetProj.Id,
+                                internalTargetProj!.Id,
                                 RelationshipKind.ServiceCall,
                                 r =>
                                 {
@@ -403,7 +431,7 @@ public partial class PostIndexAnalyzer
                                 rel
                             );
                         }
-                        else if (internalTargetProj == null && !IsGarbageExternalService(extDomain))
+                        else if (internalTargetProj == null && !IsGarbageExternalService(extDomain) && !IsLoopbackExternalHost(extDomain))
                         {
                             AddMaterialized(
                                 callerOwner.Id,
@@ -486,8 +514,8 @@ public partial class PostIndexAnalyzer
             return proj;
         }
 
-        string pathPart = nodeId;
-        bool isKnownFileOrSymbolUrn = false;
+        var pathPart = nodeId;
+        var isKnownFileOrSymbolUrn = false;
         if (Urn.TryParse(nodeId, out var urn) && !string.IsNullOrEmpty(urn.Path))
         {
             var domain = (urn.Domain ?? "").ToLowerInvariant();
@@ -544,7 +572,7 @@ public partial class PostIndexAnalyzer
         pathPart = pathPart.TrimEnd(':').Replace('\\', '/');
 
         ProjectNode? bestMatch = null;
-        int bestLen = -1;
+        var bestLen = -1;
         ProjectNode? rootProject = null;
 
         foreach (var p in projects)

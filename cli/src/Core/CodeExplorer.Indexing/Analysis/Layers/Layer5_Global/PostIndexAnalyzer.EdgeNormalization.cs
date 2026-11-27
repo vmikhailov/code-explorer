@@ -1,7 +1,5 @@
 using System.Text.Json;
 using CodeExplorer.Core.Common.Nodes.Layer2_Boundaries;
-using CodeExplorer.Core.Parser.Layers;
-using CodeExplorer.Cypher.Common;
 
 namespace CodeExplorer.Core.Parser;
 
@@ -219,7 +217,37 @@ public partial class PostIndexAnalyzer
         var updates = ComputeEdgeNormalizationUpdates(snapshot);
         return await db.ApplyEdgeNormalizationUpdatesAsync(updates, cancellationToken);
     }
-    public static ProjectNode? FindMatchingServiceProject(string key, IEnumerable<ProjectNode> projects)
+    public static bool IsLoopbackExternalHost(string? hostOrDomain)
+    {
+        if (string.IsNullOrWhiteSpace(hostOrDomain)) return false;
+        var clean = hostOrDomain.Trim().Trim('\'', '"', '`').ToLowerInvariant();
+        var protoIdx = clean.IndexOf("://", StringComparison.Ordinal);
+        if (protoIdx >= 0) clean = clean[(protoIdx + 3)..];
+        var slashIdx = clean.IndexOf('/');
+        if (slashIdx >= 0) clean = clean[..slashIdx];
+
+        if (clean is "::1" or "[::1]" or "localhost:*" or "127.0.0.1:*" or "0.0.0.0:*")
+        {
+            return true;
+        }
+        if (clean.StartsWith("[::1]:", StringComparison.Ordinal))
+        {
+            return true;
+        }
+
+        var colonIdx = clean.LastIndexOf(':');
+        if (colonIdx > 0 && int.TryParse(clean[(colonIdx + 1)..], out _))
+        {
+            clean = clean[..colonIdx];
+        }
+
+        return clean is "localhost" or "127.0.0.1" or "0.0.0.0";
+    }
+
+    public static ProjectNode? FindMatchingServiceProject(
+        string key,
+        IEnumerable<ProjectNode> projects,
+        IReadOnlySet<string>? callableProjectIds = null)
     {
         if (string.IsNullOrWhiteSpace(key) || key is "*" or "unknown-service" or "app" or "api") return null;
 
@@ -231,7 +259,10 @@ public partial class PostIndexAnalyzer
         var colonIdx = cleanKey.IndexOf(':');
         if (colonIdx >= 0) cleanKey = cleanKey[..colonIdx];
 
-        if (cleanKey is "app" or "api" or "service" or "services" || IsGarbageExternalService(cleanKey))
+        if (cleanKey is "app" or "api" or "service" or "services" ||
+            IsGarbageExternalService(cleanKey) ||
+            IsLoopbackExternalHost(cleanKey) ||
+            Layer5RuntimeCallBinder.IsGenericSingleWordServiceTarget(cleanKey))
         {
             return null;
         }
@@ -260,7 +291,7 @@ public partial class PostIndexAnalyzer
             var dotParts = cleanKey.Split('.');
             if (dotParts.Length >= 2)
             {
-                var candidatePrefixMatch = FindMatchingServiceProject(dotParts[0], projects);
+                var candidatePrefixMatch = FindMatchingServiceProject(dotParts[0], projects, callableProjectIds);
                 if (candidatePrefixMatch != null) return candidatePrefixMatch;
             }
         }
@@ -270,41 +301,42 @@ public partial class PostIndexAnalyzer
             cleanKey = aliased.ToLowerInvariant();
         }
 
+        if (Layer5RuntimeCallBinder.IsGenericSingleWordServiceTarget(cleanKey))
+        {
+            return null;
+        }
+
         var normKey = cleanKey.Replace("-", "").Replace("_", "").Replace("service", "");
-        if (string.IsNullOrWhiteSpace(normKey)) return null;
+        if (string.IsNullOrWhiteSpace(normKey) || normKey.Length < 3 || Layer5RuntimeCallBinder.IsGenericSingleWordServiceTarget(normKey))
+        {
+            return null;
+        }
 
-        var projList = projects.ToList();
+        var projList = projects
+            .Where(p => Layer5RuntimeCallBinder.IsCallableServiceTarget(p) &&
+                        (callableProjectIds == null || callableProjectIds.Contains(p.Id)))
+            .ToList();
+        if (projList.Count == 0) return null;
 
-        // 0. Direct suffix/segment match (e.g. 'spa-bff' -> FoodDelivery.Spa.Bff, 'gateway' -> FoodDelivery.ApiGateway)
+        // 0. Direct dot-delimited suffix/segment match (e.g. 'spa-bff' -> FoodDelivery.Spa.Bff, 'gateway' -> FoodDelivery.ApiGateway)
         var dotNorm = cleanKey.Replace("-", ".").Replace("_", ".");
         var directMatch = projList.FirstOrDefault(p =>
-            !p.IsLibrary &&
-            (p.Name.EndsWith("." + dotNorm, StringComparison.OrdinalIgnoreCase) ||
-             p.Name.EndsWith("." + cleanKey, StringComparison.OrdinalIgnoreCase) ||
-             (normKey is "gateway" or "apigateway" && (p.Name.EndsWith("Gateway", StringComparison.OrdinalIgnoreCase) || p.Name.Contains("ApiGateway", StringComparison.OrdinalIgnoreCase))) ||
-             p.Name.Replace(".", "").Replace("-", "").EndsWith(normKey, StringComparison.OrdinalIgnoreCase)));
+            p.Name.EndsWith("." + dotNorm, StringComparison.OrdinalIgnoreCase) ||
+            p.Name.EndsWith("." + cleanKey, StringComparison.OrdinalIgnoreCase) ||
+            (normKey is "gateway" or "apigateway" && (p.Name.EndsWith("Gateway", StringComparison.OrdinalIgnoreCase) || p.Name.Contains("ApiGateway", StringComparison.OrdinalIgnoreCase))));
         if (directMatch != null) return directMatch;
 
-        // 1. Exact domain match on non-library project
+        // 1. Exact domain match on callable non-library project
         var exactNonLib = projList.FirstOrDefault(p =>
-            !p.IsLibrary &&
-            (ResourceSemanticAnalyzer.CleanProjectNameToDomain(p.Name).Equals(normKey, StringComparison.OrdinalIgnoreCase) ||
-             EndpointScoringEngine.NormalizeAlphanumeric(Path.GetFileName(p.Path.TrimEnd('/', '\\'))).Equals(normKey, StringComparison.OrdinalIgnoreCase) ||
-             EndpointScoringEngine.NormalizeAlphanumeric(p.Name).Equals(normKey, StringComparison.OrdinalIgnoreCase)));
-        if (exactNonLib != null) return exactNonLib;
-
-        // 2. Exact domain match on any project
-        var exactAny = projList.FirstOrDefault(p =>
             ResourceSemanticAnalyzer.CleanProjectNameToDomain(p.Name).Equals(normKey, StringComparison.OrdinalIgnoreCase) ||
             EndpointScoringEngine.NormalizeAlphanumeric(Path.GetFileName(p.Path.TrimEnd('/', '\\'))).Equals(normKey, StringComparison.OrdinalIgnoreCase) ||
             EndpointScoringEngine.NormalizeAlphanumeric(p.Name).Equals(normKey, StringComparison.OrdinalIgnoreCase));
-        if (exactAny != null) return exactAny;
+        if (exactNonLib != null) return exactNonLib;
 
-        // 3. Name ends with .Services.{key} or .Gateways.{key}
+        // 2. Name ends with .Services.{key} or .Gateways.{key}
         var nameMatch = projList.FirstOrDefault(p =>
-            !p.IsLibrary &&
-            (p.Name.EndsWith($".Services.{key}", StringComparison.OrdinalIgnoreCase) ||
-             p.Name.EndsWith($".Gateways.{key}", StringComparison.OrdinalIgnoreCase)));
+            p.Name.EndsWith($".Services.{key}", StringComparison.OrdinalIgnoreCase) ||
+            p.Name.EndsWith($".Gateways.{key}", StringComparison.OrdinalIgnoreCase));
         if (nameMatch != null) return nameMatch;
 
         // 4. EndpointScoringEngine matching (excluding workers/schedulers without exposed APIs)
@@ -391,7 +423,9 @@ public partial class PostIndexAnalyzer
 
     public static bool IsGarbageExternalService(string domain) => WorkspaceConventions.IsGarbageExternalService(domain);
 
-    public static List<string> IdentifyPhantomExternalServicesToPurge(ExternalServicePurgeSnapshot snapshot)
+    public static List<string> IdentifyPhantomExternalServicesToPurge(
+        ExternalServicePurgeSnapshot snapshot,
+        bool isSubtreeScan = false)
     {
         var projectList = new List<ProjectNode>();
         foreach (var (pId, pName, pPath) in snapshot.Projects)
@@ -431,6 +465,14 @@ public partial class PostIndexAnalyzer
                 cand.Contains('?') ||
                 (name != null && (name.StartsWith('*') || name.StartsWith('?') || name.StartsWith('&') || name.Contains("api-version=") || name.Contains('='))) ||
                 (domain != null && (domain.StartsWith('*') || domain.StartsWith('?') || domain.StartsWith('&') || domain.Contains("api-version=") || domain.Contains('='))))
+            {
+                idsToDelete.Add(id);
+                continue;
+            }
+
+            if (!isSubtreeScan &&
+                !servicesCallingEndpoints.Contains(id) &&
+                (IsLoopbackExternalHost(cand) || IsLoopbackExternalHost(domain) || IsLoopbackExternalHost(name)))
             {
                 idsToDelete.Add(id);
                 continue;
@@ -491,10 +533,11 @@ public partial class PostIndexAnalyzer
     public static async Task PurgePhantomExternalServicesAsync(
         IGraphClient db,
         string widPrefix,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        bool isSubtreeScan = false)
     {
         var snapshot = await db.LoadExternalServicePurgeSnapshotAsync(cancellationToken);
-        var idsToDelete = IdentifyPhantomExternalServicesToPurge(snapshot);
+        var idsToDelete = IdentifyPhantomExternalServicesToPurge(snapshot, isSubtreeScan);
         await db.DeleteNodesAndConnectedEdgesAsync(idsToDelete, cancellationToken);
     }
 

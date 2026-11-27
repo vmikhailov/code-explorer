@@ -1,5 +1,4 @@
 using System.Text.Json;
-using CodeExplorer.Core.Analysis;
 
 namespace CodeExplorer.Core.Mcp;
 

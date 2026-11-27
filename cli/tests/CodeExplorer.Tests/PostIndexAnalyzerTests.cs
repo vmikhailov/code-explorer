@@ -1,4 +1,3 @@
-using CodeExplorer.Cypher.Common;
 using Microsoft.Data.Sqlite;
 using NUnit.Framework;
 
@@ -62,7 +61,7 @@ public class PostIndexAnalyzerTests
 
         // 3. Run PostIndexAnalyzer
         var analyzer = new PostIndexAnalyzer(_client);
-        await analyzer.RunAsync("1", new ParsingContext("", ""));
+        await analyzer.RunAsync("1", new Layer5Context("", _client));
 
         // 4. Verify TRANSITIVELY_CALLS in edges table
 
@@ -142,7 +141,7 @@ public class PostIndexAnalyzerTests
         }
 
         // 7. Verify Idempotency - running again should not duplicate edges
-        await analyzer.RunAsync("1", new ParsingContext("", ""));
+        await analyzer.RunAsync("1", new Layer5Context("", _client));
 
         using (var cmd = conn.CreateCommand())
         {
@@ -173,7 +172,7 @@ public class PostIndexAnalyzerTests
         var analyzer = new PostIndexAnalyzer(client);
 
         var sw = System.Diagnostics.Stopwatch.StartNew();
-        await analyzer.RunAsync("1", new ParsingContext("", ""));
+        await analyzer.RunAsync("1", new Layer5Context("", client));
         sw.Stop();
 
         sw.ElapsedMilliseconds.Should().BeLessThan(5000, $"PostIndexAnalyzer took {sw.ElapsedMilliseconds}ms, expected under 5000ms");
@@ -390,7 +389,7 @@ public class PostIndexAnalyzerTests
             scanResult.Layer3.RawTypeBindings.Should().BeEmpty("RawTypeBindings buffer should be evicted after global reference resolution");
 
             var filesStructure = scanResult.Layer1.Workspace.Children
-                .OfType<CodeExplorer.Core.Common.Nodes.Layer1_Physical.FilesStructureNode>()
+                .OfType<Core.Common.Nodes.Layer1_Physical.FilesStructureNode>()
                 .FirstOrDefault();
             filesStructure.Should().NotBeNull();
             filesStructure!.Children.Should().BeEmpty("Layer 1 FolderNode hierarchy should be evicted before PostIndex");
@@ -398,9 +397,9 @@ public class PostIndexAnalyzerTests
             foreach (var file in scanResult.Layer1.Files)
             {
                 file.References.Should().BeEmpty("FileNode.References should be cleared after OntologyUploader");
-                file.Children.OfType<CodeExplorer.Core.Common.Nodes.Layer3_Syntactic.TypeNode>().Should().BeEmpty("Layer 3 TypeNodes should be evicted from FileNode before PostIndex");
-                file.Children.OfType<CodeExplorer.Core.Common.Nodes.Layer3_Syntactic.FunctionNode>().Should().BeEmpty("Layer 3 FunctionNodes should be evicted from FileNode before PostIndex");
-                file.Children.OfType<CodeExplorer.Core.Common.Nodes.Layer3_Syntactic.MemberNode>().Should().BeEmpty("Layer 3 MemberNodes should be evicted from FileNode before PostIndex");
+                file.Children.OfType<Core.Common.Nodes.Layer3_Syntactic.TypeNode>().Should().BeEmpty("Layer 3 TypeNodes should be evicted from FileNode before PostIndex");
+                file.Children.OfType<Core.Common.Nodes.Layer3_Syntactic.FunctionNode>().Should().BeEmpty("Layer 3 FunctionNodes should be evicted from FileNode before PostIndex");
+                file.Children.OfType<Core.Common.Nodes.Layer3_Syntactic.MemberNode>().Should().BeEmpty("Layer 3 MemberNodes should be evicted from FileNode before PostIndex");
             }
 
             // Verify all nodes and CALLS relationships were persisted prior to eviction

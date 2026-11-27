@@ -1,9 +1,8 @@
-using CodeExplorer.Core.Common.Nodes;
 using CodeExplorer.Core.Common.Nodes.Layer2_Boundaries;
 using CodeExplorer.Core.Common.Nodes.Layer3_Syntactic;
 using CodeExplorer.Core.Common.Nodes.Layer4_Semantic;
 using CodeExplorer.Core.Common.Relationships;
-using CodeExplorer.Cypher.Common;
+using CodeExplorer.Core.Conventions.Services;
 
 namespace CodeExplorer.Core.Parser;
 
@@ -19,7 +18,7 @@ public static class OntologyUploader
     private const string ScanIssueMarker = ":scan_issue:";
     private const string MemberMarker = ":Member:";
 
-    public static async Task UploadNodeTreeAsync(IOntologyNode node, string? parentId, ParsingContext ctx)
+    public static async Task UploadNodeTreeAsync(IOntologyNode node, string? parentId, Layer4Context ctx)
     {
         var collectedNodes = new List<Node>();
         var collectedRelationships = new List<Relationship>();
@@ -138,7 +137,7 @@ public static class OntologyUploader
     private static void CollectTreeElements(
         IOntologyNode node,
         IOntologyNode? parentNode,
-        ParsingContext ctx,
+        Layer4Context ctx,
         List<Node> collectedNodes,
         List<Relationship> collectedRelationships,
         HashSet<string> visitedNodeIds,
@@ -407,7 +406,7 @@ public static class OntologyUploader
         }
         else if (node is ExternalServiceNode esDup &&
                  !string.IsNullOrEmpty(esDup.FilePath) &&
-                 !CodeExplorer.Core.Conventions.Services.SourcePathClassifier.IsTestFilePath(esDup.FilePath))
+                 !SourcePathClassifier.IsTestFilePath(esDup.FilePath))
         {
             collectedNodes.Add(Node.FromNode(node));
         }

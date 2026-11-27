@@ -1,11 +1,8 @@
+using System.Text.Json;
 using CodeExplorer.Core.Analysis.Layers.Layer4_Semantic.Analyzers;
-using CodeExplorer.Core.Common;
-using CodeExplorer.Core.Common.Nodes;
 using CodeExplorer.Core.Common.Nodes.Layer1_Physical;
 using CodeExplorer.Core.Common.Nodes.Layer2_Boundaries;
 using CodeExplorer.Core.Common.Nodes.Layer4_Semantic;
-using CodeExplorer.Core.Common.Relationships;
-using CodeExplorer.Core.Database;
 
 namespace CodeExplorer.Core.Parser.Layers;
 
@@ -13,8 +10,8 @@ public partial class Layer4SemanticParser
 {
     private static void InitializeWorkloadsForProjects(
         List<ProjectNode> allProjects,
-        Layer3Result l3Result,
-        ParsingContext ctx,
+        List<FileNode> allFiles,
+        Layer4Context ctx,
         SemanticStructureNode semanticStructureNode,
         List<IOntologyNode> semanticNodes,
         List<Relationship> semanticRelationships,
@@ -48,7 +45,7 @@ public partial class Layer4SemanticParser
             var secRolesList = new List<string>();
             if (!string.IsNullOrWhiteSpace(project.SecondaryRoles))
             {
-                foreach (var item in CodeExplorer.Core.Database.CypherValue.TryParseJsonText(project.SecondaryRoles).AsStringList())
+                foreach (var item in CypherValue.TryParseJsonText(project.SecondaryRoles).AsStringList())
                 {
                     var norm = ProjectNodeFactory.NormalizeRoleName(item);
                     if (norm != null && norm != canonicalPrimaryRole && !secRolesList.Contains(norm))
@@ -65,7 +62,7 @@ public partial class Layer4SemanticParser
                 canonicalPrimaryRole != "Service" &&
                 canonicalPrimaryRole != "App")
             {
-                var projectFiles = l3Result.Prev.Prev.Files.Where(f => Layer2ProjectParser.IsEnclosedInProject(f, project, allProjects)).ToList();
+                var projectFiles = allFiles.Where(f => Layer2ProjectParser.IsEnclosedInProject(f, project, allProjects)).ToList();
                 if (projectFiles.Any(f => f.Name.EndsWith(".html", StringComparison.OrdinalIgnoreCase) ||
                                           f.Name.EndsWith(".vue", StringComparison.OrdinalIgnoreCase) ||
                                           f.Name.EndsWith(".svelte", StringComparison.OrdinalIgnoreCase) ||
@@ -248,7 +245,7 @@ public partial class Layer4SemanticParser
         List<IOntologyNode> semanticNodes,
         List<Relationship> semanticRelationships,
         HashSet<(string From, string To, string Kind)> existingRelKeys,
-        ParsingContext ctx)
+        Layer4Context ctx)
     {
         ResourceSemanticAnalyzer.ResetCache();
         var lastLogTicks = Environment.TickCount64;
@@ -311,7 +308,7 @@ public partial class Layer4SemanticParser
             {
                 if (ConfigurationParser.IsConfigurationFile(pfile.Name))
                 {
-                    ConfigurationParser.ParseAndEnrich(pfile.FullPath, pfile.Path, ctx.WorkspaceId, workloadNode, semanticRelationships, ctx);
+                    ConfigurationParser.ParseAndEnrich(pfile.FullPath, pfile.Path, ctx.WorkspaceId, workloadNode, semanticRelationships, ctx.Semantic);
                 }
             }
             if (semanticRelationships.Count > initialRelCount)
@@ -329,7 +326,7 @@ public partial class Layer4SemanticParser
             foreach (var syntaxTree in projectTrees)
             {
                 ctx.CancellationToken.ThrowIfCancellationRequested();
-                EndpointSemanticAnalyzer.Enrich(syntaxTree, project, ctx, semanticRelationships);
+                EndpointSemanticAnalyzer.Enrich(syntaxTree, project, ctx.Semantic, semanticRelationships);
 
                 var targetFileParser = syntaxTree.FileParser;
                 if (targetFileParser.SemanticExtensions.Count == 0)
@@ -337,7 +334,7 @@ public partial class Layer4SemanticParser
                     targetFileParser = WorkspaceIndexer.GetParserByLanguage(project.ProjectType.ToCanonicalString())
                                        ?? targetFileParser;
                 }
-                await ResourceSemanticAnalyzer.EnrichAsync(syntaxTree, project, targetFileParser, ctx, workloadNode);
+                await ResourceSemanticAnalyzer.EnrichAsync(syntaxTree, project, targetFileParser, ctx.Semantic, workloadNode);
             }
 
             var enrichContext = new ProjectEnrichmentContext(
@@ -705,13 +702,13 @@ public partial class Layer4SemanticParser
     }
 
     private static void MaterializeWorkloadDependencies(
-        Layer3Result l3Result,
+        Layer2Result l2Result,
         Dictionary<string, string> workloadByProjectId,
         SemanticStructureNode semanticStructureNode,
         HashSet<(string From, string To, string Kind)> existingRelKeys,
         List<Relationship> semanticRelationships)
     {
-        foreach (var dep in l3Result.Prev.ProjectDependencies)
+        foreach (var dep in l2Result.ProjectDependencies)
         {
             if (dep.Kind == RelationshipKind.DependsOn &&
                 workloadByProjectId.TryGetValue(dep.From, out var sourceWorkloadId))
@@ -755,7 +752,7 @@ public partial class Layer4SemanticParser
                     }
                 }
                 else if (dep.To.Contains($":{OntologyConstants.IdPrefixes.Package}:") ||
-                         l3Result.Prev.Packages.Any(p => p.Id == dep.To))
+                         l2Result.Packages.Any(p => p.Id == dep.To))
                 {
                     if (existingRelKeys.Add((sourceWorkloadId, dep.To, OntologyConstants.Relationships.DependsOn)))
                     {

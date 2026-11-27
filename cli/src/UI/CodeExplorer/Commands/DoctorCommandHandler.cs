@@ -1,7 +1,5 @@
 using System.Text;
 using System.Text.Json;
-using CodeExplorer.Core.Analysis;
-using CodeExplorer.Core.Common;
 using CodeExplorer.Options;
 
 namespace CodeExplorer.Commands;

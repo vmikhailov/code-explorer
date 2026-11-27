@@ -243,7 +243,7 @@ public class ProjectRoleDetectorTests
             }
             """);
 
-            var parser = new CodeExplorer.Parsers.TypeScript.TypeScriptProjectParser();
+            var parser = new Parsers.TypeScript.TypeScriptProjectParser();
             var props = parser.ExtractManifestProperties(tempDir, [pkgPath]);
 
             props.GetValueOrDefault("is_library").Should().Be("true");
@@ -286,7 +286,7 @@ public class ProjectRoleDetectorTests
             }
             """);
 
-            var parser = new CodeExplorer.Parsers.TypeScript.TypeScriptProjectParser();
+            var parser = new Parsers.TypeScript.TypeScriptProjectParser();
             var props = parser.ExtractManifestProperties(tempDir, [pkgPath]);
 
             props.GetValueOrDefault("manifest_type").Should().Be("application");
@@ -313,7 +313,7 @@ public class ProjectRoleDetectorTests
     [Test]
     public void RegisterPackageAlias_TestProjectDoesNotOverwriteProductionLibrary()
     {
-        var prodLib = new CodeExplorer.Core.Common.Nodes.Layer2_Boundaries.ProjectNode(
+        var prodLib = new Core.Common.Nodes.Layer2_Boundaries.ProjectNode(
             "workspace:p:src/integrations/libs/listener-nest:",
             "listener-nest",
             "src/integrations/libs/listener-nest",
@@ -324,7 +324,7 @@ public class ProjectRoleDetectorTests
             EntityKind = ProjectEntityKind.Library
         };
 
-        var testCopy = new CodeExplorer.Core.Common.Nodes.Layer2_Boundaries.ProjectNode(
+        var testCopy = new Core.Common.Nodes.Layer2_Boundaries.ProjectNode(
             "workspace:p:test/src/integrations/libs/listener-nest:",
             "listener-nest",
             "test/src/integrations/libs/listener-nest",
@@ -335,17 +335,17 @@ public class ProjectRoleDetectorTests
             EntityKind = ProjectEntityKind.Test
         };
 
-        var map = new Dictionary<string, CodeExplorer.Core.Common.Nodes.Layer2_Boundaries.ProjectNode>(StringComparer.OrdinalIgnoreCase);
+        var map = new Dictionary<string, Core.Common.Nodes.Layer2_Boundaries.ProjectNode>(StringComparer.OrdinalIgnoreCase);
 
         // Production registered first, test copy scanned second -> production must win
-        CodeExplorer.Core.Parser.Layers.Layer2ProjectParser.RegisterPackageAlias(map, "@atsorganization/ats-lib-listener-nest", prodLib);
-        CodeExplorer.Core.Parser.Layers.Layer2ProjectParser.RegisterPackageAlias(map, "@atsorganization/ats-lib-listener-nest", testCopy);
+        Core.Parser.Layers.Layer2ProjectParser.RegisterPackageAlias(map, "@atsorganization/ats-lib-listener-nest", prodLib);
+        Core.Parser.Layers.Layer2ProjectParser.RegisterPackageAlias(map, "@atsorganization/ats-lib-listener-nest", testCopy);
         map["@atsorganization/ats-lib-listener-nest"].Id.Should().Be(prodLib.Id);
 
         // Test registered first, production scanned second -> production must replace test
-        var map2 = new Dictionary<string, CodeExplorer.Core.Common.Nodes.Layer2_Boundaries.ProjectNode>(StringComparer.OrdinalIgnoreCase);
-        CodeExplorer.Core.Parser.Layers.Layer2ProjectParser.RegisterPackageAlias(map2, "@atsorganization/ats-lib-listener-nest", testCopy);
-        CodeExplorer.Core.Parser.Layers.Layer2ProjectParser.RegisterPackageAlias(map2, "@atsorganization/ats-lib-listener-nest", prodLib);
+        var map2 = new Dictionary<string, Core.Common.Nodes.Layer2_Boundaries.ProjectNode>(StringComparer.OrdinalIgnoreCase);
+        Core.Parser.Layers.Layer2ProjectParser.RegisterPackageAlias(map2, "@atsorganization/ats-lib-listener-nest", testCopy);
+        Core.Parser.Layers.Layer2ProjectParser.RegisterPackageAlias(map2, "@atsorganization/ats-lib-listener-nest", prodLib);
         map2["@atsorganization/ats-lib-listener-nest"].Id.Should().Be(prodLib.Id);
     }
 }

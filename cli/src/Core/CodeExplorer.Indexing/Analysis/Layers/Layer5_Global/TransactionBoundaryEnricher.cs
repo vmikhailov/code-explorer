@@ -1,10 +1,7 @@
-using CodeExplorer.Core.Common;
-using CodeExplorer.Core.Common.Nodes;
 using CodeExplorer.Core.Common.Nodes.Layer1_Physical;
 using CodeExplorer.Core.Common.Nodes.Layer3_Syntactic;
 using CodeExplorer.Core.Common.Nodes.Layer4_Semantic;
 using CodeExplorer.Core.Common.Relationships;
-using CodeExplorer.Cypher.Common;
 
 namespace CodeExplorer.Core.Parser.Layers;
 
@@ -48,7 +45,7 @@ internal static class TransactionBoundaryEnricher
 
     public static TransactionEnrichmentOutput EnrichTransactions(
         Layer4Result? l4Result,
-        ParsingContext ctx,
+        Layer5Context ctx,
         Dictionary<string, List<Reference>> refsByScopeId,
         List<Relationship> referenceRelationships,
         HashSet<(string From, string To, string Kind)> existingRefRels)
@@ -57,10 +54,10 @@ internal static class TransactionBoundaryEnricher
         var rels = new List<Relationship>();
         if (l4Result == null) return new TransactionEnrichmentOutput([], rels);
 
-        var syntaxStruct = l4Result.Prev?.SyntaxStructure ?? ctx.SyntaxStructure;
+        var syntaxStruct = ctx.SyntaxStructure;
         if (syntaxStruct == null) return new TransactionEnrichmentOutput([], rels);
 
-        var filesByPath = SemanticEnrichmentHelpers.CollectFilesByPath(l4Result);
+        var filesByPath = SemanticEnrichmentHelpers.CollectFilesByPath(ctx.FilesStructure);
         var modules = SemanticEnrichmentHelpers.CollectModules(l4Result.SemanticStructure);
         var index = SemanticEnrichmentHelpers.CollectTypesAndMethods(syntaxStruct);
 
@@ -308,7 +305,7 @@ internal static class TransactionBoundaryEnricher
     }
 
     private static TransactionNode GetOrCreateTx(
-        ParsingContext ctx,
+        Layer5Context ctx,
         FunctionNode fn,
         string scopeName,
         TransactionKind subKind,

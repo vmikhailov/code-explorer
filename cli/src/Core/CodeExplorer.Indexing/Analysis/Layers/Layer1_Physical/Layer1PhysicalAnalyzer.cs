@@ -1,6 +1,6 @@
-using CodeExplorer.Core.Common;
-using CodeExplorer.Core.Common.Nodes;
+using System.Diagnostics;
 using CodeExplorer.Core.Common.Nodes.Layer1_Physical;
+using CodeExplorer.Core.Database;
 
 namespace CodeExplorer.Core.Parser.Layers;
 
@@ -30,9 +30,9 @@ public class Layer1PhysicalParser
         bool IsManifest,
         bool IsSupportedSourceOrConfig);
 
-    private sealed class WalkCollectorState(ParsingContext ctx, WorkspaceNode workspaceNode, GitIgnoreTrieMatcher gitTrie)
+    private sealed class WalkCollectorState(Layer1Context ctx, WorkspaceNode workspaceNode, GitIgnoreTrieMatcher gitTrie)
     {
-        public ParsingContext Ctx { get; } = ctx;
+        public Layer1Context Ctx { get; } = ctx;
         public WorkspaceNode WorkspaceNode { get; } = workspaceNode;
         public GitIgnoreTrieMatcher GitTrie { get; } = gitTrie;
         public List<CandidateFileItem> OwnedCandidates { get; } = [];
@@ -48,9 +48,10 @@ public class Layer1PhysicalParser
         public bool HasAnyOwnedDirectory;
     }
 
-    public async Task<Layer1Result> ParseAsync(ParsingContext ctx)
+    public async Task<Layer1Result> ParseAsync(Layer1Context ctx)
     {
-        var sw = System.Diagnostics.Stopwatch.StartNew();
+        using var dirIndexScope = WorkspaceDirectoryIndex.EnterScope(ctx.DirectoryIndex);
+        var sw = Stopwatch.StartNew();
         ctx.Layer1Log.ScanStarted();
 
         var wsId = await InitializeWorkspaceIdAsync(ctx);
@@ -69,8 +70,7 @@ public class Layer1PhysicalParser
 
         var folders = new List<FolderNode>();
         var gitTrie = new GitIgnoreTrieMatcher(ctx.AbsoluteWorkspacePath, ctx.FileFilter);
-        PhysicalFileStore.ClearWorkspace(ctx.AbsoluteWorkspacePath);
-        PhysicalFileStore.RegisterConfiguredProjects(ctx.AbsoluteWorkspacePath, WorkspaceSettings.Load(ctx.AbsoluteWorkspacePath).Projects);
+        ctx.DirectoryIndex.RegisterConfiguredProjects(ctx.AbsoluteWorkspacePath, WorkspaceSettings.Load(ctx.AbsoluteWorkspacePath).Projects);
 
         var walkState = new WalkCollectorState(ctx, workspaceNode, gitTrie);
         ScopedDirectoryTreeNode? rootTreeNode;
@@ -110,10 +110,17 @@ public class Layer1PhysicalParser
         }
 
         var finalCandidates = BuildFinalCandidateList(walkState);
-        var files = await MaterializeMetadataFilesAndStreamManifestsAsync(finalCandidates, walkState.KeptFolders, ctx);
+        var files = MaterializeMetadataFilesAndRecordManifests(finalCandidates, walkState.KeptFolders, ctx);
         FinalizeNonEmptyFolders(walkState, folders);
 
-        var l1Result = new Layer1Result(workspaceNode, filesStructureNode, files, folders);
+        var l1Result = new Layer1Result(
+            workspaceNode,
+            filesStructureNode,
+            files,
+            folders,
+            ctx.DiscoveredManifestFiles,
+            ctx.DiscoveredManifestPaths,
+            ctx.DiscoveredVsCodeFolderOpenTasks);
         if (rootTreeNode != null)
         {
             var orderedFallbackDirs = walkState.FallbackCandidateDirectories
@@ -131,7 +138,7 @@ public class Layer1PhysicalParser
         return l1Result;
     }
 
-    private static async Task<string> InitializeWorkspaceIdAsync(ParsingContext ctx)
+    private static async Task<string> InitializeWorkspaceIdAsync(Layer1Context ctx)
     {
         var wsId = ctx.PersistToGraphDb && ctx.DbClient != null
             ? await ctx.DbClient.GetOrCreateWorkspaceIdAsync(ctx.HostWorkspacePath)
@@ -147,7 +154,7 @@ public class Layer1PhysicalParser
         return wsId;
     }
 
-    private static async Task<string> ResolveWorkspaceNameAsync(ParsingContext ctx)
+    private static async Task<string> ResolveWorkspaceNameAsync(Layer1Context ctx)
     {
         var normalizedHostPath = ctx.HostWorkspacePath.NormalizePath();
         var folderName = Path.GetFileName(normalizedHostPath);
@@ -172,7 +179,7 @@ public class Layer1PhysicalParser
         return workspaceName;
     }
 
-    private static void AttachRootGitSettingsIfPresent(string wsId, FilesStructureNode filesStructureNode, ParsingContext ctx)
+    private static void AttachRootGitSettingsIfPresent(string wsId, FilesStructureNode filesStructureNode, Layer1Context ctx)
     {
         if (ctx.LightweightAstScanMode) return;
         var rootRepoDir = GitSettingsParser.FindRepoRoot(ctx.AbsoluteWorkspacePath);
@@ -238,9 +245,9 @@ public class Layer1PhysicalParser
         }
 
         var isGitRepoRoot = hasGitPointer || hasGitSubDir;
-        if (isGitRepoRoot) PhysicalFileStore.RegisterGitRepositoryRoot(currentDir);
+        if (isGitRepoRoot) ctx.DirectoryIndex.RegisterGitRepositoryRoot(currentDir);
 
-        PhysicalFileStore.SetDirectoryFiles(currentDir, dirFilePaths);
+        ctx.DirectoryIndex.SetDirectoryFiles(currentDir, dirFilePaths);
 
         var effectiveInherited = !isRoot && isGitRepoRoot ? null : tentativeInheritedParsers;
         var hasManifestInDir = HasAnyManifestFile(dirFiles, ctx.FileFilter);
@@ -261,7 +268,7 @@ public class Layer1PhysicalParser
         if (hasManifestInDir) state.ManifestDirectories.Add(currentDir);
 
         var hasCandidateTrigger = isGitRepoRoot || hasManifestInDir || tentativeDirect is { Count: > 0 } ||
-                                  (PhysicalFileStore.HasAnyConfiguredProjects && PhysicalFileStore.TryGetConfiguredProject(currentDir, out _)) ||
+                                  (ctx.DirectoryIndex.HasAnyConfiguredProjects && ctx.DirectoryIndex.TryGetConfiguredProject(currentDir, out _)) ||
                                   ProjectTriggerDetector.HasCandidateProjectTrigger(currentDir, dirFilePaths);
         var treeNode = new ScopedDirectoryTreeNode(
             currentDir, currentDir.NormalizeFullPath(trimTrailingSlash: true), relativeDir, isRoot,
@@ -325,7 +332,7 @@ public class Layer1PhysicalParser
         var ctx = state.Ctx;
         var effectiveInherited = !node.IsRoot && node.IsGitRepoRoot ? null : inheritedParsers;
         var wrapsChildProjects = node.DescendantGitRepoCount > 0 ||
-                                 PhysicalFileStore.HasChildConfiguredProjects(node.DirectoryPath);
+                                 ctx.DirectoryIndex.HasChildConfiguredProjects(node.DirectoryPath);
 
         var (directNonFallback, localFallback) = ResolveFinalDirectoryParsers(node, effectiveInherited, wrapsChildProjects, ctx);
 
@@ -429,10 +436,10 @@ public class Layer1PhysicalParser
             ScopedDirectoryTreeNode node,
             IReadOnlyList<IProjectParser>? inheritedProjectParsers,
             bool wrapsChildProjects,
-            ParsingContext ctx)
+            Layer1Context ctx)
     {
-        var hasConfigured = PhysicalFileStore.HasAnyConfiguredProjects &&
-                            PhysicalFileStore.TryGetConfiguredProject(node.DirectoryPath, out _);
+        var hasConfigured = ctx.DirectoryIndex.HasAnyConfiguredProjects &&
+                            ctx.DirectoryIndex.TryGetConfiguredProject(node.DirectoryPath, out _);
 
         IReadOnlyList<IProjectParser>? directNonFallback = null;
         var canProbeDirectNonFallback = (!wrapsChildProjects || node.HasManifestInDir || hasConfigured) &&
@@ -451,7 +458,7 @@ public class Layer1PhysicalParser
                 allowFallback: false);
             if (directNonFallback is not { Count: > 0 } &&
                 hasConfigured &&
-                PhysicalFileStore.TryGetConfiguredProject(node.DirectoryPath, out var cfgProj) &&
+                ctx.DirectoryIndex.TryGetConfiguredProject(node.DirectoryPath, out var cfgProj) &&
                 cfgProj != null)
             {
                 directNonFallback = ctx.FileFilter.ConnectedProjectParsers
@@ -475,7 +482,7 @@ public class Layer1PhysicalParser
                 allowFallback: true);
             if (localFallback is not { Count: > 0 } &&
                 hasConfigured &&
-                PhysicalFileStore.TryGetConfiguredProject(node.DirectoryPath, out var fbProj) &&
+                ctx.DirectoryIndex.TryGetConfiguredProject(node.DirectoryPath, out var fbProj) &&
                 fbProj != null)
             {
                 localFallback = ctx.FileFilter.ConnectedProjectParsers
@@ -612,51 +619,33 @@ public class Layer1PhysicalParser
         return result;
     }
 
-    private static async Task<List<FileNode>> MaterializeMetadataFilesAndStreamManifestsAsync(
+    private static List<FileNode> MaterializeMetadataFilesAndRecordManifests(
         List<CandidateFileItem> candidates,
         HashSet<FolderNode> keptFolders,
-        ParsingContext ctx)
+        Layer1Context ctx)
     {
         var files = new List<FileNode>(candidates.Count);
         if (candidates.Count == 0) return files;
 
-        var manifestItems = new List<CandidateFileItem>();
-        for (var i = 0; i < candidates.Count; i++)
-        {
-            if (candidates[i].IsManifest)
-            {
-                manifestItems.Add(candidates[i]);
-            }
-        }
-
-        HashSet<string>? brokenManifestIds = null;
-        if (manifestItems.Count > 0)
-        {
-            var brokenBag = new System.Collections.Concurrent.ConcurrentBag<string>();
-            var parallelOptions = new ParallelOptions
-            {
-                CancellationToken = ctx.CancellationToken,
-                MaxDegreeOfParallelism = Environment.ProcessorCount
-            };
-            await Parallel.ForEachAsync(manifestItems, parallelOptions, async (manifestItem, _) =>
-            {
-                var ok = await TryStreamManifestCandidateAsync(manifestItem, ctx);
-                if (!ok)
-                {
-                    brokenBag.Add(manifestItem.FileId);
-                }
-            });
-            if (!brokenBag.IsEmpty)
-            {
-                brokenManifestIds = new HashSet<string>(brokenBag, StringComparer.Ordinal);
-            }
-        }
-
         for (var i = 0; i < candidates.Count; i++)
         {
             var item = candidates[i];
+            if (item.IsManifest)
+            {
+                if (!File.Exists(item.AbsoluteFilePath))
+                {
+                    ctx.Layer1Log.SkippingBrokenSymlink(item.RelativeFile);
+                    ctx.DirectoryIndex.RemoveDirectoryFileEntry(item.AbsoluteFilePath);
+                    continue;
+                }
+
+                ctx.DiscoveredManifestPaths[item.RelativeFile] = (
+                    item.AbsoluteFilePath,
+                    item.Entry.LastModifiedUtc,
+                    item.Entry.SizeBytes);
+            }
+
             if (!item.IsSupportedSourceOrConfig) continue;
-            if (brokenManifestIds != null && brokenManifestIds.Contains(item.FileId)) continue;
 
             var fileNode = new FileNode(
                 item.FileId,
@@ -728,7 +717,7 @@ public class Layer1PhysicalParser
         string wsId,
         FilesStructureNode filesStructureNode,
         List<FolderNode> folders,
-        ParsingContext ctx)
+        Layer1Context ctx)
     {
         var relativeSubtree = ctx.ScanPath.GetNormalizedRelativePath(ctx.AbsoluteWorkspacePath);
         var segments = relativeSubtree.Split('/', StringSplitOptions.RemoveEmptyEntries);
@@ -750,7 +739,7 @@ public class Layer1PhysicalParser
         return currentParent;
     }
 
-    private static void AttachNestedGitSettingsIfPresent(string currentDir, FolderNode folderNode, ParsingContext ctx)
+    private static void AttachNestedGitSettingsIfPresent(string currentDir, FolderNode folderNode, Layer1Context ctx)
     {
         var gitPath = Path.Combine(currentDir, DotGitName);
         if (!Directory.Exists(gitPath) && !File.Exists(gitPath)) return;
@@ -763,7 +752,7 @@ public class Layer1PhysicalParser
         }
     }
 
-    private static async Task TryStreamVscodeTasksAsync(string currentDir, ParsingContext ctx)
+    private static async Task TryStreamVscodeTasksAsync(string currentDir, Layer1Context ctx)
     {
         var vscodeTasksPath = Path.Combine(currentDir, DotVscodeName, OntologyConstants.ManifestFields.TasksJsonFileName);
         if (!File.Exists(vscodeTasksPath)) return;
@@ -773,7 +762,7 @@ public class Layer1PhysicalParser
         {
             var absTasks = vscodeTasksPath.NormalizeFullPath();
             var tasksInfo = new FileInfo(vscodeTasksPath);
-            var streamedTasks = await PhysicalFileStore.StreamAndAnalyzeFileAsync(
+            var streamedTasks = await FileStreamReader.StreamAndAnalyzeFileAsync(
                 absTasks,
                 relTasks,
                 OntologyConstants.ManifestFields.TasksJsonFileName,
@@ -781,10 +770,24 @@ public class Layer1PhysicalParser
                 isManifest: true,
                 isSupportedSourceOrConfig: false,
                 ctx.FileFilter,
-                ctx.CancellationToken);
+                ctx.CancellationToken,
+                computeHash: ctx.PersistToGraphDb);
             if (streamedTasks.ContentHash != null)
             {
                 ctx.DiscoveredManifestFiles[relTasks] = (absTasks, streamedTasks.ContentHash, tasksInfo.LastWriteTimeUtc, tasksInfo.Length);
+            }
+            else
+            {
+                ctx.DiscoveredManifestPaths[relTasks] = (absTasks, tasksInfo.LastWriteTimeUtc, tasksInfo.Length);
+            }
+
+            if (string.Equals(
+                    currentDir.NormalizeFullPath(trimTrailingSlash: true),
+                    ctx.AbsoluteWorkspacePath.NormalizeFullPath(trimTrailingSlash: true),
+                    StringComparison.OrdinalIgnoreCase) &&
+                !string.IsNullOrEmpty(streamedTasks.DecodedText))
+            {
+                ExtractVsCodeFolderOpenTasks(streamedTasks.DecodedText, relTasks, ctx);
             }
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
@@ -794,52 +797,39 @@ public class Layer1PhysicalParser
         }
     }
 
-    private static async Task<bool> TryStreamManifestCandidateAsync(CandidateFileItem item, ParsingContext ctx)
+    private static void ExtractVsCodeFolderOpenTasks(string tasksText, string relTasks, Layer1Context ctx)
     {
+        const string folderOpenLiteral = "folderOpen";
         try
         {
-            var streamed = await PhysicalFileStore.StreamAndAnalyzeFileAsync(
-                item.AbsoluteFilePath,
-                item.RelativeFile,
-                item.Entry.Name,
-                item.Entry.SizeBytes,
-                isManifest: true,
-                isSupportedSourceOrConfig: false,
-                ctx.FileFilter,
-                ctx.CancellationToken,
-                computeHash: true);
-            if (streamed.ContentHash != null)
+            var tRoot = CypherValue.TryParseJsonText(tasksText);
+            if (!tRoot.TryGetProperty(OntologyConstants.ManifestFields.Tasks, out var tasksArr) ||
+                tasksArr.Kind != CypherValueKind.Array)
             {
-                ctx.DiscoveredManifestFiles[item.RelativeFile] = (
-                    item.AbsoluteFilePath,
-                    streamed.ContentHash,
-                    item.Entry.LastModifiedUtc,
-                    item.Entry.SizeBytes);
+                return;
             }
-            return true;
-        }
-        catch (Exception ex) when (ex is FileNotFoundException or DirectoryNotFoundException)
-        {
-            ctx.Layer1Log.SkippingBrokenSymlink(item.RelativeFile);
-            PhysicalFileStore.RemoveCachedFile(item.AbsoluteFilePath);
-            return false;
+
+            foreach (var task in tasksArr.AsArray())
+            {
+                if (task.Kind != CypherValueKind.Object) continue;
+                var isFolderOpen = task.TryGetProperty(OntologyConstants.ManifestFields.RunOptions, out var ro) &&
+                                   ro.Kind == CypherValueKind.Object &&
+                                   ro.TryGetProperty(OntologyConstants.ManifestFields.RunOn, out var runOn) &&
+                                   string.Equals(runOn.AsNullableString(), folderOpenLiteral, StringComparison.OrdinalIgnoreCase);
+                if (!isFolderOpen) continue;
+
+                var label = task.TryGetProperty(OntologyConstants.ManifestFields.Label, out var lbl)
+                    ? lbl.AsString(folderOpenLiteral)
+                    : folderOpenLiteral;
+                var cmd = task.TryGetProperty(OntologyConstants.ManifestFields.Command, out var c)
+                    ? c.AsString()
+                    : string.Empty;
+                ctx.DiscoveredVsCodeFolderOpenTasks.Add((label, cmd));
+            }
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            ctx.Layer1Log.FileReadFailed(item.RelativeFile, ex);
-            PhysicalFileStore.RemoveCachedFile(item.AbsoluteFilePath);
-            ctx.RecordScanIssue(
-                Layer1Stage,
-                IssueCategoryIoError,
-                item.RelativeFile,
-                ex.Message,
-                name: IssueManifestReadError,
-                severity: SeverityWarning,
-                exception: ex,
-                parentNodeId: null,
-                isFileParent: false,
-                logToConsole: false);
-            return false;
+            ctx.Layer1Log.FileReadFailed(relTasks, ex);
         }
     }
 

@@ -1,9 +1,7 @@
 using System.Text;
 using System.Text.Json;
-using System.Text.RegularExpressions;
 using CodeExplorer.Core.Mcp;
 using CodeExplorer.Core.Protocol;
-using CodeExplorer.Cypher.Common;
 
 namespace CodeExplorer.Core.Analysis;
 
@@ -85,7 +83,7 @@ public partial class ArchitectureViewEngine
         foreach (var node in nodes)
         {
             var raw = node.Id ?? "";
-            string prefix = node.Kind switch
+            var prefix = node.Kind switch
             {
                 NodeKind.Ingress => "app",
                 NodeKind.Service or NodeKind.Worker => "svc",
@@ -131,7 +129,7 @@ public partial class ArchitectureViewEngine
             if (candidate.Length > 40) candidate = candidate[..40].TrimEnd('_');
 
             var finalId = candidate;
-            int counter = 2;
+            var counter = 2;
             while (usedIds.Contains(finalId))
             {
                 finalId = $"{candidate}_{counter++}";

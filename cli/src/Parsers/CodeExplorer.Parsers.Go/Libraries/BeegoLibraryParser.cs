@@ -1,7 +1,5 @@
 using System.Collections.Frozen;
 using System.Text.Json;
-using CodeExplorer.Core.Common.Nodes.Layer3_Syntactic;
-using CodeExplorer.Core.Parser.Syntax;
 using Node = CodeExplorer.Core.Parser.Syntax.SyntaxNode;
 
 namespace CodeExplorer.Parsers.Go.Libraries;
@@ -50,7 +48,7 @@ public class BeegoLibraryParser : DeclarativeSemanticExtension
         "Get", "Post", "Put", "Delete", "Patch", "Head", "Options", "Any"
     };
 
-    private static string? MapBeegoNodeType(Node node, ParsingContext ctx)
+    private static string? MapBeegoNodeType(Node node, SemanticParseContext ctx)
     {
         if (IsBeegoRouteCall(node, out _, out _, out _, out _))
         {
@@ -80,7 +78,7 @@ public class BeegoLibraryParser : DeclarativeSemanticExtension
         return null;
     }
 
-    private static string? ExtractBeegoIdentifier(Node node, ParsingContext ctx, string? projectName, string? relativePath)
+    private static string? ExtractBeegoIdentifier(Node node, SemanticParseContext ctx, string? projectName, string? relativePath)
     {
         if (IsBeegoRouteCall(node, out var httpMethod, out var fullRoute, out _, out _))
         {
@@ -116,7 +114,7 @@ public class BeegoLibraryParser : DeclarativeSemanticExtension
         return null;
     }
 
-    private static void CollectBeegoReferences(Node node, string containerName, List<Reference> references, ParsingContext ctx)
+    private static void CollectBeegoReferences(Node node, string containerName, List<Reference> references, SemanticParseContext ctx)
     {
         if (IsBeegoRouteCall(node, out _, out var fullRoute, out _, out var mappings))
         {

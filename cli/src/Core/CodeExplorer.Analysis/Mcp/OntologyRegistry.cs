@@ -1,8 +1,6 @@
 using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
 using System.Text.Json.Serialization;
-using CodeExplorer.Core.Common.Nodes;
-using CodeExplorer.Cypher.Common;
 
 namespace CodeExplorer.Core.Mcp;
 
@@ -121,7 +119,7 @@ public static class OntologyRegistry
         HashSet<string>? intersection = null;
         foreach (var node in AllNodes.Where(n => !n.Attribute.IsSystemNode))
         {
-            var keys = CodeExplorer.Core.Database.NodeFactory.GetSchemaPropertyKeys(node.NodeType);
+            var keys = NodeFactory.GetSchemaPropertyKeys(node.NodeType);
             if (intersection == null)
             {
                 intersection = new HashSet<string>(keys, StringComparer.Ordinal);
@@ -296,7 +294,7 @@ public static class OntologyRegistry
         return sb.ToString().TrimEnd();
     }
 
-    private static bool TryGetOntologyEdge(object attr, [System.Diagnostics.CodeAnalysis.NotNullWhen(true)] out string? rel, [System.Diagnostics.CodeAnalysis.NotNullWhen(true)] out Type? toType)
+    private static bool TryGetOntologyEdge(object attr, [NotNullWhen(true)] out string? rel, [NotNullWhen(true)] out Type? toType)
     {
         rel = null;
         toType = null;

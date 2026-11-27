@@ -1,5 +1,4 @@
 using System.Diagnostics;
-using CodeExplorer.Core.Database;
 
 namespace CodeExplorer.Core.Analysis.Subgraph;
 

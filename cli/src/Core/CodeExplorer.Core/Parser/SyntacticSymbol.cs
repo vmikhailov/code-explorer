@@ -1,7 +1,6 @@
 using System.Diagnostics.CodeAnalysis;
 using CodeExplorer.Core.Common.Nodes;
 using CodeExplorer.Core.Parser.Syntax;
-using CodeExplorer.Cypher.Common;
 
 namespace CodeExplorer.Core.Parser;
 

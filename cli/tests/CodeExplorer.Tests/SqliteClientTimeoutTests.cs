@@ -32,26 +32,26 @@ public class SqliteClientTimeoutTests
     }
 
     [Test]
-    public void Test_ExecuteCypherAsync_CancelledToken_ThrowsOperationCanceledException()
+    public async Task Test_ExecuteCypherAsync_CancelledToken_ThrowsOperationCanceledException()
     {
         using var cts = new CancellationTokenSource();
 
         cts.Cancel();
 
-        Assert.CatchAsync<OperationCanceledException>(async () =>
+        await Assert.CatchAsync<OperationCanceledException>(async () =>
         {
             await _client.ExecuteCypherAsync("MATCH (n) RETURN count(n)", null, cts.Token);
         });
     }
 
     [Test]
-    public void Test_ExecuteWriteAsync_CancelledToken_ThrowsOperationCanceledException()
+    public async Task Test_ExecuteWriteAsync_CancelledToken_ThrowsOperationCanceledException()
     {
         using var cts = new CancellationTokenSource();
 
         cts.Cancel();
 
-        Assert.CatchAsync<OperationCanceledException>(async () =>
+        await Assert.CatchAsync<OperationCanceledException>(async () =>
         {
             await _client.ExecuteWriteAsync("CREATE (n:Test)", null, cts.Token);
         });

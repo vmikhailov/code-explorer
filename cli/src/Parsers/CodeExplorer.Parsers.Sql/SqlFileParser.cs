@@ -41,13 +41,18 @@ public class SqlFileParser : IFileParser
 
     public bool UsesTreeSitter => false;
 
-    public async Task<SyntaxTree> ParseAsync(string filePath, string parentNodeId, string workspaceId, string absoluteWorkspacePath)
+    public async Task<SyntaxTree> ParseAsync(
+        string filePath,
+        string parentNodeId,
+        string workspaceId,
+        string absoluteWorkspacePath,
+        string? preloadedContent = null)
     {
         var relativePath = Path.GetRelativePath(absoluteWorkspacePath, filePath).Replace('\\', '/');
         var fileNodeId = $"{workspaceId}:file:{relativePath}";
 
         var fileNode = new FileNode(fileNodeId, Path.GetFileName(filePath), relativePath, filePath);
-        var sqlText = await PhysicalFileStore.ConsumeFileTextAsync(filePath);
+        var sqlText = preloadedContent ?? await FileStreamReader.ReadTextOnceAsync(filePath);
 
         var dialect = SqlDialectDetector.DetectDialect(sqlText, filePath);
         var dialectParser = SqlDialectParserFactory.GetParser(dialect);
@@ -60,7 +65,7 @@ public class SqlFileParser : IFileParser
         // 1. Identify Database (DB)
         var dbMatch = Regex.Match(sqlText, @"CREATE\s+DATABASE\s+([a-zA-Z0-9_\[\]""#@`]+)", RegexOptions.IgnoreCase);
         DatabaseNode? dbNode = null;
-        string baseParentId = fileNodeId;
+        var baseParentId = fileNodeId;
 
         if (dbMatch.Success)
         {
@@ -432,7 +437,7 @@ public class SqlFileParser : IFileParser
         return (schema ?? "dbo", table);
     }
 
-    public void CollectSemanticData(CodeExplorer.Core.Parser.Syntax.SyntaxNode node, string filePath, List<RawImport> rawImports, List<RawVariable> rawVariables, List<RawTypeBinding> rawTypeBindings)
+    public void CollectSemanticData(SyntaxNode node, string filePath, List<RawImport> rawImports, List<RawVariable> rawVariables, List<RawTypeBinding> rawTypeBindings)
     {
     }
 }

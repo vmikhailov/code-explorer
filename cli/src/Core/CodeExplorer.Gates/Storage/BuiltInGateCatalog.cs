@@ -30,6 +30,7 @@ public static partial class BuiltInGateCatalog
         QuerySideIndexingSeparationGate,
         SharedFileSingleReadGate,
         NoFileReadAboveLayer3Gate,
+        ProjectManifestSinglePassOwnershipGate,
         ModuleCycleProhibitionGate
     ];
 
@@ -56,6 +57,7 @@ public static partial class BuiltInGateCatalog
         QuerySideIndexingSeparationGate,
         SharedFileSingleReadGate,
         NoFileReadAboveLayer3Gate,
+        ProjectManifestSinglePassOwnershipGate,
         ModuleCycleProhibitionGate,
 
         new SemanticGate

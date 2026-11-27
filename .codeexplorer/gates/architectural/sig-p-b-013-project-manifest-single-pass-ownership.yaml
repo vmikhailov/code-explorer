@@ -1,0 +1,33 @@
+id: SIG-P-B-013
+category: Architectural
+platform: agnostic
+scope: Module
+dimension: Boundaries
+name: 'Project Manifest Single-Pass Ownership'
+severity: Error
+description: 'Project manifests must be read and parsed once inside the owning IProjectParser into ParsedProjectDescriptor and ParsedProjectManifestMetadata. Layer 2 boundary orchestration and classifiers (Layer2_Boundaries) must consume ParsedProjectDescriptor, ProjectNode, and SharedFileEnricher enrichments without reading files directly.'
+remediation: 'Extract the manifest data inside IProjectParser.TryParse / InspectDirectoryManifestMetadata into ParsedProjectDescriptor or ParsedProjectManifestMetadata and read it from ProjectNode in Layer 2.'
+message: "Layer 2 function '{caller.name}' reads files directly via '{target.name}' ({target.path}) instead of consuming ParsedProjectDescriptor"
+thresholds:
+  warning: 1
+  error: 1
+query: |
+  MATCH (caller:Function)-[r:CALLS]->(target:Function)
+  WHERE caller.path CONTAINS 'Layer2_Boundaries'
+    AND NOT caller.path CONTAINS 'SharedFileEnricher'
+    AND NOT coalesce(caller.is_test, false)
+    AND (
+      target.path CONTAINS 'FileStreamReader'
+      OR target.path CONTAINS 'PhysicalFileStore'
+      OR target.name IN [
+        'ReadTextOnce', 'ReadTextOnceAsync', 'ReadLinesOnce',
+        'ReadAllText', 'ReadAllTextAsync',
+        'ReadAllBytes', 'ReadAllBytesAsync',
+        'ReadAllLines', 'ReadAllLinesAsync',
+        'ReadLines', 'OpenRead',
+        'StreamAndAnalyzeFileAsync'
+      ]
+    )
+  RETURN caller, r, target
+ratchet:
+  enabled: false

@@ -26,7 +26,7 @@ public class TemporalPythonLibraryParser : DeclarativeSemanticExtension
         ];
     }
 
-    private static void CollectTemporalReferences(Node node, string scopeSymbolId, List<Reference> references, ParsingContext ctx)
+    private static void CollectTemporalReferences(Node node, string scopeSymbolId, List<Reference> references, SemanticParseContext ctx)
     {
         if (TryExtractTemporalDecorator(node, out var defTarget))
         {

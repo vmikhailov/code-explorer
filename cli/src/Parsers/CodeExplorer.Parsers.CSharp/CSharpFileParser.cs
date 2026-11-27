@@ -13,9 +13,9 @@ public class CSharpFileParser : IFileParser
     private static readonly Regex CSharpBaseConnectionNameRegex = new(@":\s*base\s*\(\s*@?[""'](?:name\s*=\s*)?([A-Za-z0-9_.\-:]+)[""']\s*\)", RegexOptions.Compiled | RegexOptions.IgnoreCase);
 
     public void EnrichFileSignals(
-        CodeExplorer.Core.Common.Nodes.Layer1_Physical.FileNode fileNode,
+        Core.Common.Nodes.Layer1_Physical.FileNode fileNode,
         SyntaxTree syntaxTree,
-        CodeExplorer.Core.Common.Nodes.Layer2_Boundaries.ProjectNode? project,
+        Core.Common.Nodes.Layer2_Boundaries.ProjectNode? project,
         string sourceText)
     {
         if (sourceText.Contains("DbContext", StringComparison.Ordinal))
@@ -28,9 +28,9 @@ public class CSharpFileParser : IFileParser
         }
     }
 
-    private static void EnrichDbContextSignals(CodeExplorer.Core.Common.Nodes.Layer1_Physical.FileNode targetFile, string sourceText)
+    private static void EnrichDbContextSignals(Core.Common.Nodes.Layer1_Physical.FileNode targetFile, string sourceText)
     {
-        var signals = CodeExplorer.Core.Common.Nodes.AnalysisSignalStore.Signals(targetFile);
+        var signals = Core.Common.Nodes.AnalysisSignalStore.Signals(targetFile);
         var baseMatch = CSharpBaseConnectionNameRegex.Match(sourceText);
         if (baseMatch.Success)
         {
@@ -155,10 +155,15 @@ public class CSharpFileParser : IFileParser
     public SyntaxDocument? ParseDocument(string sourceText, string filePath = "", string relativePath = "") =>
         CSharpSyntaxConverter.Instance.Parse(sourceText, LanguageName, filePath, relativePath);
 
-    public async Task<SyntaxTree> ParseAsync(string filePath, string parentNodeId, string workspaceId, string absoluteWorkspacePath)
+    public async Task<SyntaxTree> ParseAsync(
+        string filePath,
+        string parentNodeId,
+        string workspaceId,
+        string absoluteWorkspacePath,
+        string? preloadedContent = null)
     {
         var relativePath = Path.GetRelativePath(absoluteWorkspacePath, filePath).Replace('\\', '/');
-        return await SyntaxTree.ParseAsync(filePath, relativePath, parentNodeId, this, workspaceId, absoluteWorkspacePath);
+        return await SyntaxTree.ParseAsync(filePath, relativePath, parentNodeId, this, workspaceId, absoluteWorkspacePath, preloadedContent);
     }
 
     private readonly ConcurrentDictionary<string, string> _csProjCache = new(StringComparer.OrdinalIgnoreCase);

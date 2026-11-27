@@ -1,7 +1,6 @@
 using CodeExplorer.Core.Common.Nodes;
 using CodeExplorer.Core.Common.Nodes.Layer1_Physical;
 using CodeExplorer.Core.Common.Nodes.Layer3_Syntactic;
-using CodeExplorer.Core.Parser;
 using CodeExplorer.Core.Parser.Syntax;
 
 namespace CodeExplorer.Core.Semantics;

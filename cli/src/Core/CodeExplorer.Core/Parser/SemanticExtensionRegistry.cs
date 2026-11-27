@@ -57,10 +57,18 @@ public class SemanticExtensionRegistry
         }
     }
 
-    private static readonly TimeSpan GlobMatchTimeout = TimeSpan.FromMilliseconds(100);
+    private const int MaxCachedGlobPatterns = 2048;
+    private const int GlobMatchTimeoutSeconds = 5;
+    private static readonly TimeSpan GlobMatchTimeout = TimeSpan.FromSeconds(GlobMatchTimeoutSeconds);
+    private static readonly ConcurrentDictionary<string, Regex> CompiledGlobCache = new(StringComparer.OrdinalIgnoreCase);
 
     private static Regex CompileGlobRegex(string pattern, bool compileToIl = true)
     {
+        if (compileToIl && CompiledGlobCache.TryGetValue(pattern, out var cached))
+        {
+            return cached;
+        }
+
         var escaped = Regex.Escape(pattern);
         var regexStr = "^" + escaped.Replace(@"\*", ".*").Replace(@"\?", ".") + "$";
         var opts = RegexOptions.IgnoreCase | RegexOptions.CultureInvariant;
@@ -68,7 +76,14 @@ public class SemanticExtensionRegistry
         {
             opts |= RegexOptions.Compiled;
         }
-        return new Regex(regexStr, opts, GlobMatchTimeout);
+
+        var regex = new Regex(regexStr, opts, GlobMatchTimeout);
+        if (compileToIl && CompiledGlobCache.Count < MaxCachedGlobPatterns)
+        {
+            return CompiledGlobCache.GetOrAdd(pattern, regex);
+        }
+
+        return regex;
     }
 
     public ISemanticExtension? Match(string import)

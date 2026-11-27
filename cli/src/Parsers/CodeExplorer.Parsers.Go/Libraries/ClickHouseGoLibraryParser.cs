@@ -54,7 +54,7 @@ public class ClickHouseGoLibraryParser : DeclarativeSemanticExtension
         ];
     }
 
-    private static void CollectClickHouseReferences(Node node, string scopeSymbolId, List<Reference> references, ParsingContext ctx)
+    private static void CollectClickHouseReferences(Node node, string scopeSymbolId, List<Reference> references, SemanticParseContext ctx)
     {
         if (IsClickHouseCall(node, out var sqlText, out _))
         {

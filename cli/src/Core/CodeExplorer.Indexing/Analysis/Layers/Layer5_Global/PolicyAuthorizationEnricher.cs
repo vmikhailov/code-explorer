@@ -1,10 +1,7 @@
-using CodeExplorer.Core.Common;
-using CodeExplorer.Core.Common.Nodes;
 using CodeExplorer.Core.Common.Nodes.Layer1_Physical;
 using CodeExplorer.Core.Common.Nodes.Layer3_Syntactic;
 using CodeExplorer.Core.Common.Nodes.Layer4_Semantic;
 using CodeExplorer.Core.Common.Relationships;
-using CodeExplorer.Cypher.Common;
 
 namespace CodeExplorer.Core.Parser.Layers;
 
@@ -59,7 +56,7 @@ internal static class PolicyAuthorizationEnricher
 
     public static PolicyEnrichmentOutput EnrichPolicies(
         Layer4Result? l4Result,
-        ParsingContext ctx,
+        Layer5Context ctx,
         List<MessageNode> messages,
         Dictionary<string, List<Reference>> refsByScopeId,
         List<Relationship> referenceRelationships,
@@ -69,16 +66,16 @@ internal static class PolicyAuthorizationEnricher
         var rels = new List<Relationship>();
         if (l4Result == null) return new PolicyEnrichmentOutput([], rels);
 
-        var syntaxStruct = l4Result.Prev?.SyntaxStructure ?? ctx.SyntaxStructure;
+        var syntaxStruct = ctx.SyntaxStructure;
         if (syntaxStruct == null) return new PolicyEnrichmentOutput([], rels);
 
-        var filesByPath = SemanticEnrichmentHelpers.CollectFilesByPath(l4Result);
+        var filesByPath = SemanticEnrichmentHelpers.CollectFilesByPath(ctx.FilesStructure);
         var modules = SemanticEnrichmentHelpers.CollectModules(l4Result.SemanticStructure);
         var index = SemanticEnrichmentHelpers.CollectTypesAndMethods(syntaxStruct);
         var ownerTypeByFnId = BuildOwnerTypeByFnMap(index);
         var guardsByImportedFile = BuildGuardTypesByImportingFile(ctx, index);
 
-        var (endpoints, treeParentHandlers) = CollectEndpoints(l4Result, syntaxStruct);
+        var (endpoints, treeParentHandlers) = CollectEndpoints(l4Result, ctx.Workspace, syntaxStruct);
         var (epHandlers, epOwnerTypes) = MapEndpointHandlers(endpoints, l4Result.SemanticRelationships, referenceRelationships, ctx.TreeRelationships, index);
         foreach (var (epId, parentFn) in treeParentHandlers)
         {
@@ -129,6 +126,7 @@ internal static class PolicyAuthorizationEnricher
 
     private static (List<EndpointNode> Endpoints, Dictionary<string, FunctionNode> ParentHandlers) CollectEndpoints(
         Layer4Result l4Result,
+        IOntologyNode? workspace,
         IOntologyNode syntaxStruct)
     {
         var byId = new Dictionary<string, EndpointNode>(StringComparer.Ordinal);
@@ -144,7 +142,7 @@ internal static class PolicyAuthorizationEnricher
             }
             for (var i = 0; i < n.Children.Count; i++) Walk(n.Children[i], nextFn);
         }
-        Walk(l4Result.Prev?.Prev?.Prev?.Workspace, null);
+        Walk(workspace, null);
         Walk(syntaxStruct, null);
         Walk(l4Result.SemanticStructure, null);
         for (var i = 0; i < l4Result.SemanticNodes.Count; i++)
@@ -208,7 +206,7 @@ internal static class PolicyAuthorizationEnricher
     }
 
     private static void EnrichEndpointPolicy(
-        ParsingContext ctx,
+        Layer5Context ctx,
         EndpointNode ep,
         FunctionNode? handlerFn,
         TypeNode? controllerType,
@@ -256,7 +254,7 @@ internal static class PolicyAuthorizationEnricher
     }
 
     private static void EnrichMessagePolicy(
-        ParsingContext ctx,
+        Layer5Context ctx,
         MessageNode msg,
         TypeNode? msgType,
         FunctionNode? handlerFn,
@@ -287,7 +285,7 @@ internal static class PolicyAuthorizationEnricher
     }
 
     private static bool AttachPoliciesFromAttributesAndCalls(
-        ParsingContext ctx,
+        Layer5Context ctx,
         string targetNodeId,
         string fnAttrs,
         string clsAttrs,
@@ -414,7 +412,7 @@ internal static class PolicyAuthorizationEnricher
     }
 
     private static Dictionary<string, List<string>> BuildGuardTypesByImportingFile(
-        ParsingContext ctx,
+        Layer5Context ctx,
         SemanticEnrichmentHelpers.SyntaxTypeMethodIndex index)
     {
         var guardTypes = new List<(string Name, string Stem)>();
@@ -570,7 +568,7 @@ internal static class PolicyAuthorizationEnricher
         raw.Split([',', ';'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
 
     private static PolicyNode GetOrCreatePolicy(
-        ParsingContext ctx,
+        Layer5Context ctx,
         string name,
         PolicyKind subKind,
         string? requirement,

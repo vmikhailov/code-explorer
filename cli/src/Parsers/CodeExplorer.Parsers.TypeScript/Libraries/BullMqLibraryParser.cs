@@ -43,7 +43,7 @@ public class BullMqLibraryParser : DeclarativeSemanticExtension
 
     public override IReadOnlyList<CustomAstRule> CustomAstRules => Rules;
 
-    private static void CollectReferencesCore(Node node, string scopeSymbolId, List<Reference> references, ParsingContext ctx)
+    private static void CollectReferencesCore(Node node, string scopeSymbolId, List<Reference> references, SemanticParseContext ctx)
     {
         // 1. Check for `@Processor('queue-name')` or `@Processor(MessageQueue.emailQueue)` or `@Processor({ queueName: MessageQueue.emailQueue })`
         if (node.Is(TreeSitterSyntax.TypeScript.Decorator))
@@ -175,7 +175,7 @@ public class BullMqLibraryParser : DeclarativeSemanticExtension
         Node? objNode,
         string scopeSymbolId,
         List<Reference> references,
-        ParsingContext ctx)
+        SemanticParseContext ctx)
     {
         var cleanField = objNode.IsValid() ? objNode.GetCanonicalMemberPath() : "";
         if (!cleanField.Contains("job", StringComparison.OrdinalIgnoreCase) &&
@@ -205,10 +205,10 @@ public class BullMqLibraryParser : DeclarativeSemanticExtension
         }
     }
 
-    private static void EnrichSymbolCore(Node node, SyntacticSymbol symbol, ParsingContext ctx)
+    private static void EnrichSymbolCore(Node node, SyntacticSymbol symbol, SemanticParseContext ctx)
     {
         if (!node.Is(TreeSitterSyntax.TypeScript.MethodDefinition) ||
-            symbol.Kind != CodeExplorer.Cypher.Common.SyntacticSymbolKind.Function)
+            symbol.Kind != SyntacticSymbolKind.Function)
         {
             return;
         }

@@ -1,4 +1,3 @@
-using CodeExplorer.Core.Common.Nodes;
 using CodeExplorer.Core.Common.Nodes.Layer2_Boundaries;
 using CodeExplorer.Core.Common.Nodes.Layer4_Semantic;
 using CodeExplorer.Core.Parser.Layers;
@@ -8,7 +7,7 @@ namespace CodeExplorer.Core.Parser;
 public partial class PostIndexAnalyzer
 {
     public static async Task<(List<Relationship> CanonicalRels, Dictionary<string, string> RawToCanonicalMap)> CanonicalizeDatabasesInMemoryAsync(
-        ParsingContext ctx,
+        Layer5Context ctx,
         Layer4Result l4Result,
         List<Relationship> allRelationships,
         IReadOnlyDictionary<string, ProjectNode>? prebuiltFileToProject = null)
@@ -40,16 +39,16 @@ public partial class PostIndexAnalyzer
         }
 
         CollectDbNodes(l4Result.SemanticStructure);
-        CollectDbNodes(l4Result.Prev.Prev.Prev.Workspace);
+        CollectDbNodes(ctx.Workspace);
 
-        foreach (var p in l4Result.Prev.Prev.Projects) CollectDbNodes(p);
-        foreach (var f in l4Result.Prev.Prev.Prev.Files) CollectDbNodes(f);
+        foreach (var p in ctx.Projects) CollectDbNodes(p);
+        foreach (var f in ctx.Files) CollectDbNodes(f);
 
-        var projects = l4Result.Prev.Prev.Projects
+        var projects = ctx.Projects
             .OrderByDescending(p => p.Path?.Length ?? 0)
             .ThenByDescending(p => p.Id.Length)
             .ToList();
-        var files = l4Result.Prev.Prev.Prev.Files;
+        var files = ctx.Files;
         var fileToProject = prebuiltFileToProject != null
             ? (prebuiltFileToProject as Dictionary<string, ProjectNode> ?? new Dictionary<string, ProjectNode>(prebuiltFileToProject, StringComparer.OrdinalIgnoreCase))
             : Layer2ProjectParser.BuildFileToProjectMap(files, projects);
@@ -170,7 +169,7 @@ public partial class PostIndexAnalyzer
                 nonTestAccessedTargets.Add(dbTarget);
                 var parts = dbTarget.Split(':');
                 var accum = "";
-                for (int i = 0; i < parts.Length; i++)
+                for (var i = 0; i < parts.Length; i++)
                 {
                     accum = i == 0 ? parts[i] : $"{accum}:{parts[i]}";
                     nonTestAccessedTargets.Add(accum);
@@ -187,7 +186,7 @@ public partial class PostIndexAnalyzer
                 var hasNonTest = (!isExplicitTest && isDeclaredInProduction) ||
                                  nonTestAccessedTargets.Contains(d.Id) ||
                                  d.Children.Any(c => nonTestAccessedTargets.Contains(c.Id));
-                return hasNonTest && (d.DbType is CodeExplorer.Cypher.Common.DatabaseType.Unknown or CodeExplorer.Cypher.Common.DatabaseType.Relational);
+                return hasNonTest && (d.DbType is DatabaseType.Unknown or DatabaseType.Relational);
             })
             .Select(d => {
                 if (!string.IsNullOrWhiteSpace(d.Engine))

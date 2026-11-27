@@ -21,7 +21,7 @@ public static class ComponentLibraryParserRegistry
     {
         var matched = new List<IComponentLibraryParser>();
         var parsers = Parsers;
-        for (int i = 0; i < parsers.Count; i++)
+        for (var i = 0; i < parsers.Count; i++)
         {
             if (parsers[i].CanHandle(context))
             {
@@ -61,7 +61,7 @@ public static class ComponentLibraryParserRegistry
         var matchedResults = new List<ComponentAnalysisResult>();
         var parsers = Parsers;
 
-        for (int i = 0; i < parsers.Count; i++)
+        for (var i = 0; i < parsers.Count; i++)
         {
             var p = parsers[i];
             if (p.CanHandle(context))

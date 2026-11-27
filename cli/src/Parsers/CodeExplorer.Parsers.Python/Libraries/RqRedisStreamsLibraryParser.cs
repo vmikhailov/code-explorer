@@ -38,7 +38,7 @@ public class RqRedisStreamsLibraryParser : DeclarativeSemanticExtension
         ];
     }
 
-    private static void CollectRqReferences(Node node, string scopeSymbolId, List<Reference> references, ParsingContext ctx)
+    private static void CollectRqReferences(Node node, string scopeSymbolId, List<Reference> references, SemanticParseContext ctx)
     {
         if (IsRqJobDecorator(node, out var jobName))
         {

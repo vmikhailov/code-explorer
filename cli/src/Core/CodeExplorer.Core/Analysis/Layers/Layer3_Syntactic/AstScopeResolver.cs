@@ -69,7 +69,7 @@ public static class AstScopeResolver
                 }
 
                 var eqIdx = -1;
-                for (int i = 0; i < varDecl.Children.Count; i++)
+                for (var i = 0; i < varDecl.Children.Count; i++)
                 {
                     if (varDecl.Children[i].Type == "=" || varDecl.Children[i].Text == "=")
                     {
@@ -274,7 +274,7 @@ public static class AstScopeResolver
         {
             if (curr is FunctionDeclSyntax fn)
             {
-                for (int i = 0; i < fn.Parameters.Count; i++)
+                for (var i = 0; i < fn.Parameters.Count; i++)
                 {
                     var p = fn.Parameters[i];
                     if (p.Name == targetName || p.Name.TrimStart('_') == cleanField)
@@ -287,7 +287,7 @@ public static class AstScopeResolver
 
             if (curr.IsScopeBoundary)
             {
-                for (int i = 0; i < curr.Children.Count; i++)
+                for (var i = 0; i < curr.Children.Count; i++)
                 {
                     var child = curr.Children[i];
                     if (child is VariableDeclSyntax varDecl && (varDecl.Name == targetName || varDecl.Name.TrimStart('_') == cleanField))
@@ -312,7 +312,7 @@ public static class AstScopeResolver
 
     private static string? SearchMemberDeclaredType(Node container, string fieldName, string cleanField)
     {
-        for (int i = 0; i < container.Children.Count; i++)
+        for (var i = 0; i < container.Children.Count; i++)
         {
             var child = container.Children[i];
             if (child is MemberDeclSyntax memDecl)
@@ -325,7 +325,7 @@ public static class AstScopeResolver
             }
             else if (child is FunctionDeclSyntax { Kind: FunctionSyntaxKind.Constructor } ctor)
             {
-                for (int j = 0; j < ctor.Parameters.Count; j++)
+                for (var j = 0; j < ctor.Parameters.Count; j++)
                 {
                     var p = ctor.Parameters[j];
                     if (p.Name == fieldName || p.Name.TrimStart('_') == cleanField)

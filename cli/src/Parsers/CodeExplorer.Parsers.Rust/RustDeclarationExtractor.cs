@@ -14,7 +14,7 @@ public static class RustDeclarationExtractor
 
     private static void ExtractInternal(Node node, string? currentScope, Action<string, Node?, string?> register)
     {
-        if (node is CodeExplorer.Core.Parser.Syntax.MemberDeclSyntax { Kind: CodeExplorer.Core.Parser.Syntax.MemberSyntaxKind.Constant })
+        if (node is Core.Parser.Syntax.MemberDeclSyntax { Kind: Core.Parser.Syntax.MemberSyntaxKind.Constant })
         {
             var nameNode = node.GetChildForField(TreeSitterSyntax.Fields.Name) ??
                            node.Children.FirstOrDefault(c => c.Is(TreeSitterSyntax.Rust.Identifier));
@@ -49,7 +49,7 @@ public static class RustDeclarationExtractor
             return;
         }
 
-        if (node is CodeExplorer.Core.Parser.Syntax.TypeDeclSyntax { Kind: CodeExplorer.Core.Parser.Syntax.TypeSyntaxKind.Enum })
+        if (node is Core.Parser.Syntax.TypeDeclSyntax { Kind: Core.Parser.Syntax.TypeSyntaxKind.Enum })
         {
             var nameNode = node.GetChildForField(TreeSitterSyntax.Fields.Name) ??
                            node.Children.FirstOrDefault(c => c.Is(TreeSitterSyntax.Rust.TypeIdentifier));
@@ -82,7 +82,7 @@ public static class RustDeclarationExtractor
             return;
         }
 
-        if (node is CodeExplorer.Core.Parser.Syntax.TypeDeclSyntax { Kind: CodeExplorer.Core.Parser.Syntax.TypeSyntaxKind.Struct or CodeExplorer.Core.Parser.Syntax.TypeSyntaxKind.Union } structDecl)
+        if (node is Core.Parser.Syntax.TypeDeclSyntax { Kind: Core.Parser.Syntax.TypeSyntaxKind.Struct or Core.Parser.Syntax.TypeSyntaxKind.Union } structDecl)
         {
             var nameNode = node.GetChildForField(TreeSitterSyntax.Fields.Name) ??
                            node.Children.FirstOrDefault(c => c.Is(TreeSitterSyntax.Rust.TypeIdentifier));
@@ -95,8 +95,8 @@ public static class RustDeclarationExtractor
                     register($"{currentScope}::{name}", node, null);
                 }
 
-                var isPubStruct = structDecl.Modifiers.HasFlag(CodeExplorer.Core.Parser.Syntax.SyntaxModifiers.Public) ||
-                                  structDecl.Modifiers.HasFlag(CodeExplorer.Core.Parser.Syntax.SyntaxModifiers.Internal);
+                var isPubStruct = structDecl.Modifiers.HasFlag(Core.Parser.Syntax.SyntaxModifiers.Public) ||
+                                  structDecl.Modifiers.HasFlag(Core.Parser.Syntax.SyntaxModifiers.Internal);
                 var fieldList = node.FindChildOfType(TreeSitterSyntax.Rust.FieldDeclarationList) ?? node;
                 if (fieldList.IsValid())
                 {
@@ -111,7 +111,7 @@ public static class RustDeclarationExtractor
                         {
                             var attr = child.FindChildOfType(TreeSitterSyntax.Rust.AttributeItem);
                             var effectiveAttr = attr.IsValid() ? attr : lastAttr;
-                            if (effectiveAttr is CodeExplorer.Core.Parser.Syntax.AnnotationSyntax ann &&
+                            if (effectiveAttr is Core.Parser.Syntax.AnnotationSyntax ann &&
                                 ann.Arguments.Any(a => a.NameSpan is "default"))
                             {
                                 var fieldNameNode = child.GetChildForField(TreeSitterSyntax.Fields.Name) ??
@@ -135,7 +135,7 @@ public static class RustDeclarationExtractor
             return;
         }
 
-        if (node is CodeExplorer.Core.Parser.Syntax.TypeDeclSyntax { Kind: CodeExplorer.Core.Parser.Syntax.TypeSyntaxKind.Trait })
+        if (node is Core.Parser.Syntax.TypeDeclSyntax { Kind: Core.Parser.Syntax.TypeSyntaxKind.Trait })
         {
             var nameNode = node.GetChildForField(TreeSitterSyntax.Fields.Name) ??
                            node.Children.FirstOrDefault(c => c.Is(TreeSitterSyntax.Rust.TypeIdentifier));
@@ -151,7 +151,7 @@ public static class RustDeclarationExtractor
             return;
         }
 
-        if (node is CodeExplorer.Core.Parser.Syntax.FunctionDeclSyntax { Kind: not CodeExplorer.Core.Parser.Syntax.FunctionSyntaxKind.Macro })
+        if (node is Core.Parser.Syntax.FunctionDeclSyntax { Kind: not Core.Parser.Syntax.FunctionSyntaxKind.Macro })
         {
             var nameNode = node.GetChildForField(TreeSitterSyntax.Fields.Name) ??
                            node.Children.FirstOrDefault(c => c.Is(TreeSitterSyntax.Rust.Identifier));
@@ -173,7 +173,7 @@ public static class RustDeclarationExtractor
             return;
         }
 
-        if (node is CodeExplorer.Core.Parser.Syntax.FunctionDeclSyntax { Kind: CodeExplorer.Core.Parser.Syntax.FunctionSyntaxKind.Macro })
+        if (node is Core.Parser.Syntax.FunctionDeclSyntax { Kind: Core.Parser.Syntax.FunctionSyntaxKind.Macro })
         {
             var nameNode = node.GetChildForField(TreeSitterSyntax.Fields.Name) ??
                            node.Children.FirstOrDefault(c => c.Is(TreeSitterSyntax.Rust.Identifier));
@@ -184,7 +184,7 @@ public static class RustDeclarationExtractor
             return;
         }
 
-        if (node is CodeExplorer.Core.Parser.Syntax.NamespaceDeclSyntax)
+        if (node is Core.Parser.Syntax.NamespaceDeclSyntax)
         {
             var nameNode = node.GetChildForField(TreeSitterSyntax.Fields.Name) ??
                            node.Children.FirstOrDefault(c => c.Is(TreeSitterSyntax.Rust.Identifier));
@@ -200,7 +200,7 @@ public static class RustDeclarationExtractor
             return;
         }
 
-        if (node is CodeExplorer.Core.Parser.Syntax.ImplDeclSyntax)
+        if (node is Core.Parser.Syntax.ImplDeclSyntax)
         {
             var typeNode = node.GetChildForField(TreeSitterSyntax.Fields.Type) ??
                            node.Children.FirstOrDefault(c => c.Is(TreeSitterSyntax.Rust.TypeIdentifier));

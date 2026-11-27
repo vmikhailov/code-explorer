@@ -114,7 +114,7 @@ public class RealQueriesTests
         using (var cmd = conn.CreateCommand())
         {
             cmd.CommandText =
-                $"SELECT id, json_extract(properties, '$.name'), json_extract(properties, '$.path') FROM nodes WHERE kind = {CodeExplorer.Cypher.Common.GraphKindCodec.EncodeNodeKind("Workspace")};";
+                $"SELECT id, json_extract(properties, '$.name'), json_extract(properties, '$.path') FROM nodes WHERE kind = {GraphKindCodec.EncodeNodeKind("Workspace")};";
 
             using (var reader = cmd.ExecuteReader())
             {
@@ -138,7 +138,7 @@ public class RealQueriesTests
 
             using (var reader = cmd.ExecuteReader())
             {
-                int rows = 0;
+                var rows = 0;
                 while (reader.Read()) rows++;
                 sw.Stop();
 

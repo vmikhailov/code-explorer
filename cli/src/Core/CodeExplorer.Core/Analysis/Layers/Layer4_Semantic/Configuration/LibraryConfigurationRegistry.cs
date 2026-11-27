@@ -38,7 +38,7 @@ public static class LibraryConfigurationRegistry
         string workspaceId,
         IOntologyNode containerNode,
         List<Relationship> relationships,
-        ParsingContext ctx)
+        SemanticParseContext ctx)
     {
         ILibraryConfigurationDescriptor[] snapshot;
         lock (_descriptors)
@@ -46,7 +46,7 @@ public static class LibraryConfigurationRegistry
             snapshot = [.. _descriptors];
         }
 
-        for (int i = 0; i < snapshot.Length; i++)
+        for (var i = 0; i < snapshot.Length; i++)
         {
             if (snapshot[i].TryHandle(key, value, relativePath, fileNodeId, workspaceId, containerNode, relationships, ctx))
             {

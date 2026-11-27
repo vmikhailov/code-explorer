@@ -1,4 +1,3 @@
-using CodeExplorer.Core.Common;
 using CodeExplorer.Core.Common.Nodes.Layer2_Boundaries;
 
 namespace CodeExplorer.Core.Parser.Layers;
@@ -29,7 +28,7 @@ internal static class SourcelessManifestDetector
         string dir,
         string[] filesInDir,
         List<ProjectNode> projects,
-        ParsingContext ctx,
+        Layer2Context ctx,
         bool? precomputedHasSourceFiles = null)
     {
         if (projects.Count == 0) return null;
@@ -62,9 +61,9 @@ internal static class SourcelessManifestDetector
 
     private static bool ContainsSourceFiles(string dir)
     {
-        if (PhysicalFileStore.HasCachedDirectory(dir))
+        if (WorkspaceDirectoryIndex.HasCachedDirectoryInCurrent(dir))
         {
-            return PhysicalFileStore.EnumerateCachedFilesInSubtree(dir)
+            return WorkspaceDirectoryIndex.EnumerateSubtreeInCurrent(dir)
                 .Any(f => SourceCodeExtensions.Contains(Path.GetExtension(f)));
         }
 

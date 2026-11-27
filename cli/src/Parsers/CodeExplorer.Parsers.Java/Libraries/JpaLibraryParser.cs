@@ -1,11 +1,10 @@
-using System.Collections.Concurrent;
 using System.Collections.Frozen;
 
 namespace CodeExplorer.Parsers.Java.Libraries;
 
 public class JpaLibraryParser : DeclarativeSemanticExtension
 {
-    private static readonly System.Runtime.CompilerServices.ConditionalWeakTable<ParsingContext, SpringDataRepositoryHelper.WorkspaceEntityMaps> _contextMaps = new();
+    private static readonly System.Runtime.CompilerServices.ConditionalWeakTable<SemanticParseContext, SpringDataRepositoryHelper.WorkspaceEntityMaps> _contextMaps = new();
 
     public JpaLibraryParser()
     {
@@ -63,16 +62,16 @@ public class JpaLibraryParser : DeclarativeSemanticExtension
         ];
     }
 
-    public override void DiscoverDeclarations(string filePath, string content, string? projectName, ParsingContext? ctx)
+    public override void DiscoverDeclarations(string filePath, string content, string? projectName, SemanticParseContext? ctx)
     {
         var maps = SpringDataRepositoryHelper.GetOrCreateContextMaps(ctx, _contextMaps);
         SpringDataRepositoryHelper.DiscoverEntityTables(content, maps.EntityToTable, maps.RepoToEntity);
     }
 
-    public override void DiscoverDeclarations(CodeExplorer.Core.Parser.Syntax.SyntaxNode rootNode, string relativePath, string? projectName, ParsingContext? ctx)
+    public override void DiscoverDeclarations(Core.Parser.Syntax.SyntaxNode rootNode, string relativePath, string? projectName, SemanticParseContext? ctx)
     {
         var maps = SpringDataRepositoryHelper.GetOrCreateContextMaps(ctx, _contextMaps);
-        var sourceText = (rootNode as CodeExplorer.Core.Parser.Syntax.SyntaxDocument)?.SourceText
+        var sourceText = (rootNode as Core.Parser.Syntax.SyntaxDocument)?.SourceText
                          ?? rootNode.Document?.SourceText
                          ?? rootNode.Text;
         SpringDataRepositoryHelper.DiscoverEntityTables(sourceText, maps.EntityToTable, maps.RepoToEntity);

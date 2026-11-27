@@ -1,5 +1,4 @@
 using System.Text.RegularExpressions;
-using CodeExplorer.Core.Common.Nodes.Layer3_Syntactic;
 using Node = CodeExplorer.Core.Parser.Syntax.SyntaxNode;
 
 namespace CodeExplorer.Parsers.Java.Libraries;
@@ -73,7 +72,7 @@ public class DubboLibraryParser : DeclarativeSemanticExtension
         ];
     }
 
-    private static string? MapNodeTypeCore(Node node, ParsingContext ctx)
+    private static string? MapNodeTypeCore(Node node, SemanticParseContext ctx)
     {
         if (IsDubboServiceMethod(node)) return OntologyConstants.NodeLabels.EntryPoint;
         if (IsDubboReferenceField(node)) return OntologyConstants.NodeLabels.ExternalService;
@@ -111,7 +110,7 @@ public class DubboLibraryParser : DeclarativeSemanticExtension
         return null;
     }
 
-    private static void CollectReferencesCore(Node node, string scopeSymbolId, List<Reference> references, ParsingContext ctx)
+    private static void CollectReferencesCore(Node node, string scopeSymbolId, List<Reference> references, SemanticParseContext ctx)
     {
         if (IsDubboReferenceField(node) || IsDubboMethodInvocation(node))
         {
@@ -123,14 +122,14 @@ public class DubboLibraryParser : DeclarativeSemanticExtension
         }
     }
 
-    private static void EnrichSymbolCore(Node node, SyntacticSymbol symbol, ParsingContext ctx)
+    private static void EnrichSymbolCore(Node node, SyntacticSymbol symbol, SemanticParseContext ctx)
     {
         if (IsDubboServiceMethod(node))
         {
             var classNode = GetParentClassDeclaration(node);
             var isTri = classNode.IsValid() && GetServiceProtocol(classNode) == Constants.ProtocolTri;
             symbol.Protocol = isTri ? Constants.ProtocolTri : Constants.ProtocolDubbo;
-            symbol.OperationType = CodeExplorer.Cypher.Common.OperationType.Unary;
+            symbol.OperationType = OperationType.Unary;
 
             var paramList = node.GetField(TreeSitterSyntax.Fields.Parameters);
             if (paramList.IsValid())

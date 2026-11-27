@@ -44,7 +44,7 @@ public class SqlModelLibraryParser : DeclarativeSemanticExtension
         ];
     }
 
-    private static void CollectSqlModelReferences(Node node, string scopeSymbolId, List<Reference> references, ParsingContext ctx)
+    private static void CollectSqlModelReferences(Node node, string scopeSymbolId, List<Reference> references, SemanticParseContext ctx)
     {
         if (IsSqlModelTableClass(node, out var className, out var tableName))
         {

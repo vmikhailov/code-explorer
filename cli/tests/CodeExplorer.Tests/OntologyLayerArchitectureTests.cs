@@ -302,16 +302,16 @@ public class OntologyLayerArchitectureTests
         var forbiddenByNode = new (Type NodeType, string[] ForbiddenProperties)[]
         {
             (typeof(WorkspaceNode), ["HasNativeNode", "HasNativeAddon", "HasDotNetDll"]),
-            (typeof(CodeExplorer.Core.Common.Nodes.Layer1_Physical.FileNode), [
+            (typeof(Core.Common.Nodes.Layer1_Physical.FileNode), [
                 "HasEntityOrTable", "DbContextBaseConn", "DbContextClasses",
                 "DeclaredSchemaRaw", "VerifiedDbSignals", "RustTopologySummary",
                 "RustTopologyBodySummary", "HasParseIssues", "ParseIssueCount"
             ]),
-            (typeof(CodeExplorer.Core.Common.Nodes.Layer2_Boundaries.ProjectNode), [
+            (typeof(Core.Common.Nodes.Layer2_Boundaries.ProjectNode), [
                 "GitBranch", "GitOrigin", "GitUser", "GitCommit", "GitRepo",
                 "DbDriverEngine", "DbDriverFamily", "DbDriverChecked"
             ]),
-            (typeof(CodeExplorer.Core.Common.Nodes.Layer3_Syntactic.FunctionNode), [
+            (typeof(Core.Common.Nodes.Layer3_Syntactic.FunctionNode), [
                 "EnclosingType", "DataflowReturn", "DataflowWrites", "DataflowSummary",
                 "GraphqlField", "GraphqlSchema", "GraphqlAliases", "MessagingDirection"
             ])

@@ -35,7 +35,7 @@ public class ConnectTwirpGoLibraryParser : DeclarativeSemanticExtension
         ];
     }
 
-    private static void CollectConnectTwirpReferences(Node node, string scopeSymbolId, List<Reference> references, ParsingContext ctx)
+    private static void CollectConnectTwirpReferences(Node node, string scopeSymbolId, List<Reference> references, SemanticParseContext ctx)
     {
         if (!node.Is(TreeSitterSyntax.Go.CallExpression)) return;
 

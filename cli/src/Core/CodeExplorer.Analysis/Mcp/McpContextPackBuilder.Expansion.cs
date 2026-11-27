@@ -1,6 +1,3 @@
-using CodeExplorer.Core.Analysis;
-using CodeExplorer.Cypher.Common;
-
 namespace CodeExplorer.Core.Mcp;
 
 internal static partial class McpContextPackBuilder
@@ -50,7 +47,7 @@ internal static partial class McpContextPackBuilder
             return -6.0;
         }
 
-        double bonus = kind switch
+        var bonus = kind switch
         {
             NodeKind.Endpoint => 2.5,
             NodeKind.Table or NodeKind.Topic => 2.2,

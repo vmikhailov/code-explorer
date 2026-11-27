@@ -1,4 +1,3 @@
-using CodeExplorer.Core.Database;
 using System.Threading.Channels;
 using CodeExplorer.Core.Parser.Layers;
 using NUnit.Framework;
@@ -33,7 +32,7 @@ public class CrossProjectResolutionGuardTests
         // fe has no dependency on bundle-update-adapter.
         var channel = Channel.CreateUnbounded<Func<Task>>();
         var client = new InMemoryGraphRepository();
-        var ctx = new ParsingContext("c:/work", "c:/work", client, channel);
+        var ctx = new Layer5Context("c:/work", client);
         ctx.WorkspaceId = "ws";
 
         // Register function 'get' in bundle-update-adapter
@@ -68,7 +67,7 @@ public class CrossProjectResolutionGuardTests
         // Calling this.http.get('/bundles') must NOT strip 'HttpClient.' and fallback to bare 'get' in fe or bundle-update-adapter.
         var channel = Channel.CreateUnbounded<Func<Task>>();
         var client = new InMemoryGraphRepository();
-        var ctx = new ParsingContext("c:/work", "c:/work", client, channel);
+        var ctx = new Layer5Context("c:/work", client);
         ctx.WorkspaceId = "ws";
 
         var feFile = "fe/src/app/common-api.service.ts";
@@ -116,7 +115,7 @@ public class CrossProjectResolutionGuardTests
         // bundle-update-adapter ALSO has a function named getBundles
         var channel = Channel.CreateUnbounded<Func<Task>>();
         var client = new InMemoryGraphRepository();
-        var ctx = new ParsingContext("c:/work", "c:/work", client, channel);
+        var ctx = new Layer5Context("c:/work", client);
         ctx.WorkspaceId = "ws";
 
         var bffFile = "services/bff/src/modules/bundles/bundles.controller.ts";
@@ -160,7 +159,7 @@ public class CrossProjectResolutionGuardTests
     {
         var channel = Channel.CreateUnbounded<Func<Task>>();
         var client = new InMemoryGraphRepository();
-        var ctx = new ParsingContext("c:/work", "c:/work", client, channel);
+        var ctx = new Layer5Context("c:/work", client);
         ctx.WorkspaceId = "ws";
 
         var file1 = "OrderService/Services/OrderProcessor.Part1.cs";
@@ -205,7 +204,7 @@ public class CrossProjectResolutionGuardTests
     {
         var channel = Channel.CreateUnbounded<Func<Task>>();
         var client = new InMemoryGraphRepository();
-        var ctx = new ParsingContext("c:/work", "c:/work", client, channel);
+        var ctx = new Layer5Context("c:/work", client);
         ctx.WorkspaceId = "ws";
 
         var utilsFile = "web/src/utils/format.ts";
@@ -243,7 +242,7 @@ public class CrossProjectResolutionGuardTests
     {
         var channel = Channel.CreateUnbounded<Func<Task>>();
         var client = new InMemoryGraphRepository();
-        var ctx = new ParsingContext("c:/work", "c:/work", client, channel);
+        var ctx = new Layer5Context("c:/work", client);
         ctx.WorkspaceId = "ws";
 
         var callerFile = "OrderApi/Controllers/OrderController.cs";
@@ -299,7 +298,7 @@ public class CrossProjectResolutionGuardTests
     {
         var channel = Channel.CreateUnbounded<Func<Task>>();
         var client = new InMemoryGraphRepository();
-        var ctx = new ParsingContext("c:/work", "c:/work", client, channel);
+        var ctx = new Layer5Context("c:/work", client);
         ctx.WorkspaceId = "ws";
 
         var fileA = "ServiceA/WorkerA.cs";
@@ -334,7 +333,7 @@ public class CrossProjectResolutionGuardTests
     {
         var channel = Channel.CreateUnbounded<Func<Task>>();
         var client = new InMemoryGraphRepository();
-        var ctx = new ParsingContext("c:/work", "c:/work", client, channel);
+        var ctx = new Layer5Context("c:/work", client);
         ctx.WorkspaceId = "ws";
 
         var part1File = "Analysis/Layer5Analyzer.cs";

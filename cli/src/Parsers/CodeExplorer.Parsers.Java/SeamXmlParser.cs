@@ -1,10 +1,8 @@
 using System.Text.RegularExpressions;
 using System.Xml;
 using System.Xml.Linq;
-using CodeExplorer.Core.Common.Nodes;
 using CodeExplorer.Core.Common.Nodes.Layer1_Physical;
 using CodeExplorer.Core.Common.Nodes.Layer4_Semantic;
-using CodeExplorer.Core.Parser;
 using CodeExplorer.Core.Parser.Syntax;
 using Node = CodeExplorer.Core.Parser.Syntax.SyntaxNode;
 
@@ -108,7 +106,7 @@ public class SeamXmlParser : IFileParser
             return true;
         }
 
-        var text = PhysicalFileStore.ReadAllText(filePath);
+        var text = FileStreamReader.ReadTextOnce(filePath);
         if (string.IsNullOrEmpty(text)) return false;
 
         return text.Contains(Constants.SeamPagesNs, StringComparison.OrdinalIgnoreCase) ||
@@ -131,14 +129,15 @@ public class SeamXmlParser : IFileParser
         string filePath,
         string parentNodeId,
         string workspaceId,
-        string absoluteWorkspacePath)
+        string absoluteWorkspacePath,
+        string? preloadedContent = null)
     {
         var relativePath = Path.GetRelativePath(absoluteWorkspacePath, filePath).Replace('\\', '/');
         var fileName = Path.GetFileName(filePath);
         var fileId = $"{workspaceId}:{OntologyConstants.IdPrefixes.File}:{relativePath}";
         var fileNode = new FileNode(fileId, fileName, relativePath, filePath);
 
-        var content = await PhysicalFileStore.ConsumeFileTextAsync(filePath);
+        var content = preloadedContent ?? await FileStreamReader.ReadTextOnceAsync(filePath);
         var doc = SyntaxDocument.Create(content, LanguageName, filePath, relativePath);
         var rawTypeBindings = new List<RawTypeBinding>();
         if (string.IsNullOrWhiteSpace(content))

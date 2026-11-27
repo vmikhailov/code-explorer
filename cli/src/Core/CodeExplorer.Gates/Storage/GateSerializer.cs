@@ -188,7 +188,7 @@ public static class GateSerializer
             return t == typeof(GateCategory) || t == typeof(InvariantScope) || t == typeof(InvariantDimension) || t == typeof(GateSeverity);
         }
 
-        public object? ReadYaml(YamlDotNet.Core.IParser parser, Type type, ObjectDeserializer rootDeserializer)
+        public object? ReadYaml(IParser parser, Type type, ObjectDeserializer rootDeserializer)
         {
             var scalar = parser.Consume<YamlDotNet.Core.Events.Scalar>().Value;
             if (string.IsNullOrWhiteSpace(scalar)) return null;
@@ -236,7 +236,7 @@ public static class GateSerializer
             return null;
         }
 
-        public void WriteYaml(YamlDotNet.Core.IEmitter emitter, object? value, Type type, ObjectSerializer serializer)
+        public void WriteYaml(IEmitter emitter, object? value, Type type, ObjectSerializer serializer)
         {
             emitter.Emit(new YamlDotNet.Core.Events.Scalar(value?.ToString() ?? string.Empty));
         }

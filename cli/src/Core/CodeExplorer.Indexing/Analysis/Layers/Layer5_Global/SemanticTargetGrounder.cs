@@ -1,5 +1,3 @@
-using CodeExplorer.Core.Common;
-using CodeExplorer.Core.Common.Nodes;
 using CodeExplorer.Core.Common.Nodes.Layer2_Boundaries;
 using CodeExplorer.Core.Common.Nodes.Layer3_Syntactic;
 using CodeExplorer.Core.Common.Nodes.Layer4_Semantic;
@@ -8,7 +6,6 @@ using CodeExplorer.Core.Parser.Canonical;
 using CodeExplorer.Core.Parser.Sql;
 using CodeExplorer.Core.Parser.Sql.Ast;
 using CodeExplorer.Core.Semantics;
-using CodeExplorer.Cypher.Common;
 
 namespace CodeExplorer.Core.Parser.Layers;
 
@@ -40,7 +37,7 @@ internal sealed class SemanticTargetGrounder
     private readonly Dictionary<string, List<TopicNode>> _topicsByCanonicalShape = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, DatabaseNode> _primaryDbByProjectPath = new(StringComparer.OrdinalIgnoreCase);
 
-    public static SemanticTargetGrounder Build(Layer4Result l4Result)
+    public static SemanticTargetGrounder Build(Layer4Result l4Result, Layer5Context ctx)
     {
         var grounder = new SemanticTargetGrounder();
         var visited = new HashSet<IOntologyNode>(ReferenceEqualityComparer.Instance);
@@ -58,9 +55,9 @@ internal sealed class SemanticTargetGrounder
         }
 
         Walk(l4Result.SemanticStructure);
-        Walk(l4Result.Prev.Prev.Prev.Workspace);
-        foreach (var p in l4Result.Prev.Prev.Projects) Walk(p);
-        foreach (var f in l4Result.Prev.Prev.Prev.Files) Walk(f);
+        Walk(ctx.Workspace);
+        foreach (var p in ctx.Projects) Walk(p);
+        foreach (var f in ctx.Files) Walk(f);
 
         return grounder;
     }
@@ -72,7 +69,7 @@ internal sealed class SemanticTargetGrounder
         FunctionNode callerFn,
         string fileId,
         ProjectNode? ownerProject,
-        ParsingContext ctx,
+        Layer5Context ctx,
         List<Node> newNodes,
         Action<IOntologyRelationship, bool> addRelationship)
     {
@@ -310,7 +307,7 @@ internal sealed class SemanticTargetGrounder
         FunctionNode callerFn,
         string fileId,
         ProjectNode? ownerProject,
-        ParsingContext ctx,
+        Layer5Context ctx,
         List<Node> newNodes,
         Action<IOntologyRelationship, bool> addRelationship)
     {
@@ -351,7 +348,7 @@ internal sealed class SemanticTargetGrounder
         FunctionNode callerFn,
         string fileId,
         ProjectNode? ownerProject,
-        ParsingContext ctx,
+        Layer5Context ctx,
         List<Node> newNodes,
         Action<IOntologyRelationship, bool> addRelationship)
     {
@@ -416,7 +413,7 @@ internal sealed class SemanticTargetGrounder
         FunctionNode callerFn,
         string fileId,
         ProjectNode? ownerProject,
-        ParsingContext ctx,
+        Layer5Context ctx,
         List<Node> newNodes,
         Action<IOntologyRelationship, bool> addRelationship)
     {

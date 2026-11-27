@@ -197,7 +197,7 @@ public static class ConfigurationIndex
         if (SharedFileParserRegistry.CanParse(fileName)) return true;
 
         var parsers = ParserRegistry.GetAllProjectParsers();
-        for (int i = 0; i < parsers.Count; i++)
+        for (var i = 0; i < parsers.Count; i++)
         {
             if (parsers[i].IsConfigurationFile(fileName)) return true;
         }
@@ -460,7 +460,7 @@ public static class ConfigurationIndex
         if (parts.Length == 0) return string.Empty;
 
         // 1. Check for YARP / ReverseProxy clusters or routes (e.g. Yarp:Clusters:spa-bff:Destinations:... or ReverseProxy:Clusters:api-bff:...)
-        for (int i = 0; i < parts.Length - 1; i++)
+        for (var i = 0; i < parts.Length - 1; i++)
         {
             if (parts[i].Equals("clusters", StringComparison.OrdinalIgnoreCase) ||
                 parts[i].Equals("routes", StringComparison.OrdinalIgnoreCase))

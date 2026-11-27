@@ -54,7 +54,7 @@ public static class ProjectEntityClassifierRegistry
         else if (normType is "golang")
             normType = "go";
 
-        var projectContext = new Parser.ProjectContext(
+        var projectContext = new ProjectContext(
             directoryPath,
             relativeProjectDir,
             projectName,
@@ -119,9 +119,9 @@ public static class ProjectEntityClassifierRegistry
         const string emptyArr = "[]";
         if (extensions != null &&
             extensions.GetValueOrDefault(keyIsOrch) != "true" &&
-            Parser.WorkspaceDetectorCatalog.CurrentScope is { HasCustomDetectors: true } customScope)
+            WorkspaceDetectorCatalog.CurrentScope is { HasCustomDetectors: true } customScope)
         {
-            var customClassification = Parser.IProjectParser.ClassifyFromCustomDetectors(normType, projectContext, customScope);
+            var customClassification = IProjectParser.ClassifyFromCustomDetectors(normType, projectContext, customScope);
             if (customClassification != null && customClassification.Kind != ProjectEntityKind.Unknown)
             {
                 if (extensions is Dictionary<string, string> cd)
@@ -204,7 +204,7 @@ public static class ProjectEntityClassifierRegistry
             dict["component_role"] = componentProfile.PrimaryRole.ToString();
             dict["component_is_library"] = componentProfile.IsLibrary ? "true" : "false";
 
-            if (componentProfile.PrimaryRole != Parser.LibraryRole.General && !dict.ContainsKey("primary_role"))
+            if (componentProfile.PrimaryRole != LibraryRole.General && !dict.ContainsKey("primary_role"))
             {
                 dict["primary_role"] = componentProfile.PrimaryRole.ToString();
             }
@@ -224,7 +224,7 @@ public static class ProjectEntityClassifierRegistry
             if (componentProfile.Capabilities.HasFlag(Parser.Components.ComponentCapabilities.ApiGateway)) dict["is_api_gateway"] = "true";
             if (componentProfile.Capabilities.HasFlag(Parser.Components.ComponentCapabilities.EgressClient)) dict["is_egress"] = "true";
             if (componentProfile.Capabilities.HasFlag(Parser.Components.ComponentCapabilities.TestRunner)) dict["has_test_runner"] = "true";
-            if (componentProfile.PrimaryRole == Parser.LibraryRole.TestFramework) dict["is_test_project"] = "true";
+            if (componentProfile.PrimaryRole == LibraryRole.TestFramework) dict["is_test_project"] = "true";
             if (componentProfile.IsLibrary) dict["is_library"] = "true";
 
             foreach (var (k, v) in componentProfile.Metadata)
@@ -235,9 +235,9 @@ public static class ProjectEntityClassifierRegistry
 
         if (componentProfile.Capabilities != Parser.Components.ComponentCapabilities.None)
         {
-            if (componentProfile.PrimaryRole == Parser.LibraryRole.TestFramework && !isOrchestratorRoot) return ProjectClassification.Test;
-            if (componentProfile.PrimaryRole == Parser.LibraryRole.CliFramework) return ProjectClassification.CliApp;
-            if (componentProfile.PrimaryRole == Parser.LibraryRole.FrontendFramework)
+            if (componentProfile.PrimaryRole == LibraryRole.TestFramework && !isOrchestratorRoot) return ProjectClassification.Test;
+            if (componentProfile.PrimaryRole == LibraryRole.CliFramework) return ProjectClassification.CliApp;
+            if (componentProfile.PrimaryRole == LibraryRole.FrontendFramework)
             {
                 if (extensions != null && (extensions.GetValueOrDefault("is_vscode_extension") == "true" || extensions.GetValueOrDefault("framework_type") == "extension" || extensions.GetValueOrDefault("ui_type") == "extension"))
                 {
@@ -245,16 +245,16 @@ public static class ProjectEntityClassifierRegistry
                 }
                 return ProjectClassification.WebApp;
             }
-            if (componentProfile.PrimaryRole == Parser.LibraryRole.UiComponentLibrary) return ProjectClassification.Library;
-            if (componentProfile.PrimaryRole is Parser.LibraryRole.Scheduler or Parser.LibraryRole.WorkerService) return ProjectClassification.Worker;
-            if (componentProfile.PrimaryRole == Parser.LibraryRole.SharedLibrary) return ProjectClassification.Library;
-            if (componentProfile.PrimaryRole == Parser.LibraryRole.WebService) return ProjectClassification.Service;
-            if (componentProfile.PrimaryRole == Parser.LibraryRole.ApiGateway) return ProjectClassification.Service;
+            if (componentProfile.PrimaryRole == LibraryRole.UiComponentLibrary) return ProjectClassification.Library;
+            if (componentProfile.PrimaryRole is LibraryRole.Scheduler or LibraryRole.WorkerService) return ProjectClassification.Worker;
+            if (componentProfile.PrimaryRole == LibraryRole.SharedLibrary) return ProjectClassification.Library;
+            if (componentProfile.PrimaryRole == LibraryRole.WebService) return ProjectClassification.Service;
+            if (componentProfile.PrimaryRole == LibraryRole.ApiGateway) return ProjectClassification.Service;
         }
 
         // 2. Inversion of Control: query the pluggable dialect parser for this language
-        var dialectParser = Parser.ParserRegistry.GetProjectParser(normType) ??
-                            (!string.IsNullOrEmpty(projectType) ? Parser.ParserRegistry.GetProjectParser(projectType) : null);
+        var dialectParser = ParserRegistry.GetProjectParser(normType) ??
+                            (!string.IsNullOrEmpty(projectType) ? ParserRegistry.GetProjectParser(projectType) : null);
         if (dialectParser != null)
         {
             var dialectClassification = dialectParser.ClassifyProject(projectContext);
@@ -277,7 +277,7 @@ public static class ProjectEntityClassifierRegistry
             snapshot = [.. _classifiers];
         }
 
-        for (int i = 0; i < snapshot.Length; i++)
+        for (var i = 0; i < snapshot.Length; i++)
         {
             var classification = snapshot[i].Classify(
                 directoryPath,
@@ -563,21 +563,12 @@ public sealed class WorkerEvidenceClassifier : IProjectEntityClassifier
             return ProjectClassification.Worker;
         }
 
-        var csproj = filesInDirectory.FirstOrDefault(f => f.EndsWith(".csproj", StringComparison.OrdinalIgnoreCase));
-        if (csproj != null)
+        const string keySdk = "sdk";
+        const string workerSdkName = "Microsoft.NET.Sdk.Worker";
+        if (extensions != null &&
+            string.Equals(extensions.GetValueOrDefault(keySdk), workerSdkName, StringComparison.OrdinalIgnoreCase))
         {
-            try
-            {
-                var content = PhysicalFileStore.ReadAllText(csproj);
-                if (content.Contains("Microsoft.NET.Sdk.Worker", StringComparison.OrdinalIgnoreCase))
-                {
-                    return ProjectClassification.Worker;
-                }
-            }
-            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
-            {
-                // ignored: unreadable manifest file falls back to next classifier
-            }
+            return ProjectClassification.Worker;
         }
 
         return null;
@@ -680,27 +671,14 @@ public sealed class LibraryEvidenceClassifier : IProjectEntityClassifier
         var normName = (projectName ?? "").Trim().ToLowerInvariant();
         var normRelPath = "/" + (relativeProjectDir ?? "").Replace('\\', '/').Trim('/').ToLowerInvariant() + "/";
 
-        // 1. Angular library manifest (ng-package.json or ngPackage in package.json)
-        if (filesInDirectory.Any(f => Path.GetFileName(f).Equals("ng-package.json", StringComparison.OrdinalIgnoreCase)))
+        // 1. Angular library manifest (ng-package.json or ngPackage in package.json extracted into ManifestProperties)
+        const string ngPackageJson = "ng-package.json";
+        const string keyHasNgPackage = "has_ng_package";
+        const string boolTrue = "true";
+        if (filesInDirectory.Any(f => Path.GetFileName(f).Equals(ngPackageJson, StringComparison.OrdinalIgnoreCase)) ||
+            (extensions != null && string.Equals(extensions.GetValueOrDefault(keyHasNgPackage), boolTrue, StringComparison.OrdinalIgnoreCase)))
         {
             return ProjectClassification.Library;
-        }
-
-        var pkgJson = filesInDirectory.FirstOrDefault(f => Path.GetFileName(f).Equals("package.json", StringComparison.OrdinalIgnoreCase));
-        if (pkgJson != null)
-        {
-            try
-            {
-                var content = PhysicalFileStore.ReadAllText(pkgJson);
-                if (content.Contains("\"ngPackage\"", StringComparison.OrdinalIgnoreCase))
-                {
-                    return ProjectClassification.Library;
-                }
-            }
-            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
-            {
-                // ignored: unreadable manifest file falls back to next classifier
-            }
         }
 
         // 2. Standard source library directories (/src/lib/, /libs/, /lib/, /packages/)
@@ -731,42 +709,41 @@ public sealed class LibraryEvidenceClassifier : IProjectEntityClassifier
             return ProjectClassification.Library;
         }
 
-        // 4. C# Class Library check (OutputType Library and not Web SDK)
-        var csproj = filesInDirectory.FirstOrDefault(f => f.EndsWith(".csproj", StringComparison.OrdinalIgnoreCase));
-        if (csproj != null)
+        // 4. C# Class Library check (from parsed ManifestProperties — never re-reading .csproj)
+        var hasCsproj = filesInDirectory.Any(f => f.EndsWith(".csproj", StringComparison.OrdinalIgnoreCase));
+        if (hasCsproj && extensions != null)
         {
-            try
-            {
-                var content = PhysicalFileStore.ReadAllText(csproj);
-                var isWebSdk = content.Contains("Microsoft.NET.Sdk.Web", StringComparison.OrdinalIgnoreCase);
-                var isWorkerSdk = content.Contains("Microsoft.NET.Sdk.Worker", StringComparison.OrdinalIgnoreCase);
-                var isExe = content.Contains("<OutputType>Exe</OutputType>", StringComparison.OrdinalIgnoreCase);
+            const string keySdk = "sdk";
+            const string keyOutputType = "output_type";
+            const string keyIsExecutable = "is_executable";
+            var sdk = extensions.GetValueOrDefault(keySdk) ?? "";
+            var outputType = extensions.GetValueOrDefault(keyOutputType) ?? "";
+            var isWebSdk = sdk.Contains("Microsoft.NET.Sdk.Web", StringComparison.OrdinalIgnoreCase);
+            var isWorkerSdk = sdk.Contains("Microsoft.NET.Sdk.Worker", StringComparison.OrdinalIgnoreCase);
+            var isExe = outputType.Equals("Exe", StringComparison.OrdinalIgnoreCase) ||
+                        outputType.Equals("WinExe", StringComparison.OrdinalIgnoreCase) ||
+                        string.Equals(extensions.GetValueOrDefault(keyIsExecutable), boolTrue, StringComparison.OrdinalIgnoreCase);
 
-                if (!isWebSdk && !isWorkerSdk && !isExe)
+            if (!isWebSdk && !isWorkerSdk && !isExe)
+            {
+                if (normName.EndsWith("service", StringComparison.OrdinalIgnoreCase) ||
+                    normName.EndsWith("-service", StringComparison.OrdinalIgnoreCase) ||
+                    normName.EndsWith(".service", StringComparison.OrdinalIgnoreCase) ||
+                    normName.EndsWith("-api", StringComparison.OrdinalIgnoreCase) ||
+                    normName.EndsWith(".api", StringComparison.OrdinalIgnoreCase) ||
+                    normName.EndsWith("-server", StringComparison.OrdinalIgnoreCase) ||
+                    normName.EndsWith(".server", StringComparison.OrdinalIgnoreCase) ||
+                    normName.EndsWith("-gateway", StringComparison.OrdinalIgnoreCase) ||
+                    normName.EndsWith(".gateway", StringComparison.OrdinalIgnoreCase) ||
+                    normName.EndsWith("-backend", StringComparison.OrdinalIgnoreCase) ||
+                    normName.EndsWith(".backend", StringComparison.OrdinalIgnoreCase) ||
+                    normName.EndsWith("-app", StringComparison.OrdinalIgnoreCase) ||
+                    normName.EndsWith(".app", StringComparison.OrdinalIgnoreCase))
                 {
-                    if (normName.EndsWith("service", StringComparison.OrdinalIgnoreCase) ||
-                        normName.EndsWith("-service", StringComparison.OrdinalIgnoreCase) ||
-                        normName.EndsWith(".service", StringComparison.OrdinalIgnoreCase) ||
-                        normName.EndsWith("-api", StringComparison.OrdinalIgnoreCase) ||
-                        normName.EndsWith(".api", StringComparison.OrdinalIgnoreCase) ||
-                        normName.EndsWith("-server", StringComparison.OrdinalIgnoreCase) ||
-                        normName.EndsWith(".server", StringComparison.OrdinalIgnoreCase) ||
-                        normName.EndsWith("-gateway", StringComparison.OrdinalIgnoreCase) ||
-                        normName.EndsWith(".gateway", StringComparison.OrdinalIgnoreCase) ||
-                        normName.EndsWith("-backend", StringComparison.OrdinalIgnoreCase) ||
-                        normName.EndsWith(".backend", StringComparison.OrdinalIgnoreCase) ||
-                        normName.EndsWith("-app", StringComparison.OrdinalIgnoreCase) ||
-                        normName.EndsWith(".app", StringComparison.OrdinalIgnoreCase))
-                    {
-                        return null;
-                    }
-
-                    return ProjectClassification.Library;
+                    return null;
                 }
-            }
-            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
-            {
-                // ignored: unreadable manifest file falls back to next classifier
+
+                return ProjectClassification.Library;
             }
         }
 

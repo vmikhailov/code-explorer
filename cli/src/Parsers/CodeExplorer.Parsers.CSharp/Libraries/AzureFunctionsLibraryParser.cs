@@ -38,7 +38,7 @@ public class AzureFunctionsLibraryParser : DeclarativeSemanticExtension
         ];
     }
 
-    private static void CollectReferencesCore(Node node, string scopeSymbolId, List<Reference> references, ParsingContext ctx)
+    private static void CollectReferencesCore(Node node, string scopeSymbolId, List<Reference> references, SemanticParseContext ctx)
     {
         if (!node.Is(TreeSitterSyntax.CSharp.MethodDeclaration)) return;
         if (!HasFunctionAttribute(node)) return;

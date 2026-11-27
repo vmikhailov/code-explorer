@@ -46,7 +46,7 @@ public class MediatRLibraryParser : DeclarativeSemanticExtension
         "DispatchAsync"
     ];
 
-    private static void CollectMediatRReferences(Node node, string scopeSymbolId, List<Reference> references, ParsingContext ctx)
+    private static void CollectMediatRReferences(Node node, string scopeSymbolId, List<Reference> references, SemanticParseContext ctx)
     {
         // 1. Ingress: Handler classes subscribe to request/notification types
         if (IsHandlerClass(node))

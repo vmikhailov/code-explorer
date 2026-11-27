@@ -1,50 +1,8 @@
 using System.Collections.Concurrent;
 using System.Text.Json;
-using System.Text.Json.Serialization;
+using CodeExplorer.Core.Parser.Incremental;
 
 namespace CodeExplorer.Core.Analysis;
-
-
-public record BatchInferenceResult(
-    [property: JsonPropertyName("id")] string? Id,
-    [property: JsonPropertyName("file_path")] string? FilePath,
-    [property: JsonPropertyName("domain")] string? Domain,
-    [property: JsonPropertyName("layer")] string? Layer,
-    [property: JsonPropertyName("pattern")] string? Pattern,
-    [property: JsonPropertyName("operation_type")] CodeExplorer.Cypher.Common.OperationType? OperationType,
-    [property: JsonPropertyName("capability_tag")] string? CapabilityTag,
-    [property: JsonPropertyName("intent_summary")] string? IntentSummary,
-    [property: JsonPropertyName("is_pure_domain")] bool? IsPureDomain,
-    [property: JsonPropertyName("target_entities")] List<string>? TargetEntities,
-    [property: JsonPropertyName("emitted_events")] List<string>? EmittedEvents
-)
-{
-    public BatchInferenceResult(
-        string? Id,
-        string? FilePath,
-        string? Domain,
-        string? Layer,
-        string? Pattern,
-        string? OperationType,
-        string? CapabilityTag,
-        string? IntentSummary,
-        bool? IsPureDomain,
-        List<string>? TargetEntities,
-        List<string>? EmittedEvents)
-        : this(Id, FilePath, Domain, Layer, Pattern, CodeExplorer.Cypher.Common.TaxonomyEnumExtendedExtensions.ParseNullableOperationType(OperationType), CapabilityTag, IntentSummary, IsPureDomain, TargetEntities, EmittedEvents)
-    {
-    }
-}
-
-public record ConfiguredDomainDefinition(
-    [property: JsonPropertyName("name")] string Name,
-    [property: JsonPropertyName("description")] string? Description = null,
-    [property: JsonPropertyName("keywords")] List<string>? Keywords = null
-);
-
-public record WorkspaceDomainsConfig(
-    [property: JsonPropertyName("domains")] List<ConfiguredDomainDefinition> Domains
-);
 
 public static partial class CodeIntentAnalyzer
 {
@@ -55,7 +13,7 @@ public static partial class CodeIntentAnalyzer
 
     public static bool Enabled { get; set; } = true;
 
-    public static bool ShouldRun(ParsingContext ctx)
+    public static bool ShouldRun(IntentContext ctx)
     {
         if (!Enabled) return false;
         if (Environment.GetEnvironmentVariable("DISABLE_CODE_INTENT") == "1") return false;
@@ -71,7 +29,7 @@ public static partial class CodeIntentAnalyzer
         return true;
     }
 
-    public static async Task EnrichAsync(ParsingContext ctx, CancellationToken cancellationToken = default)
+    public static async Task EnrichAsync(IntentContext ctx, CancellationToken cancellationToken = default)
     {
         if (!ShouldRun(ctx)) return;
 
@@ -126,7 +84,7 @@ public static partial class CodeIntentAnalyzer
     }
 
     public static async Task<int> RunIncrementalIntentAnalysisAsync(
-        ParsingContext ctx,
+        IntentContext ctx,
         int? limit = null,
         string? serviceFilter = null,
         bool domainsOnly = false,
@@ -590,6 +548,6 @@ public static partial class CodeIntentAnalyzer
     }
 
     public static string ComputeSha256(ReadOnlySpan<byte> bytes) =>
-        Parser.Incremental.HashUtility.ComputeSha256(bytes);
+        HashUtility.ComputeSha256(bytes);
 
 }

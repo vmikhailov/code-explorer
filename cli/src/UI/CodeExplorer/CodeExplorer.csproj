@@ -13,6 +13,7 @@
     <ProjectReference Include="..\..\Core\CodeExplorer.Storage\CodeExplorer.Storage.csproj" />
     <ProjectReference Include="..\..\Core\CodeExplorer.Gates\CodeExplorer.Gates.csproj" />
     <ProjectReference Include="..\..\Core\CodeExplorer.Indexing\CodeExplorer.Indexing.csproj" />
+    <ProjectReference Include="..\..\Core\CodeExplorer.Intent\CodeExplorer.Intent.csproj" />
     <ProjectReference Include="..\..\Core\CodeExplorer.Analysis\CodeExplorer.Analysis.csproj" />
     <ProjectReference Include="..\..\Server\CodeExplorer.Server\CodeExplorer.Server.csproj" />
 
@@ -35,7 +36,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="CommandLineParser" Version="2.9.1" />
+    <PackageReference Include="CommandLineParser" />
   </ItemGroup>
 
   <PropertyGroup>

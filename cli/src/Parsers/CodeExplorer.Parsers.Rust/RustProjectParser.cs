@@ -1,5 +1,7 @@
 using System.Collections.Concurrent;
+using System.Text.Json;
 using System.Text.RegularExpressions;
+using CodeExplorer.Core.Common.Nodes;
 
 [assembly: ParserAssembly]
 
@@ -17,21 +19,21 @@ public partial class RustProjectParser : IProjectParser
     public IReadOnlyCollection<string> ExcludedFolders => ["target"];
     public IReadOnlyCollection<string> ManifestFileNames => ["Cargo.toml"];
 
-    public void InspectDirectoryFiles(string directoryPath, FileInfo[] files, CodeExplorer.Core.Common.Nodes.WorkspaceNode workspace)
+    public void InspectDirectoryFiles(string directoryPath, FileInfo[] files, WorkspaceNode workspace)
     {
-        for (int i = 0; i < files.Length; i++)
+        for (var i = 0; i < files.Length; i++)
         {
             var ext = files[i].Extension;
             if (ext.Equals(".wasm", StringComparison.OrdinalIgnoreCase) ||
                 ext.Equals(".dylib", StringComparison.OrdinalIgnoreCase) ||
                 ext.Equals(".so", StringComparison.OrdinalIgnoreCase))
             {
-                CodeExplorer.Core.Common.Nodes.AnalysisSignalStore.Signals(workspace).HasNativeAddon = true;
+                AnalysisSignalStore.Signals(workspace).HasNativeAddon = true;
             }
         }
     }
 
-    public void InspectDirectoryFilePaths(string directoryPath, string[] filePaths, CodeExplorer.Core.Common.Nodes.WorkspaceNode workspace)
+    public void InspectDirectoryFilePaths(string directoryPath, string[] filePaths, WorkspaceNode workspace)
     {
         for (var i = 0; i < filePaths.Length; i++)
         {
@@ -40,7 +42,7 @@ public partial class RustProjectParser : IProjectParser
                 fp.EndsWith(".dylib", StringComparison.OrdinalIgnoreCase) ||
                 fp.EndsWith(".so", StringComparison.OrdinalIgnoreCase))
             {
-                CodeExplorer.Core.Common.Nodes.AnalysisSignalStore.Signals(workspace).HasNativeAddon = true;
+                AnalysisSignalStore.Signals(workspace).HasNativeAddon = true;
                 break;
             }
         }
@@ -48,7 +50,7 @@ public partial class RustProjectParser : IProjectParser
 
     public IReadOnlyList<PackageDescriptor> Packages => RustFileParser.DefaultPackages;
 
-    private static readonly ConcurrentDictionary<string, CargoManifest?> _manifestCache = new(StringComparer.OrdinalIgnoreCase);
+    private static readonly ConcurrentDictionary<(string FullPath, long LastWriteTicks), CargoManifest?> _manifestCache = new();
 
     public bool IsConfigurationFile(string fileName)
     {
@@ -73,14 +75,100 @@ public partial class RustProjectParser : IProjectParser
 
     internal static CargoManifest? GetOrLoadManifest(string cargoTomlPath)
     {
-        return _manifestCache.GetOrAdd(cargoTomlPath, path =>
+        var fullPath = Path.GetFullPath(cargoTomlPath);
+        if (!File.Exists(fullPath)) return null;
+        var ticks = File.GetLastWriteTimeUtc(fullPath).Ticks;
+        return _manifestCache.GetOrAdd((fullPath, ticks), static key => CargoManifestParser.ParseManifest(key.FullPath));
+    }
+
+    public bool TryParse(ProjectParseContext context, out ProjectParseResult? result)
+    {
+        var activeIndex = context.DirectoryIndex ?? WorkspaceDirectoryIndex.Current;
+        if (activeIndex != null && activeIndex.TryGetCachedProjectParse(this, context.DirectoryPath, out var cached))
         {
-            if (File.Exists(path))
+            result = cached.Result;
+            return cached.Matched;
+        }
+
+        var dir = context.DirectoryPath;
+        var files = context.FilesInDirectory;
+        if (!IsProjectDirectory(dir, files))
+        {
+            activeIndex?.StoreProjectParse(this, dir, false, null);
+            result = null;
+            return false;
+        }
+
+        var name = GetProjectName(dir, files);
+        if (string.IsNullOrEmpty(name)) name = Path.GetFileName(dir.TrimEnd('/', '\\'));
+        var props = ExtractManifestProperties(dir, files);
+        var produced = GetProducedPackageAsync(dir).GetAwaiter().GetResult();
+        var deps = ParseDependenciesAsync(dir).GetAwaiter().GetResult();
+        var meta = InspectDirectoryManifestMetadata(context);
+        var additional = GetAdditionalProjects(dir, files);
+
+        List<ParsedProjectDescriptor>? subProjects = null;
+        if (additional.Count > 0)
+        {
+            subProjects = [];
+            foreach (var add in additional)
             {
-                return CargoManifestParser.ParseManifest(path);
+                var entryDir = Path.GetDirectoryName(add.EntryPointPath) ?? dir;
+                var relIdOverride = !string.IsNullOrEmpty(context.AbsoluteWorkspacePath)
+                    ? Path.GetRelativePath(context.AbsoluteWorkspacePath, Path.GetFullPath(add.EntryPointPath)).Replace('\\', '/')
+                    : null;
+                subProjects.Add(new ParsedProjectDescriptor(
+                    Name: add.Name,
+                    DirectoryPath: entryDir,
+                    ProjectType: ProjectType,
+                    ManifestProperties: add.Properties,
+                    EntryPointPaths: [add.EntryPointPath],
+                    LocalDependencyPaths: add.LocalDependencyPaths,
+                    RelativeIdPathOverride: relIdOverride));
             }
-            return null;
-        });
+        }
+
+        result = new ProjectParseResult(
+            Project: new ParsedProjectDescriptor(
+                Name: name,
+                DirectoryPath: dir,
+                ProjectType: ProjectType,
+                ManifestProperties: props,
+                SubProjects: subProjects,
+                ProducedPackage: produced,
+                Dependencies: deps,
+                ManifestMetadata: meta,
+                AdditionalTargets: additional.Count > 0 ? additional : null),
+            ClaimMode: ParserClaimMode.AbsorbSecondaryInDirectory);
+        activeIndex?.StoreProjectParse(this, dir, true, result);
+        return true;
+    }
+
+    public ParsedProjectManifestMetadata? InspectDirectoryManifestMetadata(ProjectParseContext context)
+    {
+        var cargoTomlPath = Path.Combine(context.DirectoryPath, "Cargo.toml");
+        var manifest = GetOrLoadManifest(cargoTomlPath);
+        if (manifest == null) return null;
+
+        var allDepNames = manifest.Dependencies
+            .Concat(manifest.DevDependencies)
+            .Concat(manifest.BuildDependencies)
+            .Select(d => d.Name.ToLowerInvariant())
+            .ToList();
+        if (manifest.Workspace != null)
+        {
+            allDepNames.AddRange(manifest.Workspace.WorkspaceDependencies.Values.Select(d => d.Name.ToLowerInvariant()));
+        }
+
+        var hasDbOrm = allDepNames.Any(n => n.Contains("sqlx") || n.Contains("sea-orm") || n.Contains("diesel") || n.Contains("tokio-postgres"));
+        if (!hasDbOrm) return null;
+
+        var engine = "PostgreSQL";
+        if (allDepNames.Any(n => n.Contains("mysql"))) engine = "MySQL";
+        else if (allDepNames.Any(n => n.Contains("sqlite"))) engine = "SQLite";
+
+        const string relationalFamily = "relational";
+        return new ParsedProjectManifestMetadata(DatabaseDriverEngine: engine, DatabaseDriverFamily: relationalFamily);
     }
 
     private static bool IsStandaloneBinarySubfolder(string directoryPath, out string? matchingBinName, out string? grandparentCargoToml)
@@ -220,7 +308,7 @@ public partial class RustProjectParser : IProjectParser
 
         var dockerfiles = Directory.GetParent(directoryPath) is { } workspaceParent
             ? Directory.EnumerateFiles(workspaceParent.FullName, "Dockerfile*", SearchOption.TopDirectoryOnly)
-                .Select(path => (Path: path, Text: PhysicalFileStore.ReadAllText(path)))
+                .Select(path => (Path: path, Text: FileStreamReader.ReadTextOnce(path)))
                 .ToArray()
             : [];
         var projects = new List<AdditionalProjectDescriptor>(manifest.BinTargets.Count);
@@ -233,7 +321,7 @@ public partial class RustProjectParser : IProjectParser
                 continue;
             }
 
-            var source = PhysicalFileStore.ReadAllText(entryPointPath);
+            var source = FileStreamReader.ReadTextOnce(entryPointPath);
             var normalizedName = target.Name.Replace('_', '-');
             var dockerService = dockerfiles.Any(d =>
                 d.Text.Split(['\r', '\n'], StringSplitOptions.RemoveEmptyEntries)
@@ -275,7 +363,7 @@ public partial class RustProjectParser : IProjectParser
                 ["cargo_entrypoint"] = entryPointPath,
                 ["cargo_manifest_dir"] = Path.GetFullPath(directoryPath),
                 ["secondary_roles"] = "[]",
-                ["all_roles"] = System.Text.Json.JsonSerializer.Serialize(new[] { role })
+                ["all_roles"] = JsonSerializer.Serialize(new[] { role })
             };
 
             var binaryFiles = RustModuleReachability.CollectBinaryModuleFiles(entryPointPath);
@@ -297,7 +385,7 @@ public partial class RustProjectParser : IProjectParser
                 if (reachability.Count > 0)
                 {
                     properties[OntologyConstants.PropertyNames.SourceReachability] =
-                        System.Text.Json.JsonSerializer.Serialize(reachability);
+                        JsonSerializer.Serialize(reachability);
                 }
             }
 
@@ -592,7 +680,7 @@ public partial class RustProjectParser : IProjectParser
         {
             foreach (var file in files)
             {
-                var text = PhysicalFileStore.ReadAllText(file);
+                var text = FileStreamReader.ReadTextOnce(file);
                 var matches = Regex.Matches(text, @"(?:use\s+|extern\s+crate\s+)([a-zA-Z0-9_]+)");
                 foreach (Match m in matches)
                 {

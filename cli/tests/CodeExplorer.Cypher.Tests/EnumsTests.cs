@@ -1,4 +1,3 @@
-using CodeExplorer.Cypher.Common;
 using NUnit.Framework;
 
 namespace CodeExplorer.Cypher.Tests;

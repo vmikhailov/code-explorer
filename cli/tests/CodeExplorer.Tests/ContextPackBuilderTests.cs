@@ -1,6 +1,5 @@
 using CodeExplorer.Core.Gates.Engine;
 using CodeExplorer.Core.Gates.Storage;
-using CodeExplorer.Core.Mcp;
 using NUnit.Framework;
 
 namespace CodeExplorer.Tests;

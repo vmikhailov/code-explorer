@@ -1,6 +1,5 @@
 using System.Text.Json;
 using System.Text.RegularExpressions;
-using CodeExplorer.Cypher.Common;
 using Microsoft.Data.Sqlite;
 
 namespace CodeExplorer.Core.Database;
@@ -159,11 +158,11 @@ public static class SqliteCypherFunctions
         var list = new List<int>();
         if (step > 0)
         {
-            for (int i = start; i <= end; i += step) list.Add(i);
+            for (var i = start; i <= end; i += step) list.Add(i);
         }
         else
         {
-            for (int i = start; i >= end; i += step) list.Add(i);
+            for (var i = start; i >= end; i += step) list.Add(i);
         }
         return JsonSerializer.Serialize(list);
     }

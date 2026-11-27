@@ -20,6 +20,7 @@ import { computeConcentricBarycentricLayout } from '../layout/projectMapLayout';
 import { computeConcentricPolarForceLayout } from '../layout/concentricPolarForceLayout';
 import { computeSwimlanesLayout, SwimlaneGuide, TierDefinition } from '../layout/swimlanesLayout';
 import { DomainMermaidView } from '../domain/components/DomainMermaidView';
+import { UniversalGraph3DCanvas } from './UniversalGraph3DCanvas';
 import { getVsCodeApi } from '../vscodeApi';
 import {
   SelectedNodeDetail,
@@ -133,6 +134,7 @@ const DEFAULT_ALLOWED_LAYOUTS: Array<{ id: DomainLayoutName; label: string }> = 
   { id: 'concentric-equispaced', label: '⭕ Concentric (Equispaced)' },
   { id: 'concentric-barycentric', label: '🧭 Concentric (Barycentric)' },
   { id: 'concentric-polar-force', label: '🧲 Concentric (Polar Force)' },
+  { id: 'orbital-3d', label: '🪐 3D Orbital Constellation' },
   { id: 'swimlanes', label: '🏊 Architectural Swimlanes' },
   { id: 'mermaid', label: '🧜‍♀️ Mermaid Flowchart' },
   { id: 'cose', label: '🌐 Force-Directed (CoSE)' },
@@ -1675,6 +1677,7 @@ export const UniversalGraphMap: React.FC<UniversalGraphMapProps> = ({
   });
 
   const [concentricGuides, setConcentricGuides] = useState<ConcentricOrbitGuide[]>([]);
+  const [concentricPositions, setConcentricPositions] = useState<Map<string, { x: number; y: number }>>(new Map());
   const [swimlaneGuides, setSwimlaneGuides] = useState<SwimlaneGuide[]>([]);
   const [orbitLegendItems, setOrbitLegendItems] = useState<OrbitLegendItem[]>([]);
 
@@ -2504,6 +2507,7 @@ export const UniversalGraphMap: React.FC<UniversalGraphMapProps> = ({
 
     if (visibleNodes.length === 0) {
       setConcentricGuides([]);
+      setConcentricPositions(new Map());
       setSwimlaneGuides([]);
       setOrbitLegendItems([]);
       return;
@@ -2526,7 +2530,7 @@ export const UniversalGraphMap: React.FC<UniversalGraphMapProps> = ({
 
     const effectiveOrder = orbitOrder(orbitConfig);
 
-    if (layoutName.startsWith('concentric')) {
+    if (layoutName.startsWith('concentric') || layoutName === 'orbital-3d') {
       setSwimlaneGuides([]);
       let layoutResult: ConcentricLayoutResult;
       if (layoutName === 'concentric-equispaced') {
@@ -2539,7 +2543,7 @@ export const UniversalGraphMap: React.FC<UniversalGraphMapProps> = ({
           minOrbitNodeDistance,
           customTitlesByTier
         );
-      } else if (layoutName === 'concentric-barycentric') {
+      } else if (layoutName === 'concentric-barycentric' || layoutName === 'orbital-3d') {
         layoutResult = computeConcentricBarycentricLayout(
           visibleNodesInput,
           visibleEdgesInput,
@@ -2590,6 +2594,7 @@ export const UniversalGraphMap: React.FC<UniversalGraphMapProps> = ({
       }
 
       setConcentricGuides(layoutResult.guides);
+      setConcentricPositions(new Map(layoutResult.positions));
       setOrbitLegendItems(
         buildAllOrbitLegendItems(
           parsedGraph.allCyNodes,
@@ -2602,13 +2607,15 @@ export const UniversalGraphMap: React.FC<UniversalGraphMapProps> = ({
         )
       );
 
-      cy.layout({
-        name: 'preset',
-        positions: (node: any) => layoutResult.positions.get(node.id()) || { x: 0, y: 0 },
-        fit: true,
-        padding: 60,
-        animate: false,
-      }).run();
+      if (layoutName !== 'orbital-3d') {
+        cy.layout({
+          name: 'preset',
+          positions: (node: any) => layoutResult.positions.get(node.id()) || { x: 0, y: 0 },
+          fit: true,
+          padding: 60,
+          animate: false,
+        }).run();
+      }
     } else if (layoutName === 'swimlanes') {
       setConcentricGuides([]);
       const res = computeSwimlanesLayout(
@@ -2688,10 +2695,10 @@ export const UniversalGraphMap: React.FC<UniversalGraphMapProps> = ({
   ]);
 
   // Search highlighting
-  const searchMatchCount = useMemo(() => {
+  const searchMatchNodeIds = useMemo(() => {
     const q = searchQuery.trim();
     if (!q) return null;
-    let count = 0;
+    const set = new Set<string>();
     for (const n of visibleNodes) {
       const id = n.data.id as string;
       const detail = effectiveDetailMap.get(id);
@@ -2701,11 +2708,112 @@ export const UniversalGraphMap: React.FC<UniversalGraphMapProps> = ({
           q
         )
       ) {
-        count++;
+        set.add(id);
       }
     }
-    return count;
+    return set;
   }, [searchQuery, visibleNodes, effectiveDetailMap]);
+
+  const searchMatchCount = searchMatchNodeIds ? searchMatchNodeIds.size : null;
+
+  const orbital3DNodes = useMemo(() => {
+    return visibleNodes.map((n) => {
+      const id = n.data.id as string;
+      const pos = concentricPositions.get(id) ?? { x: 0, y: 0 };
+      return {
+        id,
+        name: String((n.data as any).name || id),
+        displayLabel: String((n.data as any).displayLabel || (n.data as any).name || id),
+        kind: String((n.data as any).kind || 'Type'),
+        echelonTier: Number((n.data as any).echelonTier ?? 2),
+        size: Number((n.data as any).size ?? baseIconSize),
+        bgColor: String((n.data as any).bgColor || '#38bdf8'),
+        borderColor: String((n.data as any).borderColor || '#38bdf8'),
+        x2d: pos.x,
+        y2d: pos.y,
+      };
+    });
+  }, [visibleNodes, concentricPositions, baseIconSize]);
+
+  const orbital3DEdges = useMemo(() => {
+    return visibleEdges.map((e) => ({
+      id: String((e.data as any).id),
+      source: String((e.data as any).source),
+      target: String((e.data as any).target),
+      category: String((e.data as any).category || 'service_call'),
+      label: String((e.data as any).label || 'CALLS'),
+      count: Number((e.data as any).count ?? 1),
+    }));
+  }, [visibleEdges]);
+
+  const orbital3DOrbits = useMemo(() => {
+    return concentricGuides
+      .filter((g) => !hiddenOrbitTiers.has(g.levelIndex))
+      .map((g) => ({
+        levelIndex: g.levelIndex,
+        radius: g.radius,
+        shortLabel: g.shortLabel || (g.label.includes(':') ? g.label.split(':')[0] : g.label),
+        title: g.title,
+        color: '#38bdf8',
+      }));
+  }, [concentricGuides, hiddenOrbitTiers]);
+
+  const handle3DSelectNode = useCallback(
+    (nid: string | null, isMultiKey: boolean) => {
+      setContextMenu(null);
+      if (isMultiKey && nid && !nid.startsWith('group:')) {
+        toggleMultiSelectedNode(nid);
+        return;
+      }
+      if (multiSelectedNodeIdsRef.current.size > 0) {
+        clearMultiSelection();
+      }
+      setSelectedNodeId(nid);
+      setSelectedEdgeId(null);
+      if (nid) {
+        const infoTab = 'info' as const;
+        setActiveSidebarTab(infoTab);
+      }
+      const rawNode = nid ? graph?.nodes?.find((n) => n.id === nid) ?? null : null;
+      onSelectNode?.(rawNode);
+    },
+    [toggleMultiSelectedNode, clearMultiSelection, graph?.nodes, onSelectNode]
+  );
+
+  const handle3DContextMenuNode = useCallback((x: number, y: number, nodeId: string) => {
+    const detail =
+      effectiveDetailMapRef.current.get(nodeId) ??
+      actionContextRef.current.parsedGraph.detailMap.get(nodeId);
+    if (!detail) return;
+    setContextMenu({
+      x,
+      y,
+      nodeId: detail.id,
+      nodeName: detail.displayName || detail.name,
+      nodeKind: detail.kind,
+    });
+  }, []);
+
+  const handle3DDoubleClickNode = useCallback((nid: string) => {
+    setContextMenu(null);
+    if (nid.startsWith('group:custom:')) {
+      actionContextRef.current.toggleCustomGroupCollapse(nid.replace('group:custom:', ''));
+      return;
+    }
+    if (nid.startsWith('group:kind:')) {
+      actionContextRef.current.toggleTypeGrouping(nid.replace('group:kind:', '') as EntityKind);
+      return;
+    }
+    const detail = actionContextRef.current.parsedGraph.detailMap.get(nid);
+    if (detail?.primaryFilePath) {
+      actionContextRef.current.onOpenFile?.(detail.primaryFilePath, detail.primaryLineStart);
+      getVsCodeApi()?.postMessage({
+        type: 'OPEN_FILE',
+        filePath: detail.primaryFilePath,
+        lineStart: detail.primaryLineStart,
+      });
+    }
+  }, []);
 
   useEffect(() => {
     const cy = cyRef.current;
@@ -2964,6 +3072,20 @@ export const UniversalGraphMap: React.FC<UniversalGraphMapProps> = ({
             }}
             title={hudTitle}
           />
+        ) : layoutName === 'orbital-3d' ? (
+          <UniversalGraph3DCanvas
+            nodes={orbital3DNodes}
+            edges={orbital3DEdges}
+            orbits={orbital3DOrbits}
+            selectedNodeId={selectedNodeId}
+            multiSelectedNodeIds={multiSelectedNodeIds}
+            searchMatchNodeIds={searchMatchNodeIds}
+            fontSize={fontSize}
+            onSelectNode={handle3DSelectNode}
+            onContextMenuNode={handle3DContextMenuNode}
+            onDoubleClickNode={handle3DDoubleClickNode}
+            detailMap={effectiveDetailMap}
+          />
         ) : (
           <>
             {((layoutName.startsWith('concentric') && concentricGuides.length > 0) ||
@@ -3044,7 +3166,7 @@ export const UniversalGraphMap: React.FC<UniversalGraphMapProps> = ({
         <div
           ref={containerRef}
           className="domain-cytoscape-container"
-          style={{ display: layoutName === 'mermaid' ? 'none' : 'block' }}
+          style={{ display: layoutName === 'mermaid' || layoutName === 'orbital-3d' ? 'none' : 'block' }}
         />
         <UniversalGraphGroupingOverlays
           multiSelectedNodeIds={multiSelectedNodeIds}

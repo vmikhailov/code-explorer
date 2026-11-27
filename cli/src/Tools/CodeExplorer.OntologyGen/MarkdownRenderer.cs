@@ -30,7 +30,7 @@ public static class MarkdownRenderer
         sb.AppendLine("```mermaid");
         sb.AppendLine("graph TD");
 
-        int layerIndex = 1;
+        var layerIndex = 1;
         foreach (var group in nodesByLayer)
         {
             if (string.IsNullOrEmpty(group.Key))

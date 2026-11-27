@@ -1,10 +1,7 @@
-using CodeExplorer.Core.Common;
-using CodeExplorer.Core.Common.Nodes;
 using CodeExplorer.Core.Common.Nodes.Layer1_Physical;
 using CodeExplorer.Core.Common.Nodes.Layer3_Syntactic;
 using CodeExplorer.Core.Common.Nodes.Layer4_Semantic;
 using CodeExplorer.Core.Common.Relationships;
-using CodeExplorer.Cypher.Common;
 
 namespace CodeExplorer.Core.Parser.Layers;
 
@@ -71,7 +68,7 @@ internal static class CacheLineageEnricher
 
     public static CacheEnrichmentOutput EnrichCaches(
         Layer4Result? l4Result,
-        ParsingContext ctx,
+        Layer5Context ctx,
         Dictionary<string, List<Reference>> refsByScopeId,
         HashSet<(string From, string To, string Kind)> existingRefRels)
     {
@@ -79,10 +76,10 @@ internal static class CacheLineageEnricher
         var rels = new List<Relationship>();
         if (l4Result == null) return new CacheEnrichmentOutput([], rels);
 
-        var syntaxStruct = l4Result.Prev?.SyntaxStructure ?? ctx.SyntaxStructure;
+        var syntaxStruct = ctx.SyntaxStructure;
         if (syntaxStruct == null) return new CacheEnrichmentOutput([], rels);
 
-        var filesByPath = SemanticEnrichmentHelpers.CollectFilesByPath(l4Result);
+        var filesByPath = SemanticEnrichmentHelpers.CollectFilesByPath(ctx.FilesStructure);
         var modules = SemanticEnrichmentHelpers.CollectModules(l4Result.SemanticStructure);
         var typesAndMethods = SemanticEnrichmentHelpers.CollectTypesAndMethods(syntaxStruct);
         var receiverEngines = BuildCacheReceiverMap(ctx, typesAndMethods);
@@ -115,7 +112,7 @@ internal static class CacheLineageEnricher
     }
 
     private static Dictionary<(string FileNorm, string Receiver), (CacheEngine Engine, string Framework)> BuildCacheReceiverMap(
-        ParsingContext ctx,
+        Layer5Context ctx,
         SemanticEnrichmentHelpers.SyntaxTypeMethodIndex index)
     {
         var map = new Dictionary<(string, string), (CacheEngine, string)>();
@@ -199,7 +196,7 @@ internal static class CacheLineageEnricher
     }
 
     private static void EnrichFromAnnotations(
-        ParsingContext ctx,
+        Layer5Context ctx,
         TypeNode? ownerType,
         FunctionNode fn,
         Dictionary<string, FileNode> filesByPath,
@@ -246,7 +243,7 @@ internal static class CacheLineageEnricher
     }
 
     private static void EnrichFromCallSites(
-        ParsingContext ctx,
+        Layer5Context ctx,
         TypeNode? ownerType,
         FunctionNode fn,
         string fileNorm,
@@ -409,7 +406,7 @@ internal static class CacheLineageEnricher
     }
 
     private static CacheNode GetOrCreateCache(
-        ParsingContext ctx,
+        Layer5Context ctx,
         FunctionNode fn,
         string region,
         CacheEngine engine,

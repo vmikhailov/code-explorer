@@ -23,7 +23,7 @@ public class DrizzleLibraryParser : DeclarativeSemanticExtension
 
     public override IReadOnlyList<CustomAstRule> CustomAstRules => Rules;
 
-    private static string? ExtractIdentifierCore(Node node, ParsingContext ctx)
+    private static string? ExtractIdentifierCore(Node node, SemanticParseContext ctx)
     {
         if (IsDrizzleCall(node))
         {
@@ -51,7 +51,7 @@ public class DrizzleLibraryParser : DeclarativeSemanticExtension
         return null;
     }
 
-    private static void CollectReferencesCore(Node node, string scopeSymbolId, List<Reference> references, ParsingContext ctx)
+    private static void CollectReferencesCore(Node node, string scopeSymbolId, List<Reference> references, SemanticParseContext ctx)
     {
         if (IsDrizzleCall(node))
         {
@@ -110,7 +110,7 @@ public class DrizzleLibraryParser : DeclarativeSemanticExtension
         return false;
     }
 
-    private static bool TryExtractDrizzleOperation(Node node, ParsingContext? ctx, out string table, out string op)
+    private static bool TryExtractDrizzleOperation(Node node, SemanticParseContext? ctx, out string table, out string op)
     {
         table = "table";
         op = "query";
@@ -199,7 +199,7 @@ public class DrizzleLibraryParser : DeclarativeSemanticExtension
             TreeSitterSyntax.TypeScript.MemberExpression);
     }
 
-    private static string ResolveDrizzleTable(Node tableNode, ParsingContext? ctx)
+    private static string ResolveDrizzleTable(Node tableNode, SemanticParseContext? ctx)
     {
         var clean = tableNode.Text.Trim();
         if (clean.Contains('.'))

@@ -24,7 +24,7 @@ public class TrpcLibraryParser : DeclarativeSemanticExtension
         ];
     }
 
-    private static void CollectTrpcReferences(Node node, string scopeSymbolId, List<Reference> references, ParsingContext ctx)
+    private static void CollectTrpcReferences(Node node, string scopeSymbolId, List<Reference> references, SemanticParseContext ctx)
     {
         if (!node.Is(TreeSitterSyntax.TypeScript.CallExpression)) return;
 

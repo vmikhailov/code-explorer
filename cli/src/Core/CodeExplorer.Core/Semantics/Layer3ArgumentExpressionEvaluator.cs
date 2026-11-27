@@ -1,5 +1,4 @@
 using System.Text;
-using CodeExplorer.Core.Parser;
 using CodeExplorer.Core.Parser.Syntax;
 
 namespace CodeExplorer.Core.Semantics;
@@ -9,7 +8,7 @@ internal readonly record struct SemanticFieldInitInfo(string? ResolvedValue, int
 internal sealed class SemanticFunctionScopeContext
 {
     public required FunctionDeclSyntax Syntax { get; init; }
-    public required CodeExplorer.Core.Common.Nodes.Layer3_Syntactic.FunctionNode Node { get; init; }
+    public required Common.Nodes.Layer3_Syntactic.FunctionNode Node { get; init; }
     public required Dictionary<string, int> ParamIndexByName { get; init; }
     public required List<SemanticParamSignal> Params { get; init; }
     public string? EnclosingTypeName { get; init; }

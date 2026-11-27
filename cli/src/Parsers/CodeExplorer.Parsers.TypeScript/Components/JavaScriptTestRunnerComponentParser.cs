@@ -81,7 +81,7 @@ public class JavaScriptTestRunnerComponentParser : IComponentLibraryParser
         return false;
     }
 
-    public void EnrichWithSyntax(ComponentAnalysisResult? result, SyntaxTree syntaxTree, ParsingContext ctx)
+    public void EnrichWithSyntax(ComponentAnalysisResult? result, SyntaxTree syntaxTree, SemanticParseContext ctx)
     {
         if (syntaxTree.Tree == null) return;
 
@@ -93,7 +93,7 @@ public class JavaScriptTestRunnerComponentParser : IComponentLibraryParser
         var doc = syntaxTree.Document;
         if (doc != null)
         {
-            for (int i = 0; i < doc.AllCalls.Count; i++)
+            for (var i = 0; i < doc.AllCalls.Count; i++)
             {
                 var node = doc.AllCalls[i];
                 var func = node.Callee ?? node.GetChildForField(TreeSitterSyntax.Fields.Function);
@@ -108,7 +108,7 @@ public class JavaScriptTestRunnerComponentParser : IComponentLibraryParser
                     if (node.Arguments.Count > 0)
                     {
                         var firstArg = node.Arguments[0].Value ?? node.Arguments[0];
-                        if (firstArg.IsValid() && (firstArg is CodeExplorer.Core.Parser.Syntax.LiteralExprSyntax || firstArg.Type.Contains("string") || firstArg.Type.Contains("template")))
+                        if (firstArg.IsValid() && (firstArg is Core.Parser.Syntax.LiteralExprSyntax || firstArg.Type.Contains("string") || firstArg.Type.Contains("template")))
                         {
                             testTitle = firstArg.Text.Trim('"', '\'', '`');
                         }

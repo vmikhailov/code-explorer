@@ -25,11 +25,11 @@ public class TypeScriptFileVisitor : BaseParserVisitor
 
         return node switch
         {
-            CodeExplorer.Core.Parser.Syntax.TypeDeclSyntax { Kind: CodeExplorer.Core.Parser.Syntax.TypeSyntaxKind.Class or CodeExplorer.Core.Parser.Syntax.TypeSyntaxKind.Enum } => "Class",
+            Core.Parser.Syntax.TypeDeclSyntax { Kind: Core.Parser.Syntax.TypeSyntaxKind.Class or Core.Parser.Syntax.TypeSyntaxKind.Enum } => "Class",
 
-            CodeExplorer.Core.Parser.Syntax.TypeDeclSyntax { Kind: CodeExplorer.Core.Parser.Syntax.TypeSyntaxKind.Interface or CodeExplorer.Core.Parser.Syntax.TypeSyntaxKind.TypeAlias } => "Interface",
+            Core.Parser.Syntax.TypeDeclSyntax { Kind: Core.Parser.Syntax.TypeSyntaxKind.Interface or Core.Parser.Syntax.TypeSyntaxKind.TypeAlias } => "Interface",
 
-            CodeExplorer.Core.Parser.Syntax.FunctionDeclSyntax or CodeExplorer.Core.Parser.Syntax.LambdaExprSyntax =>
+            Core.Parser.Syntax.FunctionDeclSyntax or Core.Parser.Syntax.LambdaExprSyntax =>
                 OntologyConstants.NodeLabels.Function,
 
             _ => null
@@ -52,7 +52,7 @@ public class TypeScriptFileVisitor : BaseParserVisitor
         SyntacticSymbol parentNode)
     {
         // If this is a decorator (EntryPoint) on a method, link it to the next method sibling via TRIGGERS
-        if (node.Is(TreeSitterSyntax.TypeScript.Decorator) && symbolNode.Kind == CodeExplorer.Cypher.Common.SyntacticSymbolKind.EntryPoint)
+        if (node.Is(TreeSitterSyntax.TypeScript.Decorator) && symbolNode.Kind == SyntacticSymbolKind.EntryPoint)
         {
             var nextNode = GetNextNamedSibling(node);
 
@@ -68,12 +68,12 @@ public class TypeScriptFileVisitor : BaseParserVisitor
                 }
             }
         }
-        else if (node.Is(TreeSitterSyntax.TypeScript.CallExpression) && symbolNode.Kind == CodeExplorer.Cypher.Common.SyntacticSymbolKind.EntryPoint)
+        else if (node.Is(TreeSitterSyntax.TypeScript.CallExpression) && symbolNode.Kind == SyntacticSymbolKind.EntryPoint)
         {
             ExtractExpressRouteReferences(node, symbolNode, parentNode);
         }
-        else if (symbolNode.Kind == CodeExplorer.Cypher.Common.SyntacticSymbolKind.Function &&
-                 parentNode.Kind == CodeExplorer.Cypher.Common.SyntacticSymbolKind.Function &&
+        else if (symbolNode.Kind == SyntacticSymbolKind.Function &&
+                 parentNode.Kind == SyntacticSymbolKind.Function &&
                  !string.IsNullOrEmpty(symbolNode.Name) &&
                  !parentNode.References.Any(r => r.TargetName == symbolNode.Name && r.Kind == RelationshipKind.Calls))
         {
@@ -138,7 +138,7 @@ public class TypeScriptFileVisitor : BaseParserVisitor
                 }
             }
         }
-        else if (arg is CodeExplorer.Core.Parser.Syntax.CollectionExprSyntax { Kind: CodeExplorer.Core.Parser.Syntax.CollectionSyntaxKind.Array })
+        else if (arg is Core.Parser.Syntax.CollectionExprSyntax { Kind: Core.Parser.Syntax.CollectionSyntaxKind.Array })
         {
             foreach (var child in arg.Children)
             {
@@ -518,7 +518,7 @@ public class TypeScriptFileVisitor : BaseParserVisitor
     {
         var scopeSymbol = SymbolStack.Peek();
 
-        if (scopeSymbol.Kind != CodeExplorer.Cypher.Common.SyntacticSymbolKind.File)
+        if (scopeSymbol.Kind != SyntacticSymbolKind.File)
         {
             var kind = node.Is(TreeSitterSyntax.TypeScript.ImplementsClause) ? "IMPLEMENTS" : "INHERITS_FROM";
 
@@ -528,11 +528,11 @@ public class TypeScriptFileVisitor : BaseParserVisitor
                 {
                     SymbolStack.Peek().References.Add(new Reference("", child.Text, kind));
                 }
-                else if (child is CodeExplorer.Core.Parser.Syntax.CallExprSyntax callChild)
+                else if (child is Core.Parser.Syntax.CallExprSyntax callChild)
                 {
-                    var calleeName = callChild.Callee is CodeExplorer.Core.Parser.Syntax.IdentifierExprSyntax id
+                    var calleeName = callChild.Callee is Core.Parser.Syntax.IdentifierExprSyntax id
                         ? id.Text
-                        : (callChild.Callee is CodeExplorer.Core.Parser.Syntax.MemberAccessExprSyntax mem
+                        : (callChild.Callee is Core.Parser.Syntax.MemberAccessExprSyntax mem
                             ? mem.MemberName
                             : callChild.MethodName);
                     if (!string.IsNullOrEmpty(calleeName))
@@ -540,9 +540,9 @@ public class TypeScriptFileVisitor : BaseParserVisitor
                         SymbolStack.Peek().References.Add(new Reference("", calleeName, kind));
                     }
                 }
-                else if (child is CodeExplorer.Core.Parser.Syntax.TypeRefSyntax { Kind: CodeExplorer.Core.Parser.Syntax.TypeRefKind.Generic } genericChild)
+                else if (child is Core.Parser.Syntax.TypeRefSyntax { Kind: Core.Parser.Syntax.TypeRefKind.Generic } genericChild)
                 {
-                    var firstId = genericChild.FirstChildOfType<CodeExplorer.Core.Parser.Syntax.IdentifierExprSyntax>();
+                    var firstId = genericChild.FirstChildOfType<Core.Parser.Syntax.IdentifierExprSyntax>();
                     if (firstId != null && !string.IsNullOrEmpty(firstId.Text))
                     {
                         SymbolStack.Peek().References.Add(new Reference("", firstId.Text, kind));
@@ -556,7 +556,7 @@ public class TypeScriptFileVisitor : BaseParserVisitor
 
     protected override void VisitCallExpression(Node node, int depth)
     {
-        if (node is CodeExplorer.Core.Parser.Syntax.CallExprSyntax { MethodName: "require" } ||
+        if (node is Core.Parser.Syntax.CallExprSyntax { MethodName: "require" } ||
             (node.GetField(TreeSitterSyntax.Fields.Function) is { } fn && fn.IsValid() && fn.AsSpan() is "require"))
         {
             TypeScriptImportAndCallbackHelper.ExtractCommonJsRequireImport(
@@ -574,7 +574,7 @@ public class TypeScriptFileVisitor : BaseParserVisitor
 
     protected override void VisitDefault(Node node, int depth)
     {
-        if (node is CodeExplorer.Core.Parser.Syntax.UiElementSyntax { IsClosing: false, IsFragment: false })
+        if (node is Core.Parser.Syntax.UiElementSyntax { IsClosing: false, IsFragment: false })
         {
             ExtractJsxComponentCall(node);
         }
@@ -592,7 +592,7 @@ public class TypeScriptFileVisitor : BaseParserVisitor
         if (!nameNode.IsValid())
         {
             nameNode = node.Children.FirstOrDefault(c =>
-                c is CodeExplorer.Core.Parser.Syntax.IdentifierExprSyntax or CodeExplorer.Core.Parser.Syntax.MemberAccessExprSyntax);
+                c is Core.Parser.Syntax.IdentifierExprSyntax or Core.Parser.Syntax.MemberAccessExprSyntax);
         }
 
         if (!nameNode.IsValid()) return;
@@ -611,7 +611,7 @@ public class TypeScriptFileVisitor : BaseParserVisitor
         var col = (int)nameNode.StartPosition.Column + 1;
         var currentScope = SymbolStack.Peek();
 
-        if (currentScope.Kind == CodeExplorer.Cypher.Common.SyntacticSymbolKind.EntryPoint)
+        if (currentScope.Kind == SyntacticSymbolKind.EntryPoint)
         {
             if (!currentScope.References.Any(r => r.TargetName == tagName && r.Kind == RelationshipKind.Triggers))
             {
@@ -686,7 +686,7 @@ public class TypeScriptFileVisitor : BaseParserVisitor
         {
             var nameNode = node.GetField(TreeSitterSyntax.Fields.Name) ??
                            node.Children.FirstOrDefault(c => c.Is(TreeSitterSyntax.TypeScript.PropertyIdentifier));
-            var name = nameNode?.Text ?? (node as CodeExplorer.Core.Parser.Syntax.MemberDeclSyntax)?.Name;
+            var name = nameNode?.Text ?? (node as Core.Parser.Syntax.MemberDeclSyntax)?.Name;
 
             if (!string.IsNullOrEmpty(name))
             {
@@ -703,7 +703,7 @@ public class TypeScriptFileVisitor : BaseParserVisitor
                     var typeNode = typeAnnotation.Children.FirstOrDefault(c => !c.Is(TreeSitterSyntax.Symbols.Colon));
                     if (typeNode != null) fieldTypeName = typeNode.Text;
                 }
-                else if (node is CodeExplorer.Core.Parser.Syntax.MemberDeclSyntax { MemberType: { } mType } && mType.IsValid())
+                else if (node is Core.Parser.Syntax.MemberDeclSyntax { MemberType: { } mType } && mType.IsValid())
                 {
                     fieldTypeName = mType.Text.TrimStart(':').Trim();
                 }
@@ -723,7 +723,7 @@ public class TypeScriptFileVisitor : BaseParserVisitor
                     node.StartPosition.Column + 1,
                     node.EndPosition.Column + 1,
                     fieldTypeName,
-                    CodeExplorer.Cypher.Common.MemberKind.Property));
+                    MemberKind.Property));
 
                 if (!string.IsNullOrEmpty(fieldTypeName))
                 {

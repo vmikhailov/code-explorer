@@ -1,5 +1,4 @@
 using System.Text.Json;
-using CodeExplorer.Cypher.Common;
 using CodeExplorer.Cypher.Compiler;
 using CodeExplorer.Cypher.Parser;
 using CodeExplorer.Cypher.Tests.Shared;
@@ -300,7 +299,7 @@ public class RealLifeExecutionTests
         InsertEdge("ws:1:file:orders_ctrl", "ws:1:type:god_class", "DEFINES");
         InsertEdge("ws:1:type:god_class", "ws:1:file:orders_ctrl", "DECLARED_IN");
 
-        for (int i = 1; i <= 18; i++)
+        for (var i = 1; i <= 18; i++)
         {
             var memberId = $"ws:1:member:god_m_{i}";
             InsertNode(memberId, "Function", new()
@@ -374,7 +373,7 @@ public class RealLifeExecutionTests
         {
             var row = new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase);
 
-            for (int i = 0; i < reader.FieldCount; i++)
+            for (var i = 0; i < reader.FieldCount; i++)
             {
                 row[reader.GetName(i)] = reader.IsDBNull(i) ? null : reader.GetValue(i);
             }
@@ -408,7 +407,7 @@ public class RealLifeExecutionTests
         {
             var row = new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase);
 
-            for (int i = 0; i < reader.FieldCount; i++)
+            for (var i = 0; i < reader.FieldCount; i++)
             {
                 row[reader.GetName(i)] = reader.IsDBNull(i) ? null : reader.GetValue(i);
             }

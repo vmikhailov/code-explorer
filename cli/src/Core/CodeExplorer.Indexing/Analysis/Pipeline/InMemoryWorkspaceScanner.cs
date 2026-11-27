@@ -1,6 +1,6 @@
+using System.Diagnostics;
 using System.Threading.Channels;
-using CodeExplorer.Core.Analysis.Layers;
-using CodeExplorer.Core.Database;
+using CodeExplorer.Core.Analysis.Dataflow;
 using CodeExplorer.Core.Parser.Layers;
 using Microsoft.Extensions.Logging;
 
@@ -36,34 +36,28 @@ internal static class InMemoryWorkspaceScanner
         var inMemoryGraph = buildInMemoryGraph ? new InMemoryGraphRepository() : null;
         var sharedChannel = buildInMemoryGraph
             ? Channel.CreateUnbounded<Func<Task>>(new UnboundedChannelOptions { SingleReader = true, SingleWriter = false })
-            : null!;
+            : null;
 
-        var ctx = new ParsingContext(
-            absoluteWorkspacePath: fullDir,
-            hostWorkspacePath: fullDir,
-            dbClient: inMemoryGraph!,
-            sharedChannel: sharedChannel,
-            clear: true,
-            cancellationToken: cancellationToken,
-            progress: progress,
-            logger: logger)
+        var scope = new WorkspaceScope(fullDir, fullDir, cancellationToken: cancellationToken)
         {
-            PersistToGraphDb = buildInMemoryGraph,
             LightweightAstScanMode = options.LightweightAstMode,
-            CustomFileExclusionPredicate = options.FileExclusionPredicate,
-            CustomProjectFileFilter = options.ProjectFileFilter,
             FileFilter = fileFilter,
             DetectorCatalog = detectorCatalog
         };
+        var sink = new GraphWriteSink(inMemoryGraph!, sharedChannel, cancellationToken, progress, logger)
+        {
+            PersistToGraphDb = buildInMemoryGraph,
+            Clear = true
+        };
 
-        var prevDataflow = CodeExplorer.Core.Analysis.Dataflow.FunctionDataflowAnalyzer.Enabled;
+        var prevDataflow = FunctionDataflowAnalyzer.Enabled;
         if (options.LightweightAstMode)
         {
-            CodeExplorer.Core.Analysis.Dataflow.FunctionDataflowAnalyzer.Enabled = false;
+            FunctionDataflowAnalyzer.Enabled = false;
         }
 
-        var totalSw = System.Diagnostics.Stopwatch.StartNew();
-        var sw = System.Diagnostics.Stopwatch.StartNew();
+        var totalSw = Stopwatch.StartNew();
+        var sw = Stopwatch.StartNew();
 
         Layer1Result l1Result;
         Layer2Result? l2Result = null;
@@ -72,52 +66,96 @@ internal static class InMemoryWorkspaceScanner
         Layer5Result? l5Result = null;
         long l1Ms = 0, l2Ms = 0, l3Ms = 0, l4Ms = 0, l5Ms = 0;
 
+        var git = new GitRepositoryRegistry();
+        var dirIndex = new WorkspaceDirectoryIndex();
+        var symbols = new SymbolResolutionBuffer();
+        var globalProjectDeps = new List<Relationship>();
+        var treeRels = new List<Relationship>();
+        var semanticCtx = new SemanticParseContext(scope)
+        {
+            Layer4Log = sink.Layer4Log,
+            GlobalSymbolSink = symbols.AddGlobalSymbol,
+            ProjectDependencySink = dep =>
+            {
+                lock (globalProjectDeps)
+                {
+                    globalProjectDeps.Add(dep);
+                }
+            }
+        };
+
         WorkspaceDetectorCatalog.CurrentScope = detectorCatalog;
+        using var dirIndexScope = WorkspaceDirectoryIndex.EnterScope(dirIndex);
         try
         {
-            await using var writer = buildInMemoryGraph ? new DatabasePersistenceWriter(ctx) : null;
+            await using var writer = buildInMemoryGraph ? new DatabasePersistenceWriter(sink) : null;
 
-            l1Result = await new Layer1PhysicalParser().ParseAsync(ctx);
+            var l1Ctx = new Layer1Context(scope, sink, git, dirIndex)
+            {
+                CustomFileExclusionPredicate = options.FileExclusionPredicate
+            };
+            l1Result = await new Layer1PhysicalParser().ParseAsync(l1Ctx);
             l1Ms = sw.ElapsedMilliseconds;
 
             if (options.MaxLayer >= AnalysisLayer.Layer2_Boundaries)
             {
                 sw.Restart();
-                l2Result = await new Layer2ProjectParser().ParseAsync(l1Result, ctx);
+                var l2Ctx = new Layer2Context(scope, sink, l1Result, dirIndex, globalProjectDeps);
+                l2Result = await new Layer2ProjectParser().ParseAsync(l2Ctx);
+                semanticCtx.ProjectsStructure = l2Result.ProjectsStructure;
                 l2Ms = sw.ElapsedMilliseconds;
             }
 
             if (options.MaxLayer >= AnalysisLayer.Layer3_Syntactic && l2Result != null)
             {
                 sw.Restart();
-                l3Result = await new Layer3SyntacticParser().ParseAsync(l2Result, ctx);
+                var l3Ctx = new Layer3Context(scope, sink, l1Result, l2Result, dirIndex, symbols, semanticCtx, treeRels)
+                {
+                    CustomProjectFileFilter = options.ProjectFileFilter
+                };
+                l3Result = await new Layer3SyntacticParser().ParseAsync(l3Ctx);
                 l3Ms = sw.ElapsedMilliseconds;
             }
 
-            if (options.MaxLayer >= AnalysisLayer.Layer4_Semantic && l3Result != null)
+            if (options.MaxLayer >= AnalysisLayer.Layer4_Semantic && l2Result != null && l3Result != null)
             {
                 sw.Restart();
-                l4Result = await new Layer4SemanticParser().ParseAsync(l3Result, ctx);
+                var l4Ctx = new Layer4Context(scope, sink, git, l1Result, l2Result, l3Result, symbols, semanticCtx, globalProjectDeps, treeRels);
+                l4Result = await new Layer4SemanticParser().ParseAsync(l4Ctx);
                 l4Ms = sw.ElapsedMilliseconds;
             }
 
-            if (options.MaxLayer >= AnalysisLayer.Layer5_Global && l4Result != null)
+            if (options.MaxLayer >= AnalysisLayer.Layer5_Global && l2Result != null && l3Result != null && l4Result != null)
             {
                 sw.Restart();
-                l5Result = await new Layer5AnalysisParser().ParseAsync(l4Result, ctx);
+                PipelineMemoryEvictor.ReleaseSyntaxTreesAfterLayer4(l3Result, scope.LightweightAstScanMode);
+                var l5Ctx = new Layer5Context(
+                    scope,
+                    sink,
+                    l1Result.Workspace,
+                    l1Result.FilesStructure,
+                    l1Result.Files,
+                    l2Result,
+                    l3Result.SyntaxStructure,
+                    l4Result,
+                    symbols,
+                    semanticCtx.NamedBeanTypes,
+                    globalProjectDeps,
+                    treeRels);
+                l5Result = await new Layer5AnalysisParser().ParseAsync(l5Ctx);
                 l5Ms = sw.ElapsedMilliseconds;
             }
         }
         finally
         {
             WorkspaceDetectorCatalog.CurrentScope = null;
-            CodeExplorer.Core.Analysis.Dataflow.FunctionDataflowAnalyzer.Enabled = prevDataflow;
+            FunctionDataflowAnalyzer.Enabled = prevDataflow;
         }
 
         totalSw.Stop();
         var (finalNodesCount, finalRelsCount) = inMemoryGraph != null
             ? await inMemoryGraph.GetGraphCountsAsync(cancellationToken)
-            : (ctx.TotalNodesCount, ctx.TotalRelsCount);
+            : (sink.TotalNodesCount, sink.TotalRelsCount);
 
         return new WorkspaceScanResult
         {

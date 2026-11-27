@@ -31,7 +31,7 @@ public class LitestarLibraryParser : DeclarativeSemanticExtension
         ];
     }
 
-    private static void CollectLitestarReferences(Node node, string scopeSymbolId, List<Reference> references, ParsingContext ctx)
+    private static void CollectLitestarReferences(Node node, string scopeSymbolId, List<Reference> references, SemanticParseContext ctx)
     {
         if (!TryExtractLitestarRoute(node, out _, out _)) return;
 

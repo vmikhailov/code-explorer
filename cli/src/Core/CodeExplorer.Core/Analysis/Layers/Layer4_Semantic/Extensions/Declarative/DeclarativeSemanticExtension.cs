@@ -172,23 +172,23 @@ public partial class DeclarativeSemanticExtension : ISemanticExtension
     public virtual IReadOnlyList<CustomAstRule> CustomAstRules { get; init; } = [];
     public virtual IReadOnlyDictionary<string, NodeSelector> Selectors => System.Collections.Immutable.ImmutableDictionary<string, NodeSelector>.Empty;
 
-    public virtual void DiscoverDeclarations(string filePath, string content, string? projectName, ParsingContext? ctx)
+    public virtual void DiscoverDeclarations(string filePath, string content, string? projectName, SemanticParseContext? ctx)
     {
     }
 
-    public virtual void DiscoverDeclarations(Node rootNode, string relativePath, string? projectName, ParsingContext? ctx)
+    public virtual void DiscoverDeclarations(Node rootNode, string relativePath, string? projectName, SemanticParseContext? ctx)
     {
     }
 
     public virtual void SynthesizeCloudResources(
-        CodeExplorer.Core.Common.Nodes.Layer2_Boundaries.ProjectNode project,
+        Common.Nodes.Layer2_Boundaries.ProjectNode project,
         string effectiveSource,
         IReadOnlySet<string> packageNames,
         string? workloadId,
-        CodeExplorer.Core.Common.Nodes.Layer4_Semantic.SemanticStructureNode semanticStructureNode,
-        List<CodeExplorer.Core.Database.Relationship> semanticRelationships,
+        Common.Nodes.Layer4_Semantic.SemanticStructureNode semanticStructureNode,
+        List<Database.Relationship> semanticRelationships,
         HashSet<(string From, string To, string Kind)> existingRelKeys,
-        ParsingContext ctx)
+        SemanticParseContext ctx)
     {
     }
 
@@ -206,7 +206,7 @@ public partial class DeclarativeSemanticExtension : ISemanticExtension
     private CompiledDeclarativeRuleIndex? _compiledIndex;
     private CompiledDeclarativeRuleIndex CompiledIndex => _compiledIndex ??= CompiledDeclarativeRuleIndex.Build(this);
 
-    public string? MapNodeType(Node node, ParsingContext ctx)
+    public string? MapNodeType(Node node, SemanticParseContext ctx)
     {
         if (CustomAstRules.Count > 0)
         {
@@ -281,13 +281,13 @@ public partial class DeclarativeSemanticExtension : ISemanticExtension
         return null;
     }
 
-    public string? ExtractIdentifier(Node node, ParsingContext ctx) =>
+    public string? ExtractIdentifier(Node node, SemanticParseContext ctx) =>
         ExtractIdentifier(node, ctx, null, null);
 
-    public string? ExtractIdentifier(Node node, ParsingContext ctx, string? projectName) =>
+    public string? ExtractIdentifier(Node node, SemanticParseContext ctx, string? projectName) =>
         ExtractIdentifier(node, ctx, projectName, null);
 
-    public string? ExtractIdentifier(Node node, ParsingContext ctx, string? projectName, string? relativePath)
+    public string? ExtractIdentifier(Node node, SemanticParseContext ctx, string? projectName, string? relativePath)
     {
         if (CustomAstRules.Count > 0)
         {
@@ -399,18 +399,18 @@ public partial class DeclarativeSemanticExtension : ISemanticExtension
         return null;
     }
 
-    public void CollectReferences(Node node, string scopeSymbolId, List<Reference> references, ParsingContext ctx)
+    public void CollectReferences(Node node, string scopeSymbolId, List<Reference> references, SemanticParseContext ctx)
     {
         CompiledIndex.EvaluateCollectReferences(node, scopeSymbolId, references, ctx);
     }
 
-    public void EnrichSymbol(Node node, SyntacticSymbol symbol, ParsingContext ctx)
+    public void EnrichSymbol(Node node, SyntacticSymbol symbol, SemanticParseContext ctx)
     {
         if (CustomAstRules.Count > 0)
         {
             CompiledIndex.EvaluateCustomEnrichSymbol(node, symbol, ctx);
         }
-        if (symbol.Kind == CodeExplorer.Cypher.Common.SyntacticSymbolKind.Query &&
+        if (symbol.Kind == SyntacticSymbolKind.Query &&
             string.IsNullOrEmpty(symbol.Text) &&
             SqlSinkRules.Count > 0)
         {

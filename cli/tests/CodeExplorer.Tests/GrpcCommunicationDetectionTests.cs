@@ -1,4 +1,3 @@
-using CodeExplorer.Core.Database;
 using System.Threading.Channels;
 using CodeExplorer.Core.Common.Nodes;
 using CodeExplorer.Core.Common.Nodes.Layer2_Boundaries;
@@ -21,7 +20,7 @@ public class GrpcCommunicationDetectionTests
         }
     }
 
-    private static async Task<(SyntaxTree Tree, ParsingContext Context, string TempDir)> ParseCodeAsync(
+    private static async Task<(SyntaxTree Tree, SemanticParseContext Context, string TempDir)> ParseCodeAsync(
         IFileParser parser, string code, string fileName, string language)
     {
         var tempDir = Path.Combine(Path.GetTempPath(), $"ce_grpc_test_{language}_" + Guid.NewGuid().ToString("N"));
@@ -31,7 +30,7 @@ public class GrpcCommunicationDetectionTests
 
         var channel = Channel.CreateUnbounded<Func<Task>>();
         var client = new InMemoryGraphRepository();
-        var ctx = new ParsingContext(tempDir, tempDir, client, channel);
+        var ctx = new SemanticParseContext(tempDir);
 
         var syntaxTree = await parser.ParseAsync(filePath, "proj:root", ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
         Layer3SyntacticParser.ProcessVisitor(syntaxTree, ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);

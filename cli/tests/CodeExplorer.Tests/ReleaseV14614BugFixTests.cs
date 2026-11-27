@@ -16,7 +16,7 @@ public class ReleaseV14614BugFixTests
         var workspaceId = "test_ws";
         var container = new ProjectNode("test_ws:project:customers", "Customers", "src/Customers", "csharp");
         var relationships = new List<Relationship>();
-        var ctx = new ParsingContext("test_ws", "C:/test", new ResourceReconciliationService());
+        var ctx = new SemanticParseContext("test_ws", "C:/test", new ResourceReconciliationService());
 
         ConfigurationParser.InferAndCreateServiceFromConnectionString(
             key,

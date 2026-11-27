@@ -16,7 +16,7 @@ internal static class Layer5GoSymbolHelper
     private const string EndpointLongMarker = ":endpoint:";
 
     internal static void RegisterWorkspaceGoModules(
-        ParsingContext ctx,
+        Layer5Context ctx,
         Dictionary<string, Layer5AnalysisParser.PackageTargetInfo> workspacePackages)
     {
         foreach (var (modName, relDir) in ctx.WorkspaceGoModules)
@@ -147,7 +147,7 @@ internal static class Layer5GoSymbolHelper
         string scopeSymbolId,
         string? enclosingTypeName,
         Layer5AnalysisParser.BindingLookups bindings,
-        ParsingContext? ctx = null)
+        Layer5Context? ctx = null)
     {
         var parts = chainedReceiver.Split(DotChar, StringSplitOptions.RemoveEmptyEntries);
         if (parts.Length < 2) return null;
@@ -198,7 +198,7 @@ internal static class Layer5GoSymbolHelper
     private static string? MatchFieldTypeForOwner(
         string ownerType,
         List<Layer5AnalysisParser.IndexedBinding> fieldCandidates,
-        ParsingContext? ctx)
+        Layer5Context? ctx)
     {
         var dot = ownerType.LastIndexOf(DotChar);
         var pkgPrefix = dot > 0 ? ownerType[..dot] : null;
@@ -222,7 +222,7 @@ internal static class Layer5GoSymbolHelper
         return fallback;
     }
 
-    internal static bool MatchesTypeMethodOwner(string methodId, string typeFile, string targetTypeName, ParsingContext ctx)
+    internal static bool MatchesTypeMethodOwner(string methodId, string typeFile, string targetTypeName, Layer5Context ctx)
     {
         if (!typeFile.EndsWith(GoExt, StringComparison.OrdinalIgnoreCase))
         {
@@ -240,7 +240,7 @@ internal static class Layer5GoSymbolHelper
 
     internal static List<string>? FindGoMethodsForReceiverType(
         Layer5AnalysisParser.SymbolLookups symbols,
-        ParsingContext ctx,
+        Layer5Context ctx,
         string receiverTypeName,
         string methodName)
     {
@@ -266,7 +266,7 @@ internal static class Layer5GoSymbolHelper
     }
 
     internal static void ResolveImplicitGoInterfaces(
-        ParsingContext ctx,
+        Layer5Context ctx,
         Layer5AnalysisParser.SymbolLookups symbols,
         List<Relationship> referenceRelationships,
         HashSet<(string From, string To)> inheritanceRels,
@@ -309,7 +309,7 @@ internal static class Layer5GoSymbolHelper
         }
     }
 
-    private static Dictionary<(string FilePath, string IfaceName), HashSet<string>> CollectGoInterfaceMethodSets(ParsingContext ctx)
+    private static Dictionary<(string FilePath, string IfaceName), HashSet<string>> CollectGoInterfaceMethodSets(Layer5Context ctx)
     {
         var result = new Dictionary<(string FilePath, string IfaceName), HashSet<string>>();
         foreach (var b in ctx.RawTypeBindings)
@@ -333,7 +333,7 @@ internal static class Layer5GoSymbolHelper
         return result;
     }
 
-    private static Dictionary<(string PkgDir, string StructName), HashSet<string>> CollectGoStructMethodSets(ParsingContext ctx)
+    private static Dictionary<(string PkgDir, string StructName), HashSet<string>> CollectGoStructMethodSets(Layer5Context ctx)
     {
         var result = new Dictionary<(string PkgDir, string StructName), HashSet<string>>();
         foreach (var (symbolId, scope) in ctx.SymbolScopes)
@@ -402,7 +402,7 @@ internal static class Layer5GoSymbolHelper
         string callerSymbolId,
         string? normCallerFile,
         Layer5AnalysisParser.SymbolLookups symbols,
-        ParsingContext ctx)
+        Layer5Context ctx)
     {
         if (!typeFile.EndsWith(GoExt, StringComparison.OrdinalIgnoreCase) ||
             !symbols.FunctionsByName.TryGetValue(methodName, out var goPkgMethodCandidates))

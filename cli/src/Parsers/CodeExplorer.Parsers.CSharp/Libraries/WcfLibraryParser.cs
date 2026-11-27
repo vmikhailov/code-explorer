@@ -41,7 +41,7 @@ public class WcfLibraryParser : DeclarativeSemanticExtension
                     if (IsWcfServerEndpointNode(node, out _))
                     {
                         symbol.Protocol = "gRPC";
-                        symbol.OperationType = CodeExplorer.Cypher.Common.OperationType.Wcf;
+                        symbol.OperationType = OperationType.Wcf;
                     }
                 }
             }

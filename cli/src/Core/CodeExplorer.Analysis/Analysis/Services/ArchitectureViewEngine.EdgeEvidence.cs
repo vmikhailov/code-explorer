@@ -1,6 +1,5 @@
 using System.Text.Json;
 using CodeExplorer.Core.Protocol;
-using CodeExplorer.Cypher.Common;
 
 namespace CodeExplorer.Core.Analysis;
 
@@ -342,9 +341,9 @@ public partial class ArchitectureViewEngine
                 var route = row.GetStringProp("route");
                 var protocol = row.GetStringProp("protocol");
 
-                int? line = ParseLineProp(relProps, OntologyConstants.PropertyNames.Line, row, isDownwardResourceEdge ? "tgt_line" : "line")
+                var line = ParseLineProp(relProps, OntologyConstants.PropertyNames.Line, row, isDownwardResourceEdge ? "tgt_line" : "line")
                             ?? ParseLineProp(relProps, OntologyConstants.PropertyNames.Line, row, "line");
-                int? lineEnd = ParseLineProp(relProps, OntologyConstants.PropertyNames.LineEnd, row, isDownwardResourceEdge ? "tgt_line_end" : "line_end")
+                var lineEnd = ParseLineProp(relProps, OntologyConstants.PropertyNames.LineEnd, row, isDownwardResourceEdge ? "tgt_line_end" : "line_end")
                                ?? line;
 
                 var effectiveResourceKind = isDownwardResourceEdge ? srcKind : tgtKind;

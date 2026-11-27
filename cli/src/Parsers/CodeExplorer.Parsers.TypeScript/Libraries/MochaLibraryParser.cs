@@ -29,7 +29,7 @@ public class MochaLibraryParser : DeclarativeSemanticExtension
         yield return new PackageDescriptor("mocha", "Mocha", LibraryRole.TestFramework, "library", ["mocha", "@types/mocha"]);
     }
 
-    private static string? ExtractIdentifierStatic(Node node, ParsingContext ctx, string? projectName, string? relativePath)
+    private static string? ExtractIdentifierStatic(Node node, SemanticParseContext ctx, string? projectName, string? relativePath)
     {
         if (IsMochaCall(node, out _))
         {
@@ -41,7 +41,7 @@ public class MochaLibraryParser : DeclarativeSemanticExtension
         return null;
     }
 
-    private static void EnrichSymbolCore(Node node, SyntacticSymbol symbol, ParsingContext ctx)
+    private static void EnrichSymbolCore(Node node, SyntacticSymbol symbol, SemanticParseContext ctx)
     {
         if (IsMochaCall(node, out _))
         {

@@ -2,7 +2,6 @@ using System.Collections.Frozen;
 using CodeExplorer.Core.Parser.Syntax;
 using Superpower;
 using Superpower.Model;
-using Superpower.Parsers;
 using Node = CodeExplorer.Core.Parser.Syntax.SyntaxNode;
 
 namespace CodeExplorer.Core.Parser;

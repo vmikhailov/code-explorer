@@ -16,7 +16,7 @@ public static class SyntaxValueEvaluator
         var contextKey = !string.IsNullOrEmpty(projectName) ? projectName : doc.FilePath;
 
         // 1. Evaluate MemberDeclSyntax initializers
-        for (int i = 0; i < doc.AllMembers.Count; i++)
+        for (var i = 0; i < doc.AllMembers.Count; i++)
         {
             var member = doc.AllMembers[i];
             if (member.Initializer != null)
@@ -32,7 +32,7 @@ public static class SyntaxValueEvaluator
         }
 
         // 2. Evaluate VariableDeclSyntax initializers
-        for (int i = 0; i < doc.AllVariables.Count; i++)
+        for (var i = 0; i < doc.AllVariables.Count; i++)
         {
             var variable = doc.AllVariables[i];
             if (variable.Initializer != null)
@@ -100,7 +100,7 @@ public static class SyntaxValueEvaluator
             }
         }
 
-        for (int i = 0; i < node.Children.Count; i++)
+        for (var i = 0; i < node.Children.Count; i++)
         {
             WalkAndEvaluate(node.Children[i], doc, contextKey, isFrontend, ref embeddedSqlList);
         }
@@ -138,7 +138,7 @@ public static class SyntaxValueEvaluator
         var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         foreach (var r in refs)
         {
-            if (r.Kind is not (CodeExplorer.Cypher.Common.RelationshipKind.ReadsFrom or CodeExplorer.Cypher.Common.RelationshipKind.WritesTo))
+            if (r.Kind is not (RelationshipKind.ReadsFrom or RelationshipKind.WritesTo))
             {
                 continue;
             }
@@ -155,7 +155,7 @@ public static class SyntaxValueEvaluator
                 tables.Add(new SqlTableRefSyntax(
                     tableName,
                     schema,
-                    IsWriteTarget: r.Kind == CodeExplorer.Cypher.Common.RelationshipKind.WritesTo));
+                    IsWriteTarget: r.Kind == RelationshipKind.WritesTo));
             }
         }
 

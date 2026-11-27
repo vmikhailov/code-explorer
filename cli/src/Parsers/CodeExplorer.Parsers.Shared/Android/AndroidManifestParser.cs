@@ -1,3 +1,4 @@
+using System.Xml;
 using System.Xml.Linq;
 
 namespace CodeExplorer.Parsers.Android;
@@ -12,10 +13,10 @@ public static class AndroidManifestParser
 
         try
         {
-            var content = PhysicalFileStore.ReadAllText(manifestPath);
+            var content = FileStreamReader.ReadTextOnce(manifestPath);
             return ParseContent(content, Path.GetDirectoryName(manifestPath));
         }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.Xml.XmlException)
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or XmlException)
         {
             return null;
         }
@@ -138,7 +139,7 @@ public static class AndroidManifestParser
                 Receivers: receivers
             );
         }
-        catch (Exception ex) when (ex is System.Xml.XmlException or ArgumentException)
+        catch (Exception ex) when (ex is XmlException or ArgumentException)
         {
             return null;
         }
@@ -182,7 +183,7 @@ public static class AndroidManifestParser
                     }
                 }
             }
-            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.Xml.XmlException)
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or XmlException)
             {
                 // Fallback
             }

@@ -51,7 +51,7 @@ public class BigQueryGoLibraryParser : DeclarativeSemanticExtension
         ];
     }
 
-    private static void CollectBigQueryReferences(Node node, string scopeSymbolId, List<Reference> references, ParsingContext ctx)
+    private static void CollectBigQueryReferences(Node node, string scopeSymbolId, List<Reference> references, SemanticParseContext ctx)
     {
         // 1. Detect calls (Query, Table, Inserter, NewClient, etc.)
         if (IsBigQueryCall(node, out var sqlText, out var method))

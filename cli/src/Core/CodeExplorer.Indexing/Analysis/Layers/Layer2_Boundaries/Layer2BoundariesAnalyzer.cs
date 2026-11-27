@@ -1,15 +1,19 @@
+using System.Diagnostics;
 using CodeExplorer.Core.Common.Nodes.Layer1_Physical;
 using CodeExplorer.Core.Common.Nodes.Layer2_Boundaries;
-using CodeExplorer.Core.Common.Relationships;
-using CodeExplorer.Core.Database;
 
 namespace CodeExplorer.Core.Parser.Layers;
 
 public partial class Layer2ProjectParser
 {
-    public async Task<Layer2Result> ParseAsync(Layer1Result l1Result, ParsingContext ctx)
+    public Task<Layer2Result> ParseAsync(Layer1Result l1Result, Layer2Context ctx) =>
+        ParseAsync(ctx);
+
+    public async Task<Layer2Result> ParseAsync(Layer2Context ctx)
     {
-        var sw = System.Diagnostics.Stopwatch.StartNew();
+        var l1Result = ctx.Layer1;
+        using var dirIndexScope = WorkspaceDirectoryIndex.EnterScope(ctx.DirectoryIndex);
+        var sw = Stopwatch.StartNew();
         ctx.Layer2Log.ScanStarted();
 
         var projectsStructureNode = new ProjectsStructureNode(
@@ -92,6 +96,8 @@ public partial class Layer2ProjectParser
 
         NormalizeDependencyProjectIds(projects, dependencies);
 
+        await SharedFileEnricher.EnrichAsync(l1Result.Files, projects, ctx);
+
         PopulatePackageLifecycleAndEntryPoints(l1Result, projects, packages, dependencies, ctx);
 
         if (dependencies.Count > 0)
@@ -101,10 +107,16 @@ public partial class Layer2ProjectParser
             ctx.Layer2Log.DependenciesEnqueued(dependencies.Count);
         }
 
-        SharedFileEnricher.Enrich(l1Result.Files, projects, ctx);
-
         ctx.Layer2Log.ScanCompleted(projects.Count, packages.Count, sw.ElapsedMilliseconds);
-        return new Layer2Result(l1Result, projectsStructureNode, projects, packages, dependencies);
+        return new Layer2Result(
+            projectsStructureNode,
+            projects,
+            packages,
+            dependencies,
+            ctx.WorkspaceEnrichments,
+            ctx.TsConfigPaths,
+            ctx.WorkspaceGoModules,
+            ctx.DirectoryManifestDrivers);
     }
 
     public static ProjectNode? FindProjectForFilePath(string filePath, IEnumerable<ProjectNode> projects)

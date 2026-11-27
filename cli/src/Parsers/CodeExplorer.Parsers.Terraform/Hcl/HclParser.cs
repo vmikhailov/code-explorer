@@ -1,5 +1,4 @@
 using CodeExplorer.Core.Parser.Syntax;
-using CodeExplorer.Cypher.Common;
 using Superpower;
 using Superpower.Model;
 using Superpower.Parsers;
@@ -38,7 +37,7 @@ public static class HclParser
             var errPos = tokenized.ErrorPosition;
             var errLine = Math.Max(0, errPos.Line - 1);
             var errCol = Math.Max(0, errPos.Column - 1);
-            var span = new CodeExplorer.Core.Parser.Syntax.TextSpan(
+            var span = new Core.Parser.Syntax.TextSpan(
                 errPos.Absolute,
                 errPos.Absolute + 1,
                 errLine,
@@ -122,7 +121,7 @@ public static class HclParser
 
         var startByte = tok.Position.Absolute;
         var endByte = startByte + Math.Max(1, tok.Span.Length);
-        var span = new CodeExplorer.Core.Parser.Syntax.TextSpan(
+        var span = new Core.Parser.Syntax.TextSpan(
             startByte,
             endByte,
             line0,

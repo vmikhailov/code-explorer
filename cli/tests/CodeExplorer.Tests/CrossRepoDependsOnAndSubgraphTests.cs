@@ -1,6 +1,5 @@
+using System.Diagnostics;
 using CodeExplorer.Core.Analysis.Subgraph;
-using CodeExplorer.Core.Database;
-using CodeExplorer.Core.Parser;
 using NUnit.Framework;
 
 namespace CodeExplorer.Tests;
@@ -102,7 +101,6 @@ public class CrossRepoDependsOnAndSubgraphTests
         }
         finally
         {
-            PhysicalFileStore.ClearWorkspace(tempDir);
             if (Directory.Exists(tempDir)) Directory.Delete(tempDir, true);
         }
     }
@@ -192,7 +190,6 @@ public class CrossRepoDependsOnAndSubgraphTests
         }
         finally
         {
-            PhysicalFileStore.ClearWorkspace(tempDir);
             if (Directory.Exists(tempDir)) Directory.Delete(tempDir, true);
         }
     }
@@ -312,7 +309,6 @@ public class CrossRepoDependsOnAndSubgraphTests
         }
         finally
         {
-            PhysicalFileStore.ClearWorkspace(tempDir);
             if (Directory.Exists(tempDir)) Directory.Delete(tempDir, true);
         }
     }
@@ -321,80 +317,249 @@ public class CrossRepoDependsOnAndSubgraphTests
     public void Layer1Scale_15kDirectories_And_100ScopedGitIgnores_CompletesUnder200Ms()
     {
         var root = Path.Combine(Path.GetTempPath(), "ce-scale-l1-" + Guid.NewGuid().ToString("N")[..8]).Replace('\\', '/');
+        var dirIndex = new WorkspaceDirectoryIndex();
+
+        // 1. Register 15,000 directories across 100 repos in WorkspaceDirectoryIndex
+        var sw = Stopwatch.StartNew();
+        for (var r = 0; r < 100; r++)
+        {
+            var repoDir = $"{root}/repo-{r:D3}";
+            dirIndex.SetDirectoryFiles(repoDir, []);
+            for (var p = 0; p < 10; p++)
+            {
+                dirIndex.SetDirectoryFiles($"{repoDir}/pkg-{p}", []);
+            }
+            for (var d = 0; d < 140; d++)
+            {
+                var dir = $"{repoDir}/pkg-{d / 14}/mod-{d % 14}";
+                dirIndex.SetDirectoryFiles(dir, [$"{dir}/index.ts", $"{dir}/helper.ts"]);
+            }
+        }
+
+        // Query HasCachedDirectChildDirectories & EnumerateCachedFilesInSubtree across all 15,000 folders
+        var childHits = 0;
+        for (var r = 0; r < 100; r++)
+        {
+            if (dirIndex.HasCachedDirectChildDirectories($"{root}/repo-{r:D3}"))
+            {
+                childHits++;
+            }
+            for (var d = 0; d < 140; d++)
+            {
+                _ = dirIndex.HasCachedDirectChildDirectories($"{root}/repo-{r:D3}/pkg-{d / 14}/mod-{d % 14}");
+            }
+        }
+        var repo0Files = dirIndex.EnumerateCachedFilesInSubtree($"{root}/repo-000").Count();
+        sw.Stop();
+
+        childHits.Should().Be(100);
+        repo0Files.Should().Be(280);
+        sw.ElapsedMilliseconds.Should().BeLessThan(250);
+
+        // 2. Load 100 repo-scoped .gitignore rule sets (4,000 scoped rules) and check 50,000 file paths
+        var matcher = new GitIgnoreMatcher(root);
+        for (var r = 0; r < 100; r++)
+        {
+            var scope = $"repo-{r:D3}";
+            for (var p = 0; p < 40; p++)
+            {
+                matcher.AddPattern($"*.gen-{p}.ts", scope);
+            }
+            matcher.AddPattern("!keep.gen-0.ts", scope);
+        }
+
+        var swIgnore = Stopwatch.StartNew();
+        var ignoredCount = 0;
+        for (var r = 0; r < 100; r++)
+        {
+            for (var f = 0; f < 500; f++)
+            {
+                var rel = f == 0
+                    ? $"repo-{r:D3}/src/keep.gen-0.ts"
+                    : (f == 1 ? $"repo-{r:D3}/src/foo.gen-5.ts" : $"repo-{r:D3}/src/comp-{f}.tsx");
+                if (matcher.IsIgnoredFile(rel, skipDirectoryOnlyRules: true))
+                {
+                    ignoredCount++;
+                }
+            }
+        }
+        swIgnore.Stop();
+
+        ignoredCount.Should().Be(100);
+        swIgnore.ElapsedMilliseconds.Should().BeLessThan(500);
+    }
+
+    [Test]
+    public async Task SubgraphAndServiceCallRefinements_RejectNonCallableTargets_FilterSharedTableNoise_DeduplicateInternalPkg_AndPurgeLocalhostExternalService()
+    {
+        WorkspaceIndexer.AutoRegisterParsers();
+        var tempDir = CreateTempDir();
         try
         {
-            // 1. Register 15,000 directories across 100 repos in PhysicalFileStore
-            var sw = System.Diagnostics.Stopwatch.StartNew();
-            for (var r = 0; r < 100; r++)
-            {
-                var repoDir = $"{root}/repo-{r:D3}";
-                PhysicalFileStore.SetDirectoryFiles(repoDir, []);
-                for (var p = 0; p < 10; p++)
-                {
-                    PhysicalFileStore.SetDirectoryFiles($"{repoDir}/pkg-{p}", []);
-                }
-                for (var d = 0; d < 140; d++)
-                {
-                    var dir = $"{repoDir}/pkg-{d / 14}/mod-{d % 14}";
-                    PhysicalFileStore.SetDirectoryFiles(dir, [$"{dir}/index.ts", $"{dir}/helper.ts"]);
-                }
-            }
+            // 1. Shell repo (plat-jdp-streaming-github-actions) & Terraform module (ds-artifactory-infra-mgmt/tf/modules/roles) — 0 endpoints!
+            var ghActions = Path.Combine(tempDir, "plat-jdp-streaming-github-actions");
+            Directory.CreateDirectory(ghActions);
+            await File.WriteAllTextAsync(Path.Combine(ghActions, "deploy.sh"), "#!/usr/bin/env bash\necho 'streaming action'\n");
 
-            // Query HasCachedDirectChildDirectories & EnumerateCachedFilesInSubtree across all 15,000 folders
-            var childHits = 0;
-            for (var r = 0; r < 100; r++)
-            {
-                if (PhysicalFileStore.HasCachedDirectChildDirectories($"{root}/repo-{r:D3}"))
-                {
-                    childHits++;
-                }
-                for (var d = 0; d < 140; d++)
-                {
-                    _ = PhysicalFileStore.HasCachedDirectChildDirectories($"{root}/repo-{r:D3}/pkg-{d / 14}/mod-{d % 14}");
-                }
-            }
-            var repo0Files = PhysicalFileStore.EnumerateCachedFilesInSubtree($"{root}/repo-000").Count();
-            sw.Stop();
+            var tfRoles = Path.Combine(tempDir, "ds-artifactory-infra-mgmt", "tf", "modules", "roles");
+            Directory.CreateDirectory(tfRoles);
+            await File.WriteAllTextAsync(Path.Combine(tfRoles, "main.tf"), "variable \"role_name\" { type = string }\n");
 
-            childHits.Should().Be(100);
-            repo0Files.Should().Be(280);
-            sw.ElapsedMilliseconds.Should().BeLessThan(250);
+            // 2. Java library repo with 0 endpoints (exec-ce-commons-data)
+            var javaCommons = Path.Combine(tempDir, "exec-ce-commons-data");
+            Directory.CreateDirectory(Path.Combine(javaCommons, "src", "main", "java", "com", "by", "commons"));
+            await File.WriteAllTextAsync(Path.Combine(javaCommons, "build.gradle.kts"), "plugins { `java-library` }\ngroup = \"com.by.commons\"\nversion = \"1.0.0\"\n");
+            await File.WriteAllTextAsync(Path.Combine(javaCommons, "src", "main", "java", "com", "by", "commons", "DataDto.java"), "package com.by.commons; public class DataDto {}\n");
 
-            // 2. Load 100 repo-scoped .gitignore rule sets (4,000 scoped rules) and check 50,000 file paths
-            var matcher = new GitIgnoreMatcher(root);
-            for (var r = 0; r < 100; r++)
-            {
-                var scope = $"repo-{r:D3}";
-                for (var p = 0; p < 40; p++)
-                {
-                    matcher.AddPattern($"*.gen-{p}.ts", scope);
-                }
-                matcher.AddPattern("!keep.gen-0.ts", scope);
-            }
+            // 3. GenAI core service exposing /skills/{skill_id}/configurations + noisy Python table patterns
+            var genaiCore = Path.Combine(tempDir, "genai-orch-plat-core-service");
+            Directory.CreateDirectory(Path.Combine(genaiCore, "app"));
+            await File.WriteAllTextAsync(Path.Combine(genaiCore, "pyproject.toml"), "[project]\nname = \"genai-orch-plat-core-service\"\nversion = \"0.1.0\"\ndependencies = [\"fastapi\"]\n");
+            await File.WriteAllTextAsync(Path.Combine(genaiCore, "app", "main.py"), """"
+                from fastapi import FastAPI
+                import sqlalchemy as sa
+                import requests
 
-            var swIgnore = System.Diagnostics.Stopwatch.StartNew();
-            var ignoredCount = 0;
-            for (var r = 0; r < 100; r++)
-            {
-                for (var f = 0; f < 500; f++)
-                {
-                    var rel = f == 0
-                        ? $"repo-{r:D3}/src/keep.gen-0.ts"
-                        : (f == 1 ? $"repo-{r:D3}/src/foo.gen-5.ts" : $"repo-{r:D3}/src/comp-{f}.tsx");
-                    if (matcher.IsIgnoredFile(rel, skipDirectoryOnlyRules: true))
-                    {
-                        ignoredCount++;
+                app = FastAPI()
+                metadata = sa.MetaData()
+
+                class FindLoopBlockersPlugin:
+                    """Document and Table helper plugin (not an ORM model)."""
+                    pass
+
+                def dynamic_loader(attrs):
+                    t = sa.Table(attrs, metadata)
+                    return t
+
+                @app.get("/skills/{skill_id}/configurations")
+                def get_skill_configs(skill_id: str, conn):
+                    conn.execute("SELECT column_name FROM information_schema.columns WHERE table_name = 'skills'")
+                    conn.execute("SELECT id FROM users WHERE id = 1")
+                    conn.execute("SELECT id FROM genai_schema.skill_configs WHERE skill_id = '1'")
+                    bad = f'''SELECT * FROM
+                                f"{skill_id}"'''
+                    requests.get("http://localhost:8080/health")
+                    return {"id": skill_id}
+                """");
+
+            // 4. Unrelated Python service (plan-lde-raq) touching unqualified 'users'/'locations' & information_schema.TABLES & mentioning 'actions'
+            var planRaq = Path.Combine(tempDir, "plan-lde-raq");
+            Directory.CreateDirectory(Path.Combine(planRaq, "src"));
+            await File.WriteAllTextAsync(Path.Combine(planRaq, "pyproject.toml"), "[project]\nname = \"plan-lde-raq\"\nversion = \"0.1.0\"\ndependencies = [\"fastapi\", \"requests\"]\n");
+            await File.WriteAllTextAsync(Path.Combine(planRaq, "src", "service.py"), """
+                from fastapi import FastAPI
+                import requests
+
+                app = FastAPI()
+
+                @app.get("/raq/forecast")
+                def forecast(conn):
+                    conn.execute("SELECT table_name FROM information_schema.TABLES")
+                    conn.execute("SELECT id FROM users")
+                    conn.execute("SELECT id FROM locations")
+                    requests.get("https://actions/api/v1/status")
+                    return {"ok": True}
+                """);
+
+            // 5. Unrelated Java service (plat-liam-entitlement-service) touching unqualified 'users'/'roles' & calling '/roles'
+            var liamEnt = Path.Combine(tempDir, "plat-liam-entitlement-service");
+            Directory.CreateDirectory(Path.Combine(liamEnt, "src", "main", "java", "com", "by", "liam"));
+            await File.WriteAllTextAsync(Path.Combine(liamEnt, "build.gradle.kts"), "plugins { id(\"org.springframework.boot\") version \"3.3.0\" }\n");
+            await File.WriteAllTextAsync(Path.Combine(liamEnt, "src", "main", "java", "com", "by", "liam", "EntitlementController.java"), """
+                package com.by.liam;
+                import org.springframework.jdbc.core.JdbcTemplate;
+                import org.springframework.web.bind.annotation.*;
+                import org.springframework.web.client.RestTemplate;
+
+                @RestController
+                public class EntitlementController {
+                    private final JdbcTemplate jdbc = new JdbcTemplate();
+                    private final RestTemplate rest = new RestTemplate();
+
+                    @GetMapping("/liam/entitlements")
+                    public String list() {
+                        jdbc.queryForList("SELECT column_name FROM information_schema.columns");
+                        jdbc.queryForList("SELECT id FROM users");
+                        jdbc.queryForList("SELECT id FROM roles");
+                        return rest.getForObject("http://roles/v1/check", String.class);
                     }
                 }
-            }
-            swIgnore.Stop();
+                """);
 
-            ignoredCount.Should().Be(100);
-            swIgnore.ElapsedMilliseconds.Should().BeLessThan(500);
+            // 6. TypeScript utility library + TypeScript portal calling /skills/{skill_id}/configurations
+            var tsUtils = Path.Combine(tempDir, "plat-lui-portal-utils");
+            Directory.CreateDirectory(Path.Combine(tsUtils, "src"));
+            await File.WriteAllTextAsync(Path.Combine(tsUtils, "package.json"), """{"name":"@jda/lui-portal-utilities","version":"1.0.0","main":"dist/index.js"}""");
+            await File.WriteAllTextAsync(Path.Combine(tsUtils, "tsconfig.json"), """{"compilerOptions":{"strict":true}}""");
+            await File.WriteAllTextAsync(Path.Combine(tsUtils, "src", "index.ts"), "export const fmt = (x: string) => x;\n");
+
+            var tsPortal = Path.Combine(tempDir, "plat-lui-portal");
+            Directory.CreateDirectory(Path.Combine(tsPortal, "src"));
+            await File.WriteAllTextAsync(Path.Combine(tsPortal, "package.json"), """
+                {
+                  "name": "@jda/plat-lui-portal",
+                  "version": "1.0.0",
+                  "dependencies": {
+                    "@jda/lui-portal-utilities": "^1.0.0",
+                    "axios": "^1.7.0",
+                    "react": "^18.0.0"
+                  }
+                }
+                """);
+            await File.WriteAllTextAsync(Path.Combine(tsPortal, "tsconfig.json"), """{"compilerOptions":{"strict":true}}""");
+            await File.WriteAllTextAsync(Path.Combine(tsPortal, "src", "api.ts"), """
+                import axios from 'axios';
+                export async function loadSkillConfig(skillId: string) {
+                    await axios.get('http://localhost:3000/ping');
+                    return axios.get(`https://genai-orch-plat-core-service/skills/${skillId}/configurations`);
+                }
+                """);
+
+            var dbPath = Path.Combine(tempDir, "graph.db");
+            await using var client = new SqliteGraphClient(dbPath);
+            await new WorkspaceIndexer(client).IndexAsync(tempDir, tempDir, clear: true);
+
+            // Checklist #2: Zero SERVICE_CALL edges targeting terraform, shell, powershell, or 0-endpoint libraries
+            var nonCallableServiceCalls = await client.ExecuteCypherAsync(
+                "MATCH (a)-[:SERVICE_CALL]->(b:Project) WHERE b.language IN ['terraform', 'shell', 'powershell'] OR b.name = 'exec-ce-commons-data' RETURN a.name AS src, b.name AS dst");
+            nonCallableServiceCalls.Rows.Should().BeEmpty("terraform modules, shell scripts, and 0-endpoint libraries cannot be SERVICE_CALL targets");
+
+            // Checklist #6: Zero Table nodes with newlines, system catalog names ('columns', 'tables'), 'attrs', or '*Plugin'
+            var noisyTables = await client.ExecuteCypherAsync(
+                "MATCH (t:Table) WHERE t.name CONTAINS '\n' OR toLower(t.name) IN ['columns', 'tables', 'attrs', 'findloopblockersplugin'] RETURN t.name AS name");
+            noisyTables.Rows.Should().BeEmpty("newlines, SQL catalog views, dynamic arg identifiers, and non-ORM plugin classes must not become Table nodes");
+
+            // Checklist #4 (Issue 4): Zero 'localhost' / loopback ExternalService nodes persisted in graph.db
+            var loopbackExt = await client.ExecuteCypherAsync(
+                "MATCH (es:ExternalService) WHERE toLower(es.name) IN ['localhost', '127.0.0.1', '0.0.0.0', '::1'] OR toLower(es.name) STARTS WITH 'localhost:' RETURN es.name AS name");
+            loopbackExt.Rows.Should().BeEmpty("loopback placeholders must be purged from persisted ExternalService nodes");
+
+            var subgraph = new WorkspaceSubgraphService();
+
+            // Checklist #1: plat-jdp-streaming-github-actions [shell] is NOT a Shared Platform Hub
+            var domains = await subgraph.PartitionDomainsAsync(client, resolution: 1.0, hubThreshold: 0.15);
+            domains.PlatformHubs.Select(h => h.Unit.Name).Should().NotContain("plat-jdp-streaming-github-actions");
+
+            // Issue #3: Deduplicated internal_pkg vs package_dep on plat-lui-portal -> plat-lui-portal-utils
+            var portalSlice = await subgraph.SliceSubgraphAsync(client, ["plat-lui-portal"], maxRepos: 4);
+            var utilsHit = portalSlice.SelectedUnits.Single(s => s.Unit.Name == "plat-lui-portal-utils");
+            utilsHit.ConnectionReasons.Should().Contain(r => r.Contains("internal_pkg:@jda/lui-portal-utilities"));
+            utilsHit.ConnectionReasons.Should().NotContain(r => r.Contains("package_dep:@jda/lui-portal-utilities"));
+
+            // Checklist #3 & #4: Endpoint slice on /skills/{skill_id}/configurations stays in genai-orch + plat-lui-portal caller
+            // without pulling plat-liam-entitlement-service, plan-lde-raq, plat-jdp-streaming-github-actions, or ds-artifactory-infra-mgmt
+            var endpointSlice = await subgraph.SliceSubgraphAsync(client, ["/skills/{skill_id}/configurations"], maxRepos: 6);
+            var selectedNames = endpointSlice.SelectedUnits.Select(s => s.Unit.Name).ToList();
+            selectedNames.Should().Contain("genai-orch-plat-core-service");
+            selectedNames.Should().Contain("plat-lui-portal");
+            selectedNames.Should().NotContain("plat-liam-entitlement-service");
+            selectedNames.Should().NotContain("plan-lde-raq");
+            selectedNames.Should().NotContain("plat-jdp-streaming-github-actions");
+            selectedNames.Should().NotContain("ds-artifactory-infra-mgmt");
         }
         finally
         {
-            PhysicalFileStore.ClearWorkspace(root);
+            if (Directory.Exists(tempDir)) Directory.Delete(tempDir, true);
         }
     }
 }

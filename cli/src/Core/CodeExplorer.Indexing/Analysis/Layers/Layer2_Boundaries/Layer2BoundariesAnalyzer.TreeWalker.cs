@@ -1,7 +1,5 @@
-using CodeExplorer.Core.Common;
+using System.Text.Json;
 using CodeExplorer.Core.Common.Nodes.Layer2_Boundaries;
-using CodeExplorer.Core.Common.Relationships;
-using CodeExplorer.Core.Database;
 
 namespace CodeExplorer.Core.Parser.Layers;
 
@@ -44,7 +42,8 @@ public partial class Layer2ProjectParser
     }
 
     private sealed record DirectoryScanState(
-        ParsingContext Ctx,
+        Layer1Result L1Result,
+        Layer2Context Ctx,
         ProjectsStructureNode ProjectsStructureNode,
         List<ProjectNode> Projects,
         List<PackageNode> Packages,
@@ -54,7 +53,7 @@ public partial class Layer2ProjectParser
         Dictionary<string, ProjectNode> AbsorbedDirectoryOwners,
         Dictionary<string, string> ExplicitChildToParentMap);
 
-    private static List<DirectoryTreeNode> BuildDirectoryForest(List<string> dirsToCheck)
+    private static List<DirectoryTreeNode> BuildDirectoryForest(List<string> dirsToCheck, Layer2Context ctx)
     {
         var nodesByNormPath = new Dictionary<string, DirectoryTreeNode>(dirsToCheck.Count, StringComparer.OrdinalIgnoreCase);
         var allNodes = new List<(DirectoryTreeNode Node, DirectoryTreeNode? Parent)>(dirsToCheck.Count);
@@ -68,7 +67,7 @@ public partial class Layer2ProjectParser
                 continue;
             }
 
-            var filesInDir = PhysicalFileStore.GetDirectoryFiles(dir);
+            var filesInDir = ctx.DirectoryIndex.GetDirectoryFiles(dir);
             var hasCandidate = HasCandidateProjectTrigger(dir, filesInDir);
             var node = new DirectoryTreeNode(dir, norm, filesInDir, hasCandidate);
             nodesByNormPath[norm] = node;
@@ -117,7 +116,7 @@ public partial class Layer2ProjectParser
         List<string> dirsToCheck,
         DirectoryScanState state)
     {
-        var forest = BuildDirectoryForest(dirsToCheck);
+        var forest = BuildDirectoryForest(dirsToCheck, state.Ctx);
         foreach (var root in forest)
         {
             await WalkDirectoryNodeAsync(root, enclosingScope: null, state);
@@ -163,14 +162,24 @@ public partial class Layer2ProjectParser
             return;
         }
 
+        var isRoot = string.Equals(
+            node.NormalizedPath,
+            state.Ctx.AbsoluteWorkspacePath.NormalizeFullPath(trimTrailingSlash: true),
+            StringComparison.OrdinalIgnoreCase);
         var activeResults = MatchProjectParsersInDirectory(dir, filesInDir, enclosingScope, state.Ctx);
         if (activeResults.Count == 0)
         {
+            InspectUmbrellaDirectoryManifests(dir, filesInDir, state);
             foreach (var child in node.Children)
             {
                 await WalkDirectoryNodeAsync(child, enclosingScope, state);
             }
             return;
+        }
+
+        if (isRoot)
+        {
+            InspectUmbrellaDirectoryManifests(dir, filesInDir, state, activeResults);
         }
 
         var nextScope = await InstantiateMatchedProjectsInDirectoryAsync(dir, filesInDir, activeResults, state)
@@ -235,9 +244,10 @@ public partial class Layer2ProjectParser
         bool? precomputedIsLeafGitRepo = null,
         bool? precomputedHasSourceFiles = null)
     {
+        var dirIndex = state.Ctx.DirectoryIndex;
         var isLeafGitRepo = precomputedIsLeafGitRepo
-                            ?? (PhysicalFileStore.IsGitRepositoryRoot(dir) && !PhysicalFileStore.HasChildGitRepositories(dir));
-        if ((PhysicalFileStore.HasAnyConfiguredProjects && PhysicalFileStore.TryGetConfiguredProject(dir, out _)) || isLeafGitRepo)
+                            ?? (dirIndex.IsGitRepositoryRoot(dir) && !dirIndex.HasChildGitRepositories(dir));
+        if ((dirIndex.HasAnyConfiguredProjects && dirIndex.TryGetConfiguredProject(dir, out _)) || isLeafGitRepo)
         {
             return null;
         }
@@ -283,12 +293,24 @@ public partial class Layer2ProjectParser
         ProjectNode absorbingOwner,
         DirectoryScanState state)
     {
+        InspectUmbrellaDirectoryManifests(dir, filesInDir, state);
+        var parseContext = new ProjectParseContext(dir, filesInDir, state.Ctx.AbsoluteWorkspacePath, state.Ctx.DirectoryIndex);
         foreach (var mp in WorkspaceIndexer._projectParsers.Where(p => !p.IsFallback))
         {
             if (mp.IsManifestFile(Path.GetFileName(filesInDir.FirstOrDefault() ?? "")) ||
                 filesInDir.Any(f => mp.IsManifestFile(Path.GetFileName(f))))
             {
-                var absorbedDep = await ParseProjectDependenciesAsync(mp, dir, state.Ctx);
+                ProjectDependencyInfo? absorbedDep;
+                if (mp.TryParse(parseContext, out var absorbedRes) && absorbedRes != null)
+                {
+                    absorbedDep = absorbedRes.Project.Dependencies;
+                    RecordDirectoryManifestMetadata(dir, absorbedRes.Project.ManifestMetadata, isRoot: false, state);
+                }
+                else
+                {
+                    absorbedDep = await ParseProjectDependenciesAsync(mp, dir, state.Ctx);
+                }
+
                 if (absorbedDep != null)
                 {
                     AttachDependencies(
@@ -306,26 +328,114 @@ public partial class Layer2ProjectParser
         }
     }
 
+    private static void InspectUmbrellaDirectoryManifests(
+        string dir,
+        string[] filesInDir,
+        DirectoryScanState state,
+        List<(IProjectParser Parser, ProjectParseResult Result)>? alreadyMatched = null)
+    {
+        if (filesInDir.Length == 0) return;
+
+        var normDir = dir.NormalizeFullPath(trimTrailingSlash: true);
+        var normRoot = state.Ctx.AbsoluteWorkspacePath.NormalizeFullPath(trimTrailingSlash: true);
+        var isRoot = string.Equals(normDir, normRoot, StringComparison.OrdinalIgnoreCase);
+
+        if (alreadyMatched != null)
+        {
+            for (var i = 0; i < alreadyMatched.Count; i++)
+            {
+                RecordDirectoryManifestMetadata(dir, alreadyMatched[i].Result.Project.ManifestMetadata, isRoot, state);
+            }
+        }
+
+        var parseContext = new ProjectParseContext(dir, filesInDir, state.Ctx.AbsoluteWorkspacePath, state.Ctx.DirectoryIndex);
+        var hasTsParser = WorkspaceIndexer._projectParsers.Any(p => string.Equals(p.ProjectType, "typescript", StringComparison.OrdinalIgnoreCase));
+
+        foreach (var parser in WorkspaceIndexer._projectParsers.Where(p => !p.IsFallback))
+        {
+            if (hasTsParser && string.Equals(parser.ProjectType, "javascript", StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            if (alreadyMatched != null && alreadyMatched.Any(m => ReferenceEquals(m.Parser, parser)))
+            {
+                continue;
+            }
+
+            if (!filesInDir.Any(f => parser.IsManifestFile(Path.GetFileName(f))))
+            {
+                continue;
+            }
+
+            var meta = parser.InspectDirectoryManifestMetadata(parseContext);
+            RecordDirectoryManifestMetadata(dir, meta, isRoot, state);
+        }
+    }
+
+    private static void RecordDirectoryManifestMetadata(
+        string dir,
+        ParsedProjectManifestMetadata? meta,
+        bool isRoot,
+        DirectoryScanState state)
+    {
+        if (meta == null) return;
+
+        var normDir = dir.NormalizeFullPath(trimTrailingSlash: true);
+        if (!string.IsNullOrEmpty(meta.DatabaseDriverEngine) && !string.IsNullOrEmpty(meta.DatabaseDriverFamily))
+        {
+            state.Ctx.DirectoryManifestDrivers[normDir] = (meta.DatabaseDriverEngine, meta.DatabaseDriverFamily);
+        }
+
+        if (!string.IsNullOrEmpty(meta.GoModuleName))
+        {
+            var relDir = Path.GetRelativePath(state.Ctx.AbsoluteWorkspacePath, dir).Replace('\\', '/');
+            if (string.IsNullOrEmpty(relDir)) relDir = ".";
+            state.Ctx.WorkspaceGoModules.TryAdd(meta.GoModuleName, relDir);
+        }
+
+        if (isRoot && meta.TsConfigPaths != null)
+        {
+            foreach (var (k, v) in meta.TsConfigPaths)
+            {
+                state.Ctx.TsConfigPaths[k] = v;
+            }
+        }
+
+        if (isRoot ||
+            !string.IsNullOrEmpty(meta.NuspecId) ||
+            !string.IsNullOrEmpty(meta.NuspecVersion) ||
+            meta.NuspecDependencies is { Count: > 0 })
+        {
+            var wsMetaList = state.L1Result.Workspace.Signals().WorkspaceManifestMetadata;
+            if (!wsMetaList.Contains(meta))
+            {
+                wsMetaList.Add(meta);
+            }
+        }
+    }
+
     private static List<(IProjectParser Parser, ProjectParseResult Result)> MatchProjectParsersInDirectory(
         string dir,
         string[] filesInDir,
         EnclosingProjectScope? enclosingScope,
-        ParsingContext ctx,
+        Layer2Context ctx,
         bool? precomputedIsLeafGitRepo = null,
         SubtreeLanguageCounts? precomputedCounts = null)
     {
+        var dirIndex = ctx.DirectoryIndex;
         WorkspaceProjectSetting? configuredSetting = null;
-        var isExplicitConfigured = PhysicalFileStore.HasAnyConfiguredProjects &&
-                                   PhysicalFileStore.TryGetConfiguredProject(dir, out configuredSetting) &&
+        var isExplicitConfigured = dirIndex.HasAnyConfiguredProjects &&
+                                   dirIndex.TryGetConfiguredProject(dir, out configuredSetting) &&
                                    configuredSetting != null;
-        if (!isExplicitConfigured && PhysicalFileStore.HasAnyConfiguredProjects && PhysicalFileStore.HasChildConfiguredProjects(dir))
+        if (!isExplicitConfigured && dirIndex.HasAnyConfiguredProjects && dirIndex.HasChildConfiguredProjects(dir))
         {
             return [];
         }
 
         var isNestedGitRepo = precomputedIsLeafGitRepo
-                              ?? (PhysicalFileStore.IsGitRepositoryRoot(dir) && !PhysicalFileStore.HasChildGitRepositories(dir));
-        var parseContext = new ProjectParseContext(dir, filesInDir, ctx.AbsoluteWorkspacePath);
+                              ?? (dirIndex.IsGitRepositoryRoot(dir) && !dirIndex.HasChildGitRepositories(dir));
+        var parseContext = new ProjectParseContext(dir, filesInDir, ctx.AbsoluteWorkspacePath, dirIndex);
         var matchedResults = new List<(IProjectParser Parser, ProjectParseResult Result)>();
 
         foreach (var parser in WorkspaceIndexer._projectParsers.Where(p => !p.IsFallback))
@@ -359,7 +469,7 @@ public partial class Layer2ProjectParser
         {
             if (matchedResults.Count == 0)
             {
-                var fallbackParser = ResolveConfiguredProjectParser(dir, configuredSetting);
+                var fallbackParser = ResolveConfiguredProjectParser(dir, configuredSetting, dirIndex);
                 if (fallbackParser != null)
                 {
                     var props = fallbackParser.ExtractManifestProperties(dir, filesInDir);
@@ -388,7 +498,7 @@ public partial class Layer2ProjectParser
         return RankMultiEcosystemMatches(dir, filtered, precomputedCounts);
     }
 
-    private static IProjectParser? ResolveConfiguredProjectParser(string dir, WorkspaceProjectSetting setting)
+    private static IProjectParser? ResolveConfiguredProjectParser(string dir, WorkspaceProjectSetting setting, WorkspaceDirectoryIndex dirIndex)
     {
         if (!string.IsNullOrWhiteSpace(setting.Language))
         {
@@ -408,7 +518,7 @@ public partial class Layer2ProjectParser
         var csCount = 0;
         var goCount = 0;
 
-        foreach (var file in PhysicalFileStore.EnumerateCachedFilesInSubtree(dir))
+        foreach (var file in dirIndex.EnumerateCachedFilesInSubtree(dir))
         {
             switch (Path.GetExtension(file).ToLowerInvariant())
             {
@@ -450,19 +560,19 @@ public partial class Layer2ProjectParser
                ?? WorkspaceIndexer._projectParsers.FirstOrDefault(p => !p.IsFallback);
     }
 
-    private static List<(IProjectParser Parser, ParsedProjectDescriptor Descriptor, List<IProjectParser> MergedSecondaryParsers)>
+    private static List<(IProjectParser Parser, ParsedProjectDescriptor Descriptor, List<(IProjectParser Parser, ParsedProjectDescriptor Descriptor)> MergedSecondaries)>
         BuildIndependentEntries(List<(IProjectParser Parser, ProjectParseResult Result)> activeResults)
     {
         var hasPrimaryAbsorbing = activeResults.Any(r =>
             ProjectParserPrecedence.GetTier(r.Parser) == ParserTier.Primary &&
             r.Result.ClaimMode == ParserClaimMode.AbsorbSecondaryInDirectory);
 
-        var entries = new List<(IProjectParser Parser, ParsedProjectDescriptor Descriptor, List<IProjectParser> MergedSecondaryParsers)>();
+        var entries = new List<(IProjectParser Parser, ParsedProjectDescriptor Descriptor, List<(IProjectParser Parser, ParsedProjectDescriptor Descriptor)> MergedSecondaries)>();
         if (hasPrimaryAbsorbing)
         {
-            var secondaryParsers = activeResults
+            var secondaryEntries = activeResults
                 .Where(r => ProjectParserPrecedence.GetTier(r.Parser) != ParserTier.Primary)
-                .Select(r => r.Parser)
+                .Select(r => (r.Parser, r.Result.Project))
                 .ToList();
 
             var primaryEntries = activeResults
@@ -472,7 +582,7 @@ public partial class Layer2ProjectParser
             for (var idx = 0; idx < primaryEntries.Count; idx++)
             {
                 var (pParser, pRes) = primaryEntries[idx];
-                entries.Add((pParser, pRes.Project, idx == 0 ? secondaryParsers : []));
+                entries.Add((pParser, pRes.Project, idx == 0 ? secondaryEntries : []));
                 if (pRes.AdditionalSiblingProjects != null)
                 {
                     foreach (var sib in pRes.AdditionalSiblingProjects)
@@ -485,8 +595,8 @@ public partial class Layer2ProjectParser
         else
         {
             var first = activeResults[0];
-            var restParsers = activeResults.Skip(1).Select(r => r.Parser).ToList();
-            entries.Add((first.Parser, first.Result.Project, restParsers));
+            var restEntries = activeResults.Skip(1).Select(r => (r.Parser, r.Result.Project)).ToList();
+            entries.Add((first.Parser, first.Result.Project, restEntries));
             if (first.Result.AdditionalSiblingProjects != null)
             {
                 foreach (var sib in first.Result.AdditionalSiblingProjects)
@@ -507,8 +617,12 @@ public partial class Layer2ProjectParser
     {
         var independentEntries = BuildIndependentEntries(activeResults);
         EnclosingProjectScope? primaryScope = null;
+        var isRoot = string.Equals(
+            dir.NormalizeFullPath(trimTrailingSlash: true),
+            state.Ctx.AbsoluteWorkspacePath.NormalizeFullPath(trimTrailingSlash: true),
+            StringComparison.OrdinalIgnoreCase);
 
-        foreach (var (projectParser, descriptor, mergedSecondaryParsers) in independentEntries)
+        foreach (var (projectParser, descriptor, mergedSecondaries) in independentEntries)
         {
             var projectName = descriptor.Name;
             if (string.IsNullOrEmpty(projectName)) projectName = Path.GetFileName(dir);
@@ -528,9 +642,15 @@ public partial class Layer2ProjectParser
                 continue;
             }
 
-            var depInfo = await ParseMergedDependenciesAsync(dir, projectParser, mergedSecondaryParsers, state.Ctx);
+            RecordDirectoryManifestMetadata(dir, descriptor.ManifestMetadata, isRoot, state);
+            for (var s = 0; s < mergedSecondaries.Count; s++)
+            {
+                RecordDirectoryManifestMetadata(dir, mergedSecondaries[s].Descriptor.ManifestMetadata, isRoot, state);
+            }
+
+            var depInfo = MergeDescriptorDependencies(descriptor, mergedSecondaries);
             var extPkgNames = depInfo?.ExternalPackages.Select(p => p.Name).ToList();
-            var manifestProps = BuildMergedManifestProperties(dir, filesInDir, projectName, descriptor, mergedSecondaryParsers);
+            var manifestProps = BuildMergedManifestProperties(projectName, descriptor, mergedSecondaries);
 
             var projectNode = ProjectNodeFactory.Create(
                 projectNodeId,
@@ -540,7 +660,8 @@ public partial class Layer2ProjectParser
                 dir,
                 filesInDir,
                 extPkgNames,
-                manifestProps);
+                manifestProps,
+                descriptor.ManifestMetadata);
 
             state.ProjectsStructureNode.Children.Add(projectNode);
             state.Projects.Add(projectNode);
@@ -553,7 +674,7 @@ public partial class Layer2ProjectParser
                 state.ProjectDepList.Add((projectNode, depInfo));
             }
 
-            await RegisterProducedPackageAliasesAsync(projectNode, projectNodeId, projectParser, dir, state);
+            await RegisterProducedPackageAliasesAsync(projectNode, projectNodeId, projectParser, dir, descriptor.ProducedPackage, state);
             primaryScope ??= CreateEnclosingProjectScope(dir, projectNode, projectParser, descriptor);
         }
 
@@ -586,16 +707,14 @@ public partial class Layer2ProjectParser
             excludedFull);
     }
 
-    private static async Task<ProjectDependencyInfo?> ParseMergedDependenciesAsync(
-        string dir,
-        IProjectParser primaryParser,
-        List<IProjectParser> mergedSecondaryParsers,
-        ParsingContext ctx)
+    private static ProjectDependencyInfo? MergeDescriptorDependencies(
+        ParsedProjectDescriptor primaryDescriptor,
+        List<(IProjectParser Parser, ParsedProjectDescriptor Descriptor)> mergedSecondaries)
     {
-        ProjectDependencyInfo? depInfo = null;
-        foreach (var mp in new[] { primaryParser }.Concat(mergedSecondaryParsers))
+        var depInfo = primaryDescriptor.Dependencies;
+        for (var i = 0; i < mergedSecondaries.Count; i++)
         {
-            var subDep = await ParseProjectDependenciesAsync(mp, dir, ctx);
+            var subDep = mergedSecondaries[i].Descriptor.Dependencies;
             if (subDep == null) continue;
 
             if (depInfo == null)
@@ -622,16 +741,14 @@ public partial class Layer2ProjectParser
     private const string PropPrimaryRole = "primary_role";
 
     private static Dictionary<string, string> BuildMergedManifestProperties(
-        string dir,
-        string[] filesInDir,
         string projectName,
         ParsedProjectDescriptor descriptor,
-        List<IProjectParser> mergedSecondaryParsers)
+        List<(IProjectParser Parser, ParsedProjectDescriptor Descriptor)> mergedSecondaries)
     {
         var manifestProps = new Dictionary<string, string>(descriptor.ManifestProperties, StringComparer.OrdinalIgnoreCase);
-        foreach (var secParser in mergedSecondaryParsers)
+        for (var i = 0; i < mergedSecondaries.Count; i++)
         {
-            var secProps = secParser.ExtractManifestProperties(dir, filesInDir);
+            var secProps = mergedSecondaries[i].Descriptor.ManifestProperties;
             if (secProps.TryGetValue(PropPrimaryRole, out var secPrimary) &&
                 string.Equals(secPrimary, "App", StringComparison.OrdinalIgnoreCase) &&
                 string.Equals(manifestProps.GetValueOrDefault(PropPrimaryRole), "Service", StringComparison.OrdinalIgnoreCase) &&
@@ -641,8 +758,8 @@ public partial class Layer2ProjectParser
                 manifestProps["role"] = "FrontendApp";
                 manifestProps["kind"] = "App";
                 manifestProps["framework_type"] = "frontend";
-                manifestProps["secondary_roles"] = System.Text.Json.JsonSerializer.Serialize(new[] { "Service" });
-                manifestProps["all_roles"] = System.Text.Json.JsonSerializer.Serialize(new[] { "App", "Service" });
+                manifestProps["secondary_roles"] = JsonSerializer.Serialize(new[] { "Service" });
+                manifestProps["all_roles"] = JsonSerializer.Serialize(new[] { "App", "Service" });
             }
         }
         return manifestProps;
@@ -774,9 +891,16 @@ public partial class Layer2ProjectParser
         string projectNodeId,
         IProjectParser projectParser,
         string dir,
+        ProducedPackageInfo? preParsedProducedPackage,
         DirectoryScanState state)
     {
-        var (prodPkg, prodEco, explicitCoord) = await LinkProducedPackageAsync(projectNode, projectNodeId, projectParser, dir, state.Ctx);
+        var (prodPkg, prodEco, explicitCoord) = await LinkProducedPackageAsync(
+            projectNode,
+            projectNodeId,
+            projectParser,
+            dir,
+            preParsedProducedPackage,
+            state.Ctx);
         if (!string.IsNullOrEmpty(prodPkg))
         {
             RegisterEcosystemPackageAlias(state.PackageToProjectMap, prodEco, prodPkg, projectNode, isExplicitPackageCoordinate: explicitCoord);

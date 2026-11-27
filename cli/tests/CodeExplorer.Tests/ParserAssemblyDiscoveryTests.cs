@@ -105,11 +105,11 @@ public class ParserAssemblyDiscoveryTests
         var indexingAsm = typeof(WorkspaceIndexer).Assembly;
         indexingAsm.GetName().Name.Should().Be("CodeExplorer.Indexing");
 
-        typeof(CodeExplorer.Core.Parser.Layers.Layer1PhysicalParser).Assembly.Should().BeSameAs(indexingAsm);
-        typeof(CodeExplorer.Core.Parser.Layers.Layer2ProjectParser).Assembly.Should().BeSameAs(indexingAsm);
-        typeof(CodeExplorer.Core.Parser.Layers.Layer3SyntacticParser).Assembly.Should().BeSameAs(indexingAsm);
-        typeof(CodeExplorer.Core.Parser.Layers.Layer4SemanticParser).Assembly.Should().BeSameAs(indexingAsm);
-        typeof(CodeExplorer.Core.Parser.Layers.Layer5AnalysisParser).Assembly.Should().BeSameAs(indexingAsm);
+        typeof(Core.Parser.Layers.Layer1PhysicalParser).Assembly.Should().BeSameAs(indexingAsm);
+        typeof(Core.Parser.Layers.Layer2ProjectParser).Assembly.Should().BeSameAs(indexingAsm);
+        typeof(Core.Parser.Layers.Layer3SyntacticParser).Assembly.Should().BeSameAs(indexingAsm);
+        typeof(Core.Parser.Layers.Layer4SemanticParser).Assembly.Should().BeSameAs(indexingAsm);
+        typeof(Core.Parser.Layers.Layer5AnalysisParser).Assembly.Should().BeSameAs(indexingAsm);
 
         var coreRefs = typeof(ParserRegistry).Assembly.GetReferencedAssemblies().Select(r => r.Name).ToList();
         coreRefs.Should().NotContain("CodeExplorer.Indexing");

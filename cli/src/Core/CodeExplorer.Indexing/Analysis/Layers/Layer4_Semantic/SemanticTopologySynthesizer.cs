@@ -1,3 +1,4 @@
+using System.Text.Json;
 using System.Text.RegularExpressions;
 using CodeExplorer.Core.Common.Nodes.Layer1_Physical;
 using CodeExplorer.Core.Common.Nodes.Layer2_Boundaries;
@@ -23,10 +24,11 @@ internal static class SemanticTopologySynthesizer
         SemanticStructureNode semanticStructureNode,
         List<Relationship> semanticRelationships,
         HashSet<(string From, string To, string Kind)> existingRelKeys,
-        ParsingContext ctx)
+        SemanticParseContext ctx,
+        CancellationToken cancellationToken = default)
     {
         var nonTestRustProjects = projects
-            .Where(project => project.ProjectType == CodeExplorer.Cypher.Common.ProjectLanguage.Rust && !project.IsTest)
+            .Where(project => project.ProjectType == ProjectLanguage.Rust && !project.IsTest)
             .ToList();
         if (nonTestRustProjects.Count == 0)
         {
@@ -84,7 +86,7 @@ internal static class SemanticTopologySynthesizer
 
         foreach (var project in nonTestRustProjects)
         {
-            ctx.CancellationToken.ThrowIfCancellationRequested();
+            cancellationToken.ThrowIfCancellationRequested();
             var sources = filesByProjectId.GetValueOrDefault(project.Id) ?? [];
             var ownFiles = sources
                 .Where(file => file.Name.EndsWith(".rs", StringComparison.OrdinalIgnoreCase) &&
@@ -120,7 +122,7 @@ internal static class SemanticTopologySynthesizer
             if (langParser != null)
             {
                 workloadByProjectId.TryGetValue(project.Id, out var projWorkloadId);
-                for (int e = 0; e < langParser.SemanticExtensions.Count; e++)
+                for (var e = 0; e < langParser.SemanticExtensions.Count; e++)
                 {
                     langParser.SemanticExtensions[e].SynthesizeCloudResources(
                         project,
@@ -147,9 +149,9 @@ internal static class SemanticTopologySynthesizer
         Dictionary<string, string[]>? reachability;
         try
         {
-            reachability = System.Text.Json.JsonSerializer.Deserialize<Dictionary<string, string[]>>(json);
+            reachability = JsonSerializer.Deserialize<Dictionary<string, string[]>>(json);
         }
-        catch (System.Text.Json.JsonException)
+        catch (JsonException)
         {
             return [];
         }

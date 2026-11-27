@@ -234,7 +234,7 @@ public class ApiServerTests
             {
                 Id = "SIG-TEST-API-001",
                 Name = "API Test Gate",
-                Category = CodeExplorer.Core.Gates.Models.GateCategory.Architectural,
+                Category = Core.Gates.Models.GateCategory.Architectural,
                 Platform = "agnostic",
                 Scope = "Project",
                 Dimension = "Rules",
@@ -661,7 +661,7 @@ public class ApiServerTests
         await client2.ConnectAsync(new Uri(_wsBaseUrl), CancellationToken.None);
         await client3.ConnectAsync(new Uri(_wsBaseUrl), CancellationToken.None);
 
-        for (int i = 0; i < 20 && _wsHandler.ActiveSessionsCount < 3; i++)
+        for (var i = 0; i < 20 && _wsHandler.ActiveSessionsCount < 3; i++)
         {
             await Task.Delay(25);
         }

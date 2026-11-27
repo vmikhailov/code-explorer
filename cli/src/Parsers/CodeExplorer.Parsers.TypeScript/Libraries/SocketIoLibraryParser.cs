@@ -47,7 +47,7 @@ public class SocketIoLibraryParser : DeclarativeSemanticExtension
 
     public override IReadOnlyList<CustomAstRule> CustomAstRules => Rules;
 
-    private static string? MapNodeTypeCore(Node node, ParsingContext ctx)
+    private static string? MapNodeTypeCore(Node node, SemanticParseContext ctx)
     {
         if (_socketOnSelector.Matches(node)) return OntologyConstants.NodeLabels.EntryPoint;
         if (_socketEmitSelector.Matches(node))
@@ -58,7 +58,7 @@ public class SocketIoLibraryParser : DeclarativeSemanticExtension
         return null;
     }
 
-    private static string? ExtractIdentifierCore(Node node, ParsingContext ctx)
+    private static string? ExtractIdentifierCore(Node node, SemanticParseContext ctx)
     {
         var isOn = _socketOnSelector.Matches(node);
         var isEmit = _socketEmitSelector.Matches(node);

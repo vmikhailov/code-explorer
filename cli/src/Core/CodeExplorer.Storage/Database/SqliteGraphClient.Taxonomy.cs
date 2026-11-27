@@ -1,5 +1,4 @@
 using System.Text.Json;
-using CodeExplorer.Cypher.Common;
 using Dapper;
 using Microsoft.Data.Sqlite;
 using Microsoft.Extensions.Logging;
@@ -576,22 +575,22 @@ public partial class SqliteGraphClient
 
     public bool SupportsIdentifierSearch => true;
 
-    public Task<IReadOnlyList<Analysis.IdentifierMatch>> SearchIdentifiersAsync(
+    public Task<IReadOnlyList<IdentifierMatch>> SearchIdentifiersAsync(
         string query,
         string? kindFilter = null,
         int limit = 20,
         CancellationToken cancellationToken = default)
     {
-        var engine = new Analysis.IdentifierSearchEngine(_logger);
+        var engine = new IdentifierSearchEngine(_logger);
         return WithSqliteConnectionAsync(conn => engine.SearchAsync(conn, query, kindFilter, limit, ct: cancellationToken), cancellationToken);
     }
 
-    public Task<Analysis.IdentifierMatch?> ResolveIdentifierAsync(
+    public Task<IdentifierMatch?> ResolveIdentifierAsync(
         string query,
         string? kindFilter = null,
         CancellationToken cancellationToken = default)
     {
-        var engine = new Analysis.IdentifierSearchEngine(_logger);
+        var engine = new IdentifierSearchEngine(_logger);
         return WithSqliteConnectionAsync(conn => engine.ResolveIdentifierAsync(conn, query, kindFilter, ct: cancellationToken), cancellationToken);
     }
 

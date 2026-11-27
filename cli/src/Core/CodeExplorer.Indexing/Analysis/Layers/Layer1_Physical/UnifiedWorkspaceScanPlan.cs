@@ -1,6 +1,5 @@
 using System.IO.Enumeration;
 using System.Runtime.CompilerServices;
-using CodeExplorer.Core.Common.Nodes;
 using CodeExplorer.Core.Common.Nodes.Layer1_Physical;
 
 namespace CodeExplorer.Core.Parser.Layers;
@@ -305,8 +304,8 @@ internal static class ProjectTriggerDetector
 
     public static bool HasCandidateProjectTrigger(string dir, string[] filesInDir)
     {
-        if (PhysicalFileStore.IsGitRepositoryRoot(dir) ||
-            (PhysicalFileStore.HasAnyConfiguredProjects && PhysicalFileStore.TryGetConfiguredProject(dir, out _)))
+        if (WorkspaceDirectoryIndex.IsGitRepoRootInCurrent(dir) ||
+            (WorkspaceDirectoryIndex.HasAnyConfiguredProjectsInCurrent && WorkspaceDirectoryIndex.TryGetConfiguredProjectInCurrent(dir, out _)))
         {
             return true;
         }

@@ -19,11 +19,11 @@
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="AwesomeAssertions" Version="9.6.0" />
-    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.10.0" />
-    <PackageReference Include="NUnit" Version="4.1.0" />
-    <PackageReference Include="NUnit3TestAdapter" Version="4.5.0" />
-    <PackageReference Include="NUnit.Analyzers" Version="4.2.0" />
+    <PackageReference Include="AwesomeAssertions" />
+    <PackageReference Include="Microsoft.NET.Test.Sdk" />
+    <PackageReference Include="NUnit" />
+    <PackageReference Include="NUnit3TestAdapter" />
+    <PackageReference Include="NUnit.Analyzers" />
   </ItemGroup>
 
   <ItemGroup>
@@ -31,6 +31,7 @@
     <ProjectReference Include="..\..\src\Core\CodeExplorer.Storage\CodeExplorer.Storage.csproj" />
     <ProjectReference Include="..\..\src\Core\CodeExplorer.Gates\CodeExplorer.Gates.csproj" />
     <ProjectReference Include="..\..\src\Core\CodeExplorer.Indexing\CodeExplorer.Indexing.csproj" />
+    <ProjectReference Include="..\..\src\Core\CodeExplorer.Intent\CodeExplorer.Intent.csproj" />
     <ProjectReference Include="..\..\src\Core\CodeExplorer.Analysis\CodeExplorer.Analysis.csproj" />
 
     <ProjectReference Include="..\..\src\Server\CodeExplorer.Server\CodeExplorer.Server.csproj" />
@@ -57,7 +58,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="4.14.0" />
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp" />
   </ItemGroup>
 
   <ItemGroup>

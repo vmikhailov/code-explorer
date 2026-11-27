@@ -1,5 +1,4 @@
 using System.Text.RegularExpressions;
-using CodeExplorer.Core.Parser.Syntax;
 
 namespace CodeExplorer.Core.Common;
 
@@ -34,7 +33,10 @@ public static class ResourceNamingHelper
         "pg_constraint", "pg_depend", "pg_description", "pg_index", "pg_am", "pg_attrdef",
         "pg_authid", "pg_auth_members", "pg_extension", "pg_inherits", "pg_language", "pg_operator",
         "pg_opclass", "pg_rewrite", "pg_sequence", "pg_shdepend", "pg_statistic", "pg_tablespace",
-        "pg_trigger", "dual"
+        "pg_trigger", "dual",
+        "columns", "tables", "schemata", "key_column_usage", "table_constraints",
+        "referential_constraints", "check_constraints", "constraint_column_usage",
+        "constraint_table_usage", "information_schema", "sysdatabases", "sysobjects", "syscolumns", "sysindexes"
     };
 
     public static readonly HashSet<string> KnownTableValuedFunctions = new(StringComparer.OrdinalIgnoreCase)
@@ -241,8 +243,14 @@ public static class ResourceNamingHelper
     {
         "for", "com", "org", "net", "io", "edu", "gov",
         "old", "new", "self", "this", "cls", "src",
-        "none", "true", "false", "pythonpath", "table"
+        "none", "true", "false", "pythonpath", "table",
+        "attrs", "attr", "kwargs", "args", "props", "plugin", "plugins"
     };
+
+    private static readonly string[] DisallowedCodeClassTableSuffixes =
+    [
+        "Plugin", "Plugins", "Middleware", "Exception", "Error", "Controller", "Handler", "Factory", "Provider"
+    ];
 
     public static bool IsGenericConfigKey(string key)
     {
@@ -306,9 +314,20 @@ public static class ResourceNamingHelper
                lower.Contains("jpa") || lower.Contains("hibernate") || lower.Contains("spring data");
     }
 
+    public static bool IsSystemCatalogSchema(string? schema)
+    {
+        if (string.IsNullOrWhiteSpace(schema)) return false;
+        var trimmed = schema.Trim().Trim('`', '"', '\'', '[', ']').Trim();
+        return trimmed.Equals("information_schema", StringComparison.OrdinalIgnoreCase) ||
+               trimmed.Equals("pg_catalog", StringComparison.OrdinalIgnoreCase) ||
+               trimmed.Equals("sys", StringComparison.OrdinalIgnoreCase);
+    }
+
     public static bool IsValidTableIdentifier(string? name)
     {
         if (string.IsNullOrWhiteSpace(name)) return false;
+        if (name.IndexOfAny(['\n', '\r', '\t']) >= 0) return false;
+
         var rawTrimmed = name.Trim();
         if (rawTrimmed.Contains('=') || rawTrimmed.Contains('{') || rawTrimmed.Contains('}') ||
             rawTrimmed.Contains('+') || rawTrimmed.Contains(':') || rawTrimmed.Contains('<') ||
@@ -318,7 +337,7 @@ public static class ResourceNamingHelper
         }
 
         var clean = rawTrimmed.Trim('`', '"', '\'', '[', ']').Trim();
-        if (clean.Length < 1 || clean.Length > 128) return false;
+        if (clean.Length <= 2 || clean.Length > 128) return false;
         if (clean.Contains(' ') || clean.Contains('\t') || clean.Contains('\n') || clean.Contains('\r') ||
             clean.Contains('"') || clean.Contains('\''))
         {
@@ -331,18 +350,28 @@ public static class ResourceNamingHelper
         }
 
         var parts = clean.Split('.');
-        if (parts.Length == 1 && DisallowedSingleTableNames.Contains(parts[0].Trim('`', '"', '\'', '[', ']').Trim()))
+        if (parts.Length == 1)
         {
-            return false;
+            var singlePart = parts[0].Trim('`', '"', '\'', '[', ']').Trim();
+            if (DisallowedSingleTableNames.Contains(singlePart))
+            {
+                return false;
+            }
+            for (var s = 0; s < DisallowedCodeClassTableSuffixes.Length; s++)
+            {
+                if (singlePart.Length > DisallowedCodeClassTableSuffixes[s].Length &&
+                    singlePart.EndsWith(DisallowedCodeClassTableSuffixes[s], StringComparison.Ordinal))
+                {
+                    return false;
+                }
+            }
         }
 
         foreach (var p in parts)
         {
             var trimmedPart = p.Trim('`', '"', '\'', '[', ']').Trim();
             if (string.IsNullOrWhiteSpace(trimmedPart)) return false;
-            if (trimmedPart.Equals("pg_catalog", StringComparison.OrdinalIgnoreCase) ||
-                trimmedPart.Equals("information_schema", StringComparison.OrdinalIgnoreCase) ||
-                trimmedPart.Equals("sys", StringComparison.OrdinalIgnoreCase))
+            if (IsSystemCatalogSchema(trimmedPart))
             {
                 return false;
             }
@@ -350,7 +379,9 @@ public static class ResourceNamingHelper
             if (!ValidTablePartCompiledRegex.IsMatch(trimmedPart)) return false;
         }
 
-        var tableName = parts[^1].Trim('`', '"', '\'', '[', ']').Trim().ToLowerInvariant();
+        var rawLeaf = parts[^1].Trim('`', '"', '\'', '[', ']').Trim();
+        if (rawLeaf.Length <= 2) return false;
+        var tableName = rawLeaf.ToLowerInvariant();
         if (DisallowedSingleTableNames.Contains(tableName) ||
             tableName.StartsWith("temp_", StringComparison.OrdinalIgnoreCase) ||
             tableName.StartsWith("tmp_", StringComparison.OrdinalIgnoreCase) ||

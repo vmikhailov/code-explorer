@@ -26,5 +26,5 @@ public interface ILibraryConfigurationDescriptor
         string workspaceId,
         IOntologyNode containerNode,
         List<Relationship> relationships,
-        ParsingContext ctx);
+        SemanticParseContext ctx);
 }

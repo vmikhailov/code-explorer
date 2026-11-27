@@ -129,8 +129,7 @@ public class ResourceReconciliationTests
             aliases: ["orders_db"]
         );
 
-        var ctx = new ParsingContext("ws1", "ws1", _service);
-
+        var ctx = new SemanticParseContext("ws1", "ws1", _service);
         var queryNode = NestedSqlParser.ParseNestedSql("SELECT id, name FROM customers WHERE active = 1", "ws1:query:1", "repo/query.sql", ctx);
         queryNode.Should().NotBeNull();
 

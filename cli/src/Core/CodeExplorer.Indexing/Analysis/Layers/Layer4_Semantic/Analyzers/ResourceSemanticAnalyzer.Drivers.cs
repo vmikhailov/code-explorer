@@ -1,6 +1,4 @@
 using System.Collections.Concurrent;
-using System.Text.RegularExpressions;
-using CodeExplorer.Core.Common.Nodes;
 using CodeExplorer.Core.Common.Nodes.Layer2_Boundaries;
 
 namespace CodeExplorer.Core.Parser;
@@ -9,7 +7,7 @@ public partial class ResourceSemanticAnalyzer
 {
     private static readonly ConcurrentDictionary<string, (string? Engine, string? DbType)> _projectDriverCache = new(StringComparer.OrdinalIgnoreCase);
 
-    private static (string? Engine, string? DbType) DetectProjectDatabaseDriver(ProjectNode projectNode, ParsingContext ctx)
+    private static (string? Engine, string? DbType) DetectProjectDatabaseDriver(ProjectNode projectNode, SemanticParseContext ctx)
     {
         if (projectNode == null) return (null, null);
         var cacheKey = $"{ctx.AbsoluteWorkspacePath}|{projectNode.Id}";
@@ -29,7 +27,7 @@ public partial class ResourceSemanticAnalyzer
             {
                 var thisProjRel = ctx.ResourceRegistry.AllResources
                     .FirstOrDefault(r => r.BelongsToProject(projectNode.Id) &&
-                                         r.DbType == CodeExplorer.Cypher.Common.DatabaseType.Relational &&
+                                         r.DbType == DatabaseType.Relational &&
                                          !ResourceNamingHelper.IsGenericConfigKey(r.Engine) &&
                                          !string.Equals(r.Name, "Database", StringComparison.OrdinalIgnoreCase));
                 if (thisProjRel != null && !string.IsNullOrEmpty(thisProjRel.Engine))
@@ -95,7 +93,7 @@ public partial class ResourceSemanticAnalyzer
         {
             var thisProjRelational = ctx.ResourceRegistry.AllResources
                 .FirstOrDefault(r => r.BelongsToProject(projectNode.Id) &&
-                                     r.DbType == CodeExplorer.Cypher.Common.DatabaseType.Relational &&
+                                     r.DbType == DatabaseType.Relational &&
                                      !ResourceNamingHelper.IsGenericConfigKey(r.Engine) &&
                                      !string.Equals(r.Name, "Database", StringComparison.OrdinalIgnoreCase));
             if (thisProjRelational != null && !string.IsNullOrEmpty(thisProjRelational.Engine))
@@ -111,7 +109,7 @@ public partial class ResourceSemanticAnalyzer
     }
 
     private static (string? Engine, string? DbType) DetectFileDatabaseDriver(
-        CodeExplorer.Core.Common.Nodes.Layer1_Physical.FileNode? fileNode,
+        Common.Nodes.Layer1_Physical.FileNode? fileNode,
         SyntaxTree? syntaxTree)
     {
         if (fileNode != null)
@@ -138,7 +136,7 @@ public partial class ResourceSemanticAnalyzer
         return (null, null);
     }
 
-    private static (string? Engine, string? DbType) FindEngineInNodeReferences(CodeExplorer.Core.Common.Nodes.IOntologyNode node)
+    private static (string? Engine, string? DbType) FindEngineInNodeReferences(IOntologyNode node)
     {
         foreach (var r in node.References)
         {

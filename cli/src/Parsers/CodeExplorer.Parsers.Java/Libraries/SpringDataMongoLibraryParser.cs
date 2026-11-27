@@ -1,11 +1,10 @@
-using System.Collections.Concurrent;
 using System.Collections.Frozen;
 
 namespace CodeExplorer.Parsers.Java.Libraries;
 
 public class SpringDataMongoLibraryParser : DeclarativeSemanticExtension
 {
-    private static readonly System.Runtime.CompilerServices.ConditionalWeakTable<ParsingContext, SpringDataRepositoryHelper.WorkspaceEntityMaps> _contextMaps = new();
+    private static readonly System.Runtime.CompilerServices.ConditionalWeakTable<SemanticParseContext, SpringDataRepositoryHelper.WorkspaceEntityMaps> _contextMaps = new();
 
     public SpringDataMongoLibraryParser()
     {
@@ -51,13 +50,13 @@ public class SpringDataMongoLibraryParser : DeclarativeSemanticExtension
         ];
     }
 
-    public override void DiscoverDeclarations(string filePath, string content, string? projectName, ParsingContext? ctx)
+    public override void DiscoverDeclarations(string filePath, string content, string? projectName, SemanticParseContext? ctx)
     {
         var maps = SpringDataRepositoryHelper.GetOrCreateContextMaps(ctx, _contextMaps);
         SpringDataRepositoryHelper.DiscoverEntityTables(content, maps.EntityToTable, maps.RepoToEntity);
     }
 
-    public override void DiscoverDeclarations(CodeExplorer.Core.Parser.Syntax.SyntaxNode rootNode, string relativePath, string? projectName, ParsingContext? ctx)
+    public override void DiscoverDeclarations(Core.Parser.Syntax.SyntaxNode rootNode, string relativePath, string? projectName, SemanticParseContext? ctx)
     {
         var maps = SpringDataRepositoryHelper.GetOrCreateContextMaps(ctx, _contextMaps);
         SpringDataRepositoryHelper.DiscoverEntityTables(rootNode.Text, maps.EntityToTable, maps.RepoToEntity);

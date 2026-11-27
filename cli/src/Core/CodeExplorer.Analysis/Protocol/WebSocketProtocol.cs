@@ -1,7 +1,6 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using CodeExplorer.Core.Gates.Models;
-using CodeExplorer.Cypher.Common;
 
 namespace CodeExplorer.Core.Protocol;
 

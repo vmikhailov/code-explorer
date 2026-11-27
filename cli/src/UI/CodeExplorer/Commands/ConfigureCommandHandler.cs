@@ -183,7 +183,7 @@ public class ConfigureCommandHandler : BaseCommandHandler
         Console.WriteLine();
         Console.WriteLine("Detected AI tools on your system:");
 
-        for (int i = 0; i < detected.Count; i++)
+        for (var i = 0; i < detected.Count; i++)
         {
             Console.WriteLine($"  [{i + 1}] {detected[i].DisplayName} ({detected[i].TargetName})");
         }

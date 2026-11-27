@@ -52,7 +52,7 @@ public class FasthttpLibraryParser : DeclarativeSemanticExtension
         ];
     }
 
-    private static void EnrichFasthttpSymbol(Node node, SyntacticSymbol symbol, ParsingContext ctx)
+    private static void EnrichFasthttpSymbol(Node node, SyntacticSymbol symbol, SemanticParseContext ctx)
     {
         if (IsFasthttpRouteCall(node, out var httpMethod, out var fullRoute, out _))
         {

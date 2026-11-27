@@ -1,4 +1,3 @@
-using CodeExplorer.Core.Database;
 using System.Threading.Channels;
 using CodeExplorer.Core.Common.Nodes.Layer4_Semantic;
 using CodeExplorer.Core.Parser.Layers;
@@ -166,16 +165,15 @@ public class ConfigurationIndexTests
         """;
         await File.WriteAllTextAsync(Path.Combine(projDir, "appsettings.json"), appsettings);
 
-        var channel = Channel.CreateUnbounded<Func<Task>>();
-
         await using var client = new InMemoryGraphRepository();
-
-        var ctx = new ParsingContext(_tempDir, _tempDir, client, channel);
-
         WorkspaceIndexer.AutoRegisterParsers();
-        var l1 = await new Layer1PhysicalParser().ParseAsync(ctx);
-        var l2 = await new Layer2ProjectParser().ParseAsync(l1, ctx);
-        var l3 = await new Layer3SyntacticParser().ParseAsync(l2, ctx);
+
+        var l1Ctx = new Layer1Context(_tempDir, _tempDir, client);
+        var l1 = await new Layer1PhysicalParser().ParseAsync(l1Ctx);
+        var l2Ctx = new Layer2Context(l1Ctx.Scope, l1Ctx.Sink, l1, l1Ctx.DirectoryIndex);
+        var l2 = await new Layer2ProjectParser().ParseAsync(l2Ctx);
+        var l3Ctx = new Layer3Context(l1Ctx.Scope, l1Ctx.Sink, l1, l2, l1Ctx.DirectoryIndex);
+        var l3 = await new Layer3SyntacticParser().ParseAsync(l3Ctx);
 
         // Verification: Even before Layer 4 runs, ConstantRegistry MUST contain values from appsettings.json!
         ConstantRegistry.TryResolve("PaymentGateway", "PaymentDb", out var dbVal).Should().BeTrue("ConstantRegistry should have PaymentDb preloaded during Layer 3");
@@ -185,7 +183,8 @@ public class ConfigurationIndexTests
         topicVal.Should().Be("payments.processed.v1");
 
         // Now run Layer 4 to verify semantic nodes and relationships
-        var l4 = await new Layer4SemanticParser().ParseAsync(l3, ctx);
+        var l4Ctx = new Layer4Context(l1Ctx.Scope, l1Ctx.Sink, l1Ctx.Git, l1, l2, l3, l3Ctx.Symbols, l3Ctx.Semantic, l2Ctx.GlobalProjectDependencies, l3Ctx.TreeRelationships);
+        var l4 = await new Layer4SemanticParser().ParseAsync(l4Ctx);
 
         // ExternalServiceNode for CloudPayments should be created generically
         var extServices = l4.SemanticNodes.OfType<ExternalServiceNode>().ToList();

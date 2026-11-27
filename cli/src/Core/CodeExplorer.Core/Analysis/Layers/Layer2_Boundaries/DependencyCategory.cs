@@ -49,13 +49,13 @@ public static class DependencyCategoryExtensions
         };
     }
 
-    public static CodeExplorer.Cypher.Common.GraphEdgeCategory ToGraphEdgeCategory(this DependencyCategory category) => category switch
+    public static GraphEdgeCategory ToGraphEdgeCategory(this DependencyCategory category) => category switch
     {
-        DependencyCategory.Library => CodeExplorer.Cypher.Common.GraphEdgeCategory.Library,
-        DependencyCategory.ServiceCall => CodeExplorer.Cypher.Common.GraphEdgeCategory.ServiceCall,
-        DependencyCategory.Database => CodeExplorer.Cypher.Common.GraphEdgeCategory.Database,
-        DependencyCategory.Messaging => CodeExplorer.Cypher.Common.GraphEdgeCategory.Messaging,
-        DependencyCategory.Configuration => CodeExplorer.Cypher.Common.GraphEdgeCategory.Configuration,
-        _ => CodeExplorer.Cypher.Common.GraphEdgeCategory.UnidentifiedDependency
+        DependencyCategory.Library => GraphEdgeCategory.Library,
+        DependencyCategory.ServiceCall => GraphEdgeCategory.ServiceCall,
+        DependencyCategory.Database => GraphEdgeCategory.Database,
+        DependencyCategory.Messaging => GraphEdgeCategory.Messaging,
+        DependencyCategory.Configuration => GraphEdgeCategory.Configuration,
+        _ => GraphEdgeCategory.UnidentifiedDependency
     };
 }

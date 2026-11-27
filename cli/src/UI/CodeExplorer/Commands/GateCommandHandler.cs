@@ -69,7 +69,7 @@ public partial class GateCommandHandler : BaseCommandHandler
         InvariantScope? scopeFilter = !string.IsNullOrWhiteSpace(opts.Scope) && Enum.TryParse<InvariantScope>(opts.Scope, true, out var s) ? s : null;
         InvariantDimension? dimFilter = !string.IsNullOrWhiteSpace(opts.Dimension) && Enum.TryParse<InvariantDimension>(opts.Dimension, true, out var d) ? d : null;
         GateCategory? categoryFilter = !string.IsNullOrWhiteSpace(opts.Category) && Enum.TryParse<GateCategory>(opts.Category, true, out var c) ? c : null;
-        string? platformFilter = !string.IsNullOrWhiteSpace(opts.Platform) ? opts.Platform.Trim() : null;
+        var platformFilter = !string.IsNullOrWhiteSpace(opts.Platform) ? opts.Platform.Trim() : null;
 
         if (action == "list")
         {

@@ -2,7 +2,7 @@ import { ICommand } from './types';
 import { GraphNode } from '../../../../proto/types';
 import { EdgeCategory } from '../components/ProjectFlowView';
 
-export type ViewMode = 'c1' | 'semantic' | 'matrix' | 'project' | 'layers' | 'flow' | 'full' | 'grid' | 'mermaid' | 'contexts' | 'settings' | 'gate-editor' | 'ontology';
+export type ViewMode = 'c1' | 'semantic' | 'matrix' | 'project' | 'project-dependencies' | 'layers' | 'flow' | 'full' | 'grid' | 'mermaid' | 'contexts' | 'settings' | 'gate-editor' | 'ontology';
 
 function getViewModeLabel(mode: ViewMode): string {
   switch (mode) {
@@ -18,6 +18,8 @@ function getViewModeLabel(mode: ViewMode): string {
       return 'Architecture Matrix';
     case 'project':
       return 'Project Map';
+    case 'project-dependencies':
+      return 'Project Dependencies';
     case 'contexts':
       return 'Bounded Context Map';
     case 'full':

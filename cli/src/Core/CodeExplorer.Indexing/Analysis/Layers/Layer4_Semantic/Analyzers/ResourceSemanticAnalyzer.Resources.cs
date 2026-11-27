@@ -1,6 +1,3 @@
-using System.Collections.Concurrent;
-using System.Text.RegularExpressions;
-using CodeExplorer.Core.Common.Nodes;
 using CodeExplorer.Core.Common.Nodes.Layer1_Physical;
 using CodeExplorer.Core.Common.Nodes.Layer2_Boundaries;
 using CodeExplorer.Core.Common.Nodes.Layer4_Semantic;
@@ -34,7 +31,7 @@ public partial class ResourceSemanticAnalyzer
                 baseConnKey = bc.Trim();
             }
 
-            foreach (var typeNode in fileNode.Children.OfType<CodeExplorer.Core.Common.Nodes.Layer3_Syntactic.TypeNode>())
+            foreach (var typeNode in fileNode.Children.OfType<Common.Nodes.Layer3_Syntactic.TypeNode>())
             {
                 var isDbCtx = typeNode.References.Any(r =>
                     r.RelationshipKind == RelationshipKind.InheritsFrom &&

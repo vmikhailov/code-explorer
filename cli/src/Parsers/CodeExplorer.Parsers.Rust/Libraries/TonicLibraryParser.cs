@@ -34,7 +34,7 @@ public class TonicLibraryParser : DeclarativeSemanticExtension
         ];
     }
 
-    private static string? MapNodeTypeCore(Node node, ParsingContext ctx)
+    private static string? MapNodeTypeCore(Node node, SemanticParseContext ctx)
     {
         if (IsTonicServerMethod(node, out _, out _))
         {
@@ -64,7 +64,7 @@ public class TonicLibraryParser : DeclarativeSemanticExtension
         return null;
     }
 
-    private static void CollectReferencesCore(Node node, string scopeSymbolId, List<Reference> references, ParsingContext ctx)
+    private static void CollectReferencesCore(Node node, string scopeSymbolId, List<Reference> references, SemanticParseContext ctx)
     {
         if (IsTonicServerMethod(node, out _, out var methodName))
         {
@@ -76,7 +76,7 @@ public class TonicLibraryParser : DeclarativeSemanticExtension
         }
     }
 
-    private static void EnrichSymbolCore(Node node, SyntacticSymbol symbol, ParsingContext ctx)
+    private static void EnrichSymbolCore(Node node, SyntacticSymbol symbol, SemanticParseContext ctx)
     {
         if (IsTonicServerMethod(node, out _, out _) || IsTonicClientCall(node, out _))
         {

@@ -1,6 +1,5 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
-using CodeExplorer.Core.Gates.Engine;
 using CodeExplorer.Core.Gates.Models;
 using CodeExplorer.Options;
 

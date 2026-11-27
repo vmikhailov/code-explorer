@@ -1,7 +1,4 @@
-using System.Collections.Concurrent;
 using System.Text.RegularExpressions;
-using CodeExplorer.Core.Parser;
-using CodeExplorer.Core.Parser.Syntax;
 using Node = CodeExplorer.Core.Parser.Syntax.SyntaxNode;
 
 namespace CodeExplorer.Parsers.TypeScript.Libraries;
@@ -44,14 +41,14 @@ public class GrpcTypeScriptLibraryParser : DeclarativeSemanticExtension
 
     public override IReadOnlyList<CustomAstRule> CustomAstRules => Rules;
 
-    private static string? MapNodeTypeCore(Node node, ParsingContext ctx)
+    private static string? MapNodeTypeCore(Node node, SemanticParseContext ctx)
     {
         if (IsGrpcClientCall(node, out _, out _)) return OntologyConstants.NodeLabels.ExternalService;
         if (IsGrpcServerAddServiceMethod(node, out _, out _)) return OntologyConstants.NodeLabels.EntryPoint;
         return null;
     }
 
-    private static string? ExtractIdentifierStatic(Node node, ParsingContext ctx, string? projectName, string? relativePath)
+    private static string? ExtractIdentifierStatic(Node node, SemanticParseContext ctx, string? projectName, string? relativePath)
     {
         if (IsGrpcClientCall(node, out var serviceName, out var methodName))
         {
@@ -64,7 +61,7 @@ public class GrpcTypeScriptLibraryParser : DeclarativeSemanticExtension
         return null;
     }
 
-    private static void CollectReferencesCore(Node node, string scopeSymbolId, List<Reference> references, ParsingContext ctx)
+    private static void CollectReferencesCore(Node node, string scopeSymbolId, List<Reference> references, SemanticParseContext ctx)
     {
         if (IsGrpcClientCall(node, out var serviceName, out var methodName))
         {
@@ -75,7 +72,7 @@ public class GrpcTypeScriptLibraryParser : DeclarativeSemanticExtension
         }
     }
 
-    private static void EnrichSymbolCore(Node node, SyntacticSymbol symbol, ParsingContext ctx)
+    private static void EnrichSymbolCore(Node node, SyntacticSymbol symbol, SemanticParseContext ctx)
     {
         if (IsGrpcClientCall(node, out var serviceName, out var methodName))
         {
@@ -87,7 +84,7 @@ public class GrpcTypeScriptLibraryParser : DeclarativeSemanticExtension
         {
             symbol.Protocol = "gRPC";
             symbol.Properties["protocol"] = "gRPC";
-            symbol.OperationType = CodeExplorer.Cypher.Common.OperationType.Unary;
+            symbol.OperationType = OperationType.Unary;
         }
     }
 

@@ -70,7 +70,7 @@ public record PackageDescriptor(
         if (string.IsNullOrEmpty(dependencyName) || SupportedPatterns.Count == 0)
             return false;
 
-        for (int j = 0; j < SupportedPatterns.Count; j++)
+        for (var j = 0; j < SupportedPatterns.Count; j++)
         {
             if (IsLibraryMatch(dependencyName, SupportedPatterns[j]))
             {

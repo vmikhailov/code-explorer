@@ -1,5 +1,4 @@
-using System.Text.RegularExpressions;
-using CodeExplorer.Core.Parser;
+using System.Text.Json;
 
 namespace CodeExplorer.Parsers.Rust;
 
@@ -44,7 +43,7 @@ public partial class RustProjectParser
             props["role"] = "Test";
             props["kind"] = "TestSuite";
             props["secondary_roles"] = "[]";
-            props["all_roles"] = System.Text.Json.JsonSerializer.Serialize(new[] { "Test" });
+            props["all_roles"] = JsonSerializer.Serialize(new[] { "Test" });
             return props;
         }
 
@@ -92,7 +91,7 @@ public partial class RustProjectParser
             props["role"] = "Test";
             props["kind"] = "TestSuite";
             props["secondary_roles"] = "[]";
-            props["all_roles"] = System.Text.Json.JsonSerializer.Serialize(new[] { "Test" });
+            props["all_roles"] = JsonSerializer.Serialize(new[] { "Test" });
             return props;
         }
 
@@ -128,7 +127,7 @@ public partial class RustProjectParser
             props["framework_type"] = manifest.LibTarget is null ? "cli" : "library";
             props["is_library"] = manifest.LibTarget is null ? "false" : "true";
             props["secondary_roles"] = "[]";
-            props["all_roles"] = System.Text.Json.JsonSerializer.Serialize(new[] { role });
+            props["all_roles"] = JsonSerializer.Serialize(new[] { role });
             return props;
         }
 
@@ -191,7 +190,7 @@ public partial class RustProjectParser
             props["is_library"] = "true";
             props["architectural_subsystem"] = "true";
             props["secondary_roles"] = "[]";
-            props["all_roles"] = System.Text.Json.JsonSerializer.Serialize(new[] { "Library" });
+            props["all_roles"] = JsonSerializer.Serialize(new[] { "Library" });
             return props;
         }
 
@@ -206,14 +205,14 @@ public partial class RustProjectParser
             props["framework_type"] = "library";
             props["is_library"] = "true";
             props["secondary_roles"] = "[]";
-            props["all_roles"] = System.Text.Json.JsonSerializer.Serialize(new[] { "Library" });
+            props["all_roles"] = JsonSerializer.Serialize(new[] { "Library" });
             return props;
         }
 
         var localRsFiles = filesInDirectory.Where(f => f.EndsWith(".rs", StringComparison.OrdinalIgnoreCase)).ToList();
         var allScanFiles = localRsFiles.Concat(companionBinFiles).ToList();
         var combinedSourceText = string.Join(" ", allScanFiles.Select(f => {
-            try { return PhysicalFileStore.ReadAllText(f); } catch { return ""; }
+            try { return FileStreamReader.ReadTextOnce(f); } catch { return ""; }
         }));
 
         var hasServerCode = hasCompanionServer || (hasDirectBin && (isWeb || isGrpc || combinedSourceText.Contains("axum::Router") || combinedSourceText.Contains("start_coordination_server")));
@@ -275,8 +274,8 @@ public partial class RustProjectParser
         props["manifest_type"] = primaryRole == "Service" ? "application" : (primaryRole == "Worker" ? "worker" : (primaryRole == "Library" ? "library" : "cli"));
         props["framework_type"] = primaryRole == "Service" ? (isGrpc ? "api" : "web") : (primaryRole == "Worker" ? "worker" : (primaryRole == "Library" ? "library" : "cli"));
         props["is_library"] = isLibrary ? "true" : "false";
-        props["secondary_roles"] = System.Text.Json.JsonSerializer.Serialize(secondaryRoles);
-        props["all_roles"] = System.Text.Json.JsonSerializer.Serialize(new[] { primaryRole }.Concat(secondaryRoles).Distinct());
+        props["secondary_roles"] = JsonSerializer.Serialize(secondaryRoles);
+        props["all_roles"] = JsonSerializer.Serialize(new[] { primaryRole }.Concat(secondaryRoles).Distinct());
 
         return props;
     }
@@ -315,7 +314,7 @@ public partial class RustProjectParser
                                 segment.Equals("target", StringComparison.OrdinalIgnoreCase) ||
                                 segment.Equals(".git", StringComparison.OrdinalIgnoreCase)))
             .ToArray();
-        var source = string.Join('\n', sourceFiles.Select(PhysicalFileStore.ReadAllText));
+        var source = string.Join('\n', sourceFiles.Select(FileStreamReader.ReadTextOnce));
         var nonEmptyLines = source.Split('\n').Count(line => !string.IsNullOrWhiteSpace(line));
 
         if (shouldMeasureSize && nonEmptyLines >= 1500)
@@ -366,7 +365,7 @@ public partial class RustProjectParser
 
         var rsFiles = filesInDirectory.Where(f => f.EndsWith(".rs", StringComparison.OrdinalIgnoreCase)).ToList();
         var sourceText = string.Join(" ", rsFiles.Select(f => {
-            try { return PhysicalFileStore.ReadAllText(f); } catch { return ""; }
+            try { return FileStreamReader.ReadTextOnce(f); } catch { return ""; }
         }));
 
         var hasServerCode = isWeb || isGrpc || sourceText.Contains("start_coordination_server") || sourceText.Contains("axum::Router") || binName.Contains("server");
@@ -411,8 +410,8 @@ public partial class RustProjectParser
         props["manifest_type"] = primaryRole == "Service" ? "application" : (primaryRole == "Worker" ? "worker" : "cli");
         props["framework_type"] = primaryRole == "Service" ? (isGrpc ? "api" : "web") : (primaryRole == "Worker" ? "worker" : "cli");
         props["is_library"] = "false";
-        props["secondary_roles"] = System.Text.Json.JsonSerializer.Serialize(secondaryRoles);
-        props["all_roles"] = System.Text.Json.JsonSerializer.Serialize(new[] { primaryRole }.Concat(secondaryRoles).Distinct());
+        props["secondary_roles"] = JsonSerializer.Serialize(secondaryRoles);
+        props["all_roles"] = JsonSerializer.Serialize(new[] { primaryRole }.Concat(secondaryRoles).Distinct());
         return props;
     }
 

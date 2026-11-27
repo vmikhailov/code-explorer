@@ -1,3 +1,4 @@
+using System.Text.Json;
 using CodeExplorer.Core.Database;
 using CodeExplorer.Core.Parser.Components;
 
@@ -24,7 +25,11 @@ public class AngularComponentParser : IComponentLibraryParser
                    Path.GetFileName(f).Equals("angular.json", StringComparison.OrdinalIgnoreCase));
     }
 
-    public static void EnrichManifestProperties(string directoryPath, string[] filesInDirectory, Dictionary<string, string> props)
+    public static void EnrichManifestProperties(
+        string directoryPath,
+        string[] filesInDirectory,
+        Dictionary<string, string> props,
+        CypherValue? preParsedPackageJson = null)
     {
         var hasNgPackage = filesInDirectory.Any(f => Path.GetFileName(f).Equals("ng-package.json", StringComparison.OrdinalIgnoreCase));
         if (hasNgPackage)
@@ -33,6 +38,7 @@ public class AngularComponentParser : IComponentLibraryParser
             props["framework_type"] = "frontend";
             props["is_ui_library"] = "true";
             props["is_library"] = "true";
+            props["has_ng_package"] = "true";
         }
         else if (filesInDirectory.Any(f => Path.GetFileName(f).Equals("angular.json", StringComparison.OrdinalIgnoreCase)) ||
                  File.Exists(Path.Combine(directoryPath, "angular.json")))
@@ -40,27 +46,33 @@ public class AngularComponentParser : IComponentLibraryParser
             props.TryAdd("framework_type", "frontend");
         }
 
-        var packageJsonPath = Path.Combine(directoryPath, "package.json");
-        if (File.Exists(packageJsonPath))
+        const string propNgPackage = "ngPackage";
+        var pkgRoot = preParsedPackageJson;
+        if (pkgRoot == null)
         {
-            try
+            var packageJsonPath = Path.Combine(directoryPath, "package.json");
+            if (File.Exists(packageJsonPath))
             {
-                const string propNgPackage = "ngPackage";
-                var content = PhysicalFileStore.ReadAllText(packageJsonPath);
-                var root = CypherValue.TryParseJsonText(content);
-                if (root.Kind == CypherValueKind.Object &&
-                    root.TryGetProperty(propNgPackage, out _))
+                try
                 {
-                    props["manifest_type"] = "library";
-                    props["framework_type"] = "frontend";
-                    props["is_ui_library"] = "true";
-                    props["is_library"] = "true";
+                    var content = FileStreamReader.ReadTextOnce(packageJsonPath);
+                    pkgRoot = CypherValue.TryParseJsonText(content);
+                }
+                catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or JsonException)
+                {
+                    // Ignore
                 }
             }
-            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.Text.Json.JsonException)
-            {
-                // Ignore
-            }
+        }
+
+        if (pkgRoot is { Kind: CypherValueKind.Object } rootObj &&
+            rootObj.TryGetProperty(propNgPackage, out _))
+        {
+            props["manifest_type"] = "library";
+            props["framework_type"] = "frontend";
+            props["is_ui_library"] = "true";
+            props["is_library"] = "true";
+            props["has_ng_package"] = "true";
         }
 
         var parentDir = Path.GetDirectoryName(directoryPath);
@@ -72,7 +84,7 @@ public class AngularComponentParser : IComponentLibraryParser
                 try
                 {
                     const string propProjects = "projects";
-                    var json = PhysicalFileStore.ReadAllText(ancestorAngularJson);
+                    var json = FileStreamReader.ReadTextOnce(ancestorAngularJson);
                     var angRoot = CypherValue.TryParseJsonText(json);
                     if (angRoot.TryGetProperty(propProjects, out var projectsObj) &&
                         projectsObj.Kind == CypherValueKind.Object)
@@ -105,7 +117,7 @@ public class AngularComponentParser : IComponentLibraryParser
                         }
                     }
                 }
-                catch (Exception ex) when (ex is IOException or System.Text.Json.JsonException)
+                catch (Exception ex) when (ex is IOException or JsonException)
                 {
                     // Ignore monorepo ancestor parse errors
                 }
@@ -140,7 +152,7 @@ public class AngularComponentParser : IComponentLibraryParser
         try
         {
             const string propProjects = "projects";
-            var json = PhysicalFileStore.ReadAllText(manifestPath);
+            var json = FileStreamReader.ReadTextOnce(manifestPath);
             var root = CypherValue.TryParseJsonText(json);
             if (!root.TryGetProperty(propProjects, out var projectsObj) ||
                 projectsObj.Kind != CypherValueKind.Object)
@@ -207,7 +219,7 @@ public class AngularComponentParser : IComponentLibraryParser
                     ManifestProperties: childProps));
             }
         }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.Text.Json.JsonException)
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or JsonException)
         {
             // Ignore
         }

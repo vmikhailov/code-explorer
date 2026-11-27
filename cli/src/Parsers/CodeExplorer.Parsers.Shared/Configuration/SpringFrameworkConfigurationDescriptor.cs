@@ -50,7 +50,7 @@ public class SpringFrameworkConfigurationDescriptor : ILibraryConfigurationDescr
         string workspaceId,
         IOntologyNode containerNode,
         List<Relationship> relationships,
-        ParsingContext ctx)
+        SemanticParseContext ctx)
     {
         var normKey = key.Replace(':', '.');
 

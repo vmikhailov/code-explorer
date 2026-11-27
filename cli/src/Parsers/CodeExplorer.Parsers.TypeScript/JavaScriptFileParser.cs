@@ -25,7 +25,7 @@ public class JavaScriptFileParser : IFileParser
                fileExtension.Equals(".cjs", StringComparison.OrdinalIgnoreCase);
     }
 
-    public void ExtractDeclarations(CodeExplorer.Core.Parser.Syntax.SyntaxNode rootNode, Action<string, CodeExplorer.Core.Parser.Syntax.SyntaxNode?, string?> registerDeclaration)
+    public void ExtractDeclarations(SyntaxNode rootNode, Action<string, SyntaxNode?, string?> registerDeclaration)
     {
         TypeScriptDeclarationExtractor.Extract(rootNode, registerDeclaration);
     }
@@ -36,20 +36,25 @@ public class JavaScriptFileParser : IFileParser
     public string ClassifyArtifactRole(string relativePath, string fileName, ReadOnlySpan<byte> contentBytes = default) =>
         _tsParser.ClassifyArtifactRole(relativePath, fileName, contentBytes);
     public void EnrichFileSignals(
-        CodeExplorer.Core.Common.Nodes.Layer1_Physical.FileNode fileNode,
+        Core.Common.Nodes.Layer1_Physical.FileNode fileNode,
         SyntaxTree syntaxTree,
-        CodeExplorer.Core.Common.Nodes.Layer2_Boundaries.ProjectNode? project,
+        Core.Common.Nodes.Layer2_Boundaries.ProjectNode? project,
         string sourceText) =>
         _tsParser.EnrichFileSignals(fileNode, syntaxTree, project, sourceText);
 
-    public async Task<SyntaxTree> ParseAsync(string filePath, string parentNodeId, string workspaceId, string absoluteWorkspacePath)
+    public async Task<SyntaxTree> ParseAsync(
+        string filePath,
+        string parentNodeId,
+        string workspaceId,
+        string absoluteWorkspacePath,
+        string? preloadedContent = null)
     {
         var relativePath = Path.GetRelativePath(absoluteWorkspacePath, filePath).Replace('\\', '/');
-        return await SyntaxTree.ParseAsync(filePath, relativePath, parentNodeId, this, workspaceId, absoluteWorkspacePath);
+        return await SyntaxTree.ParseAsync(filePath, relativePath, parentNodeId, this, workspaceId, absoluteWorkspacePath, preloadedContent);
     }
 
     public BaseParserVisitor CreateVisitor(
-        CodeExplorer.Core.Parser.Syntax.SyntaxNode rootNode,
+        SyntaxNode rootNode,
         List<ISemanticExtension> activeExtensions,
         string relativePath,
         string absoluteWorkspacePath,

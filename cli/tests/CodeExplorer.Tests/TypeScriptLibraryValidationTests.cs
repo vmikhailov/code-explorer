@@ -1,4 +1,3 @@
-using CodeExplorer.Core.Database;
 using System.Threading.Channels;
 using CodeExplorer.Core.Common.Nodes;
 using CodeExplorer.Core.Common.Nodes.Layer1_Physical;
@@ -35,9 +34,9 @@ public class TypeScriptLibraryValidationTests
         public string FilePath { get; }
         public SyntaxTree SyntaxTree { get; }
         public FileNode FileNode => SyntaxTree.FileNode;
-        public ParsingContext Context { get; }
+        public SemanticParseContext Context { get; }
 
-        private TestWorkspace(string dir, string file, SyntaxTree tree, ParsingContext ctx)
+        private TestWorkspace(string dir, string file, SyntaxTree tree, SemanticParseContext ctx)
         {
             DirectoryPath = dir;
             FilePath = file;
@@ -55,7 +54,7 @@ public class TypeScriptLibraryValidationTests
             var parser = new TypeScriptFileParser();
             var channel = Channel.CreateUnbounded<Func<Task>>();
             var client = new InMemoryGraphRepository();
-            var ctx = new ParsingContext(tempDir, tempDir, client, channel);
+            var ctx = new SemanticParseContext(tempDir);
 
             var syntaxTree = await parser.ParseAsync(filePath, "parent-id", ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
             Layer3SyntacticParser.ProcessVisitor(syntaxTree, ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
@@ -760,12 +759,12 @@ export default serve_data;
             var parser = new TypeScriptFileParser();
             var channel = Channel.CreateUnbounded<Func<Task>>();
             var client = new InMemoryGraphRepository();
-            var ctx = new ParsingContext(tempDir, tempDir, client, channel);
+            var ctx = new SemanticParseContext(tempDir);
 
             // Layer 3 order: mount discovery on the mounting file first,
             // then the router module is visited and its endpoints enriched.
             using var serverTree = await parser.ParseAsync(serverPath, "parent-id", ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
-            ((CodeExplorer.Core.Parser.IFileParser)parser).DiscoverDeclarations(serverTree.Tree!.RootNode, "src/server.js", "express-mount-service", ctx);
+            ((IFileParser)parser).DiscoverDeclarations(serverTree.Tree!.RootNode, "src/server.js", "express-mount-service", ctx);
 
             using var dataTree = await parser.ParseAsync(dataPath, "parent-id", ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
             Layer3SyntacticParser.ProcessVisitor(dataTree, ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
@@ -883,7 +882,7 @@ export class SmartCpaController {
             var parser = new TypeScriptFileParser();
             var channel = Channel.CreateUnbounded<Func<Task>>();
             var client = new InMemoryGraphRepository();
-            var ctx = new ParsingContext(tempDir, tempDir, client, channel);
+            var ctx = new SemanticParseContext(tempDir);
 
             var syntaxTree = await parser.ParseAsync(controllerFile, "parent-id", ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
             Layer3SyntacticParser.ProcessVisitor(syntaxTree, ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
@@ -891,7 +890,7 @@ export class SmartCpaController {
             var endpoints = FindNodes<EndpointNode>(syntaxTree.FileNode.Children);
             foreach (var ep in endpoints)
             {
-                TestContext.WriteLine($"EP: {ep.Id} | {ep.HttpMethod} | {ep.RouteTemplate}");
+                TestContext.Out.WriteLine($"EP: {ep.Id} | {ep.HttpMethod} | {ep.RouteTemplate}");
             }
 
             // Must NOT create an entry point for @Controller
@@ -985,7 +984,7 @@ export class SmartCpaController {
             var parser = new TypeScriptFileParser();
             var channel = Channel.CreateUnbounded<Func<Task>>();
             var client = new InMemoryGraphRepository();
-            var ctx = new ParsingContext(tempDir, tempDir, client, channel);
+            var ctx = new SemanticParseContext(tempDir);
 
             // Register global prefix for the project
             RouteDictionaryRegistry.RegisterGlobalPrefix(projectName, "api/v1");
@@ -1027,7 +1026,7 @@ export class SmartCpaController {
                 "id_helper_nest",
                 "/api/v1/smart-cpa/campaigns/start"
             );
-            var helperNestProject = new CodeExplorer.Core.Common.Nodes.Layer2_Boundaries.ProjectNode(
+            var helperNestProject = new Core.Common.Nodes.Layer2_Boundaries.ProjectNode(
                 "integration-service-helper-nest",
                 "integration-service-helper-nest",
                 "src/integrations/services/helper-nest",
@@ -1035,11 +1034,11 @@ export class SmartCpaController {
             );
 
             var l5Parser = new Layer5AnalysisParser();
-            var doesMatchProjMethod = typeof(Layer5AnalysisParser).GetMethod("DoesProjectMatchServiceDomain", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static, [typeof(CodeExplorer.Core.Common.Nodes.Layer2_Boundaries.ProjectNode), typeof(string)])!;
+            var doesMatchProjMethod = typeof(Layer5AnalysisParser).GetMethod("DoesProjectMatchServiceDomain", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static, [typeof(Core.Common.Nodes.Layer2_Boundaries.ProjectNode), typeof(string)])!;
             var projMatches = (bool)doesMatchProjMethod.Invoke(null, [helperNestProject, extService.DomainOrService])!;
             projMatches.Should().BeTrue("id_helper_nest should match project integration-service-helper-nest");
 
-            var isMatchMethod = typeof(Layer5AnalysisParser).GetMethod("IsMatch", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance, [typeof(ExternalServiceNode), typeof(EndpointNode), typeof(CodeExplorer.Core.Common.Nodes.Layer2_Boundaries.ProjectNode)])!;
+            var isMatchMethod = typeof(Layer5AnalysisParser).GetMethod("IsMatch", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance, [typeof(ExternalServiceNode), typeof(EndpointNode), typeof(Core.Common.Nodes.Layer2_Boundaries.ProjectNode)])!;
             var endpointMatches = (bool)isMatchMethod.Invoke(l5Parser, [extService, startEp, helperNestProject])!;
             endpointMatches.Should().BeTrue("ExternalService /api/v1/smart-cpa/campaigns/start should match smart-cpa endpoint");
         }
@@ -1430,10 +1429,10 @@ export async function fetchTrafficBacks(baseUrl: string) {
 
             await using var client = new InMemoryGraphRepository();
 
-            var ctx = new ParsingContext(tempDir, tempDir, client, channel);
+            var l1Ctx = new Layer1Context(tempDir, tempDir, client);
             WorkspaceIndexer.AutoRegisterParsers();
 
-            var l1Result = await new Layer1PhysicalParser().ParseAsync(ctx);
+            var l1Result = await new Layer1PhysicalParser().ParseAsync(l1Ctx);
             var files = l1Result.Files;
 
             var fileNames = files.Select(f => f.Name).ToList();
@@ -1481,7 +1480,7 @@ export class IdHelperService {
             var parser = new TypeScriptFileParser();
             var channel = Channel.CreateUnbounded<Func<Task>>();
             var client = new InMemoryGraphRepository();
-            var ctx = new ParsingContext(tempDir, tempDir, client, channel);
+            var ctx = new SemanticParseContext(tempDir);
 
             var tree = await parser.ParseAsync(serviceFile, "parent-id", ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
             Layer3SyntacticParser.ProcessVisitor(tree, ctx.WorkspaceId, ctx.AbsoluteWorkspacePath, ctx, "listener");
@@ -1502,7 +1501,7 @@ export class IdHelperService {
                 "POST",
                 "/api/v1/smart-cpa/campaigns/start"
             );
-            var helperNestProj = new CodeExplorer.Core.Common.Nodes.Layer2_Boundaries.ProjectNode(
+            var helperNestProj = new Core.Common.Nodes.Layer2_Boundaries.ProjectNode(
                 "integration-service-helper-nest",
                 "integration-service-helper-nest",
                 "src/integrations/services/helper-nest",
@@ -1510,7 +1509,7 @@ export class IdHelperService {
             );
 
             var l5Parser = new Layer5AnalysisParser();
-            var isMatchMethod = typeof(Layer5AnalysisParser).GetMethod("IsMatch", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance, [typeof(ExternalServiceNode), typeof(EndpointNode), typeof(CodeExplorer.Core.Common.Nodes.Layer2_Boundaries.ProjectNode)])!;
+            var isMatchMethod = typeof(Layer5AnalysisParser).GetMethod("IsMatch", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance, [typeof(ExternalServiceNode), typeof(EndpointNode), typeof(Core.Common.Nodes.Layer2_Boundaries.ProjectNode)])!;
             var matches = (bool)isMatchMethod.Invoke(l5Parser, [es, targetEp, helperNestProj])!;
             matches.Should().BeTrue();
         }
@@ -1529,7 +1528,7 @@ export class IdHelperService {
         {
             var channel = Channel.CreateUnbounded<Func<Task>>();
             var client = new InMemoryGraphRepository();
-            var ctx = new ParsingContext(tempDir, tempDir, client, channel);
+            var ctx = new Layer5Context(tempDir, client);
 
             // Add raw type binding with empty ScopeId (e.g. from ColdFusion or anonymous scope)
             ctx.RawTypeBindings.Add(new RawTypeBinding("myService", "MyService", "test.ts", ""));
@@ -1541,7 +1540,7 @@ export class IdHelperService {
             var resolveMethod = typeof(Layer5AnalysisParser).GetMethod("ResolveAndUploadGlobalReferencesAsync", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!;
 
             // Must complete without throwing ArgumentNullException (value cannot be null in String.IndexOf)
-            Assert.DoesNotThrowAsync(async () =>
+            await Assert.DoesNotThrowAsync(async () =>
             {
                 var rels = (List<Relationship>)await (Task<List<Relationship>>)resolveMethod.Invoke(l5Parser, [ctx])!;
                 rels.Should().NotBeNull();
@@ -1581,7 +1580,7 @@ export class IdHelperService {
                 new Relationship(fn1.Id, fn2.Id, OntologyConstants.Relationships.Calls, [])
             ]);
 
-            var repo = new Core.Mcp.CodeExplorerRepository(client);
+            var repo = new CodeExplorerRepository(client);
             var result = await repo.GetCallChainAsync("getWeightedPayoutToPostbackLinks", "getPostbackLink");
 
             result.Should().Contain("getWeightedPayoutToPostbackLinks");
@@ -1634,11 +1633,8 @@ export class CampaignsController {
 
             var channel = Channel.CreateUnbounded<Func<Task>>();
             var client = new InMemoryGraphRepository();
-            var ctx = new ParsingContext(tempDir, tempDir, client, channel);
-
-            var l1 = await new Layer1PhysicalParser().ParseAsync(ctx);
-            var l2 = await new Layer2ProjectParser().ParseAsync(l1, ctx);
-            var l3 = await new Layer3SyntacticParser().ParseAsync(l2, ctx);
+            using var scan = await WorkspaceIndexer.ScanInMemoryAsync(tempDir, new WorkspaceScanOptions { MaxLayer = AnalysisLayer.Layer3_Syntactic });
+            var l3 = scan.Layer3!;
 
             var ctrlTree = l3.SyntaxTrees.First(t => t.FilePath.Contains("campaigns.controller.ts"));
             var endpoints = FindNodes<EndpointNode>(ctrlTree.FileNode.Children);
@@ -1670,10 +1666,8 @@ export class CampaignsController {
 
             var channel = Channel.CreateUnbounded<Func<Task>>();
             var client = new InMemoryGraphRepository();
-            var ctx = new ParsingContext(tempWorkspace, tempWorkspace, client, channel);
-
-            var l1 = await new Layer1PhysicalParser().ParseAsync(ctx);
-            var l2 = await new Layer2ProjectParser().ParseAsync(l1, ctx);
+            using var scan = await WorkspaceIndexer.ScanInMemoryAsync(tempWorkspace, new WorkspaceScanOptions { MaxLayer = AnalysisLayer.Layer2_Boundaries });
+            var l2 = scan.Layer2!;
 
             l2.Projects.Should().HaveCount(1);
             var proj = l2.Projects[0];
@@ -1724,12 +1718,14 @@ export class CampaignsController {
 
             var channel = Channel.CreateUnbounded<Func<Task>>();
             var client = new InMemoryGraphRepository();
-            var ctx = new ParsingContext(tempWorkspace, tempWorkspace, client, channel);
-
-            var l1 = await new Layer1PhysicalParser().ParseAsync(ctx);
-            var l2 = await new Layer2ProjectParser().ParseAsync(l1, ctx);
-            var l3 = await new Layer3SyntacticParser().ParseAsync(l2, ctx);
-            var l4 = await new Layer4SemanticParser().ParseAsync(l3, ctx);
+            var l1Ctx = new Layer1Context(tempWorkspace, tempWorkspace, client);
+            var l1 = await new Layer1PhysicalParser().ParseAsync(l1Ctx);
+            var l2Ctx = new Layer2Context(l1Ctx.Scope, l1Ctx.Sink, l1, l1Ctx.DirectoryIndex);
+            var l2 = await new Layer2ProjectParser().ParseAsync(l2Ctx);
+            var l3Ctx = new Layer3Context(l1Ctx.Scope, l1Ctx.Sink, l1, l2, l1Ctx.DirectoryIndex);
+            var l3 = await new Layer3SyntacticParser().ParseAsync(l3Ctx);
+            var l4Ctx = new Layer4Context(l1Ctx.Scope, l1Ctx.Sink, l1Ctx.Git, l1, l2, l3, l3Ctx.Symbols, l3Ctx.Semantic, l2Ctx.GlobalProjectDependencies, l3Ctx.TreeRelationships);
+            var l4 = await new Layer4SemanticParser().ParseAsync(l4Ctx);
 
             l2.Projects.Should().HaveCount(1);
             var proj = l2.Projects[0];
@@ -1788,11 +1784,9 @@ export class CampaignsController {
 
             var channel = Channel.CreateUnbounded<Func<Task>>();
             var client = new InMemoryGraphRepository();
-            var ctx = new ParsingContext(tempWorkspace, tempWorkspace, client, channel);
-
-            var l1 = await new Layer1PhysicalParser().ParseAsync(ctx);
-            var l2 = await new Layer2ProjectParser().ParseAsync(l1, ctx);
-            var l3 = await new Layer3SyntacticParser().ParseAsync(l2, ctx);
+            using var scan = await WorkspaceIndexer.ScanInMemoryAsync(tempWorkspace, new WorkspaceScanOptions { MaxLayer = AnalysisLayer.Layer3_Syntactic });
+            var l2 = scan.Layer2!;
+            var l3 = scan.Layer3!;
 
             l2.Projects.Should().HaveCount(1);
             var proj = l2.Projects[0];
@@ -1848,11 +1842,9 @@ export class CampaignsController {
 
             var channel = Channel.CreateUnbounded<Func<Task>>();
             var client = new InMemoryGraphRepository();
-            var ctx = new ParsingContext(tempWorkspace, tempWorkspace, client, channel);
-
-            var l1 = await new Layer1PhysicalParser().ParseAsync(ctx);
-            var l2 = await new Layer2ProjectParser().ParseAsync(l1, ctx);
-            var l3 = await new Layer3SyntacticParser().ParseAsync(l2, ctx);
+            using var scan = await WorkspaceIndexer.ScanInMemoryAsync(tempWorkspace, new WorkspaceScanOptions { MaxLayer = AnalysisLayer.Layer3_Syntactic });
+            var l2 = scan.Layer2!;
+            var l3 = scan.Layer3!;
 
             var endpoints = l3.SyntaxTrees.SelectMany(t => FindNodes<EndpointNode>(t.FileNode.Children)).ToList();
             endpoints.Should().HaveCount(1);

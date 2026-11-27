@@ -1,10 +1,8 @@
 using System.Text.RegularExpressions;
-using CodeExplorer.Core.Common;
 using CodeExplorer.Core.Common.Nodes;
 using CodeExplorer.Core.Common.Nodes.Layer1_Physical;
 using CodeExplorer.Core.Common.Nodes.Layer3_Syntactic;
 using CodeExplorer.Core.Common.Nodes.Layer4_Semantic;
-using CodeExplorer.Core.Parser;
 using CodeExplorer.Core.Parser.Syntax;
 using Node = CodeExplorer.Core.Parser.Syntax.SyntaxNode;
 
@@ -152,7 +150,8 @@ public partial class PerlFileParser : IFileParser
         string filePath,
         string parentNodeId,
         string workspaceId,
-        string absoluteWorkspacePath)
+        string absoluteWorkspacePath,
+        string? preloadedContent = null)
     {
         _ = parentNodeId;
         var relativePath = Path.GetRelativePath(absoluteWorkspacePath, filePath).Replace(BackslashChar, SlashChar);
@@ -166,7 +165,7 @@ public partial class PerlFileParser : IFileParser
             IsTest = isTestFile
         };
 
-        var content = await PhysicalFileStore.ConsumeFileTextAsync(filePath);
+        var content = preloadedContent ?? await FileStreamReader.ReadTextOnceAsync(filePath);
         var rawImports = new List<RawImport>();
         var rawVariables = new List<RawVariable>();
         var rawTypeBindings = new List<RawTypeBinding>();

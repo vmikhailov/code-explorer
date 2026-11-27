@@ -61,7 +61,7 @@ public static class AstIdentifierUrlSanitizer
             if (curr.Is(TreeSitterSyntax.TypeScript.ClassDeclaration))
             {
                 var nameNode = curr.GetChildForField(TreeSitterSyntax.Fields.Name);
-                var className = nameNode.IsValid() ? nameNode.Text : (curr as CodeExplorer.Core.Parser.Syntax.TypeDeclSyntax)?.Name;
+                var className = nameNode.IsValid() ? nameNode.Text : (curr as Core.Parser.Syntax.TypeDeclSyntax)?.Name;
                 if (!string.IsNullOrEmpty(className))
                 {
                     var stem = Regex.Replace(className, ClassRoleSuffixPattern, "", RegexOptions.IgnoreCase);

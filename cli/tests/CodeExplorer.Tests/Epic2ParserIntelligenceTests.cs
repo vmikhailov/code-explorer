@@ -222,8 +222,8 @@ public class InventoryRepository
             MATCH (es:ExternalService)
             RETURN es.name AS name, es.id AS id, es.path AS path, es.domain_or_service AS domain_or_service");
 
-        foreach (var s in services) TestContext.WriteLine($"Service: {s["name"]} -> {s["id"]} (path: {s["path"]})");
-        foreach (var kvp in ConstantRegistry.GlobalConstants) TestContext.WriteLine($"GlobalConst: {kvp.Key} = {kvp.Value}");
+        foreach (var s in services) TestContext.Out.WriteLine($"Service: {s["name"]} -> {s["id"]} (path: {s["path"]})");
+        foreach (var kvp in ConstantRegistry.GlobalConstants) TestContext.Out.WriteLine($"GlobalConst: {kvp.Key} = {kvp.Value}");
 
         services.Should().HaveCountGreaterThanOrEqualTo(1);
         var match = services.FirstOrDefault(r => r["path"] == "/api/v3/users/{id}/details");

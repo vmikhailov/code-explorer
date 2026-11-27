@@ -17,7 +17,7 @@ public static class ConfigurationParser
         string workspaceId,
         IOntologyNode containerSemanticNode,
         List<Relationship> relationships,
-        ParsingContext ctx)
+        SemanticParseContext ctx)
     {
         if (string.IsNullOrEmpty(filePath)) return;
 
@@ -79,7 +79,7 @@ public static class ConfigurationParser
         string workspaceId,
         IOntologyNode containerNode,
         List<Relationship> relationships,
-        ParsingContext ctx)
+        SemanticParseContext ctx)
     {
         var lower = connStr.Trim().ToLowerInvariant();
         var lowerName = name.ToLowerInvariant();
@@ -383,7 +383,7 @@ public static class ConfigurationParser
         string workspaceId,
         IOntologyNode containerNode,
         List<Relationship> relationships,
-        ParsingContext ctx,
+        SemanticParseContext ctx,
         string? customName = null,
         string? connStr = null)
     {
@@ -615,7 +615,7 @@ public static class ConfigurationParser
         string workspaceId,
         IOntologyNode containerNode,
         List<Relationship> relationships,
-        ParsingContext ctx)
+        SemanticParseContext ctx)
     {
         var topicId = $"{workspaceId}:{OntologyConstants.IdPrefixes.Topic}:{brokerType}:{topicName}";
 
@@ -668,7 +668,7 @@ public static class ConfigurationParser
         string workspaceId,
         IOntologyNode containerNode,
         List<Relationship> relationships,
-        ParsingContext ctx)
+        SemanticParseContext ctx)
     {
         var slug = CloudProviderHelper.NormalizeSlug(cloudName);
         var extId = $"{workspaceId}:{OntologyConstants.IdPrefixes.ExternalService}:cloud:{slug}";
@@ -744,7 +744,7 @@ public static class ConfigurationParser
     private static (string? ProjectId, string? WorkloadId, string? ProjectName) ResolveContainerIds(
         IOntologyNode containerNode,
         string workspaceId,
-        ParsingContext ctx)
+        SemanticParseContext ctx)
     {
         if (containerNode is SemanticStructureNode)
         {
@@ -792,7 +792,7 @@ public static class ConfigurationParser
         string workspaceId,
         IOntologyNode containerNode,
         List<Relationship> relationships,
-        ParsingContext ctx)
+        SemanticParseContext ctx)
     {
         var (_, workloadId, projName) = ResolveContainerIds(containerNode, workspaceId, ctx);
 

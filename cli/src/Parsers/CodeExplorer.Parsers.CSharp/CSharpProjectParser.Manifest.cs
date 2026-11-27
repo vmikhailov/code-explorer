@@ -1,7 +1,5 @@
 using System.Text.Json;
 using System.Text.RegularExpressions;
-using System.Xml.Linq;
-using CodeExplorer.Core.Parser;
 
 namespace CodeExplorer.Parsers.CSharp;
 
@@ -9,13 +7,23 @@ public partial class CSharpProjectParser
 {
     public Dictionary<string, string> ExtractManifestProperties(string directoryPath, string[] filesInDirectory)
     {
-        var props = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         var csprojFile = filesInDirectory.FirstOrDefault(f => f.EndsWith(".csproj", StringComparison.OrdinalIgnoreCase));
-        if (csprojFile == null || !File.Exists(csprojFile)) return props;
+        if (csprojFile == null || !File.Exists(csprojFile)) return new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        var content = FileStreamReader.ReadTextOnce(csprojFile);
+        return ExtractManifestPropertiesFromContent(directoryPath, csprojFile, content, filesInDirectory);
+    }
+
+    private Dictionary<string, string> ExtractManifestPropertiesFromContent(
+        string directoryPath,
+        string csprojFile,
+        string content,
+        string[] filesInDirectory)
+    {
+        var props = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        if (string.IsNullOrEmpty(content)) return props;
 
         try
         {
-            var content = PhysicalFileStore.ReadAllText(csprojFile);
             var projName = Path.GetFileNameWithoutExtension(csprojFile);
             var normalizedDir = directoryPath.Replace('\\', '/').Trim('/');
 
@@ -57,7 +65,7 @@ public partial class CSharpProjectParser
                 return props;
             }
 
-            var outputTypeMatch = System.Text.RegularExpressions.Regex.Match(content, @"<OutputType(?:\s+[^>]*)?>\s*([A-Za-z0-9]+)\s*</OutputType>", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+            var outputTypeMatch = Regex.Match(content, @"<OutputType(?:\s+[^>]*)?>\s*([A-Za-z0-9]+)\s*</OutputType>", RegexOptions.IgnoreCase);
             var hasExeOutput = outputTypeMatch.Success &&
                                (outputTypeMatch.Groups[1].Value.Equals("Exe", StringComparison.OrdinalIgnoreCase) ||
                                 outputTypeMatch.Groups[1].Value.Equals("WinExe", StringComparison.OrdinalIgnoreCase));
@@ -77,7 +85,7 @@ public partial class CSharpProjectParser
                                                     content.Contains("<SubType>Component</SubType>", StringComparison.OrdinalIgnoreCase) ||
                                                     content.Contains("ProjectInstaller.cs", StringComparison.OrdinalIgnoreCase);
 
-            var isWindowsService = System.Text.RegularExpressions.Regex.IsMatch(content, @"<UseWindowsService>\s*true\s*</UseWindowsService>", System.Text.RegularExpressions.RegexOptions.IgnoreCase) ||
+            var isWindowsService = Regex.IsMatch(content, @"<UseWindowsService>\s*true\s*</UseWindowsService>", RegexOptions.IgnoreCase) ||
                                    (hasServiceProcessRef && hasServiceProcessHostingIndicator) ||
                                    content.Contains("Microsoft.Extensions.Hosting.WindowsServices", StringComparison.OrdinalIgnoreCase) ||
                                    content.Contains("Include=\"Topshelf", StringComparison.OrdinalIgnoreCase);
@@ -89,9 +97,9 @@ public partial class CSharpProjectParser
                                       content.Contains("{60dc8134-eba5-43b8-bcc9-bb4bc16c2548}", StringComparison.OrdinalIgnoreCase));
 
             var isUiClientApp = !isExplicitLibraryOutput && !isWindowsService &&
-                                (System.Text.RegularExpressions.Regex.IsMatch(content, @"<UseMaui>\s*true\s*</UseMaui>", System.Text.RegularExpressions.RegexOptions.IgnoreCase) ||
-                                 (hasExeOutput && System.Text.RegularExpressions.Regex.IsMatch(content, @"<UseWPF>\s*true\s*</UseWPF>", System.Text.RegularExpressions.RegexOptions.IgnoreCase)) ||
-                                 (hasExeOutput && System.Text.RegularExpressions.Regex.IsMatch(content, @"<UseWindowsForms>\s*true\s*</UseWindowsForms>", System.Text.RegularExpressions.RegexOptions.IgnoreCase)) ||
+                                (Regex.IsMatch(content, @"<UseMaui>\s*true\s*</UseMaui>", RegexOptions.IgnoreCase) ||
+                                 (hasExeOutput && Regex.IsMatch(content, @"<UseWPF>\s*true\s*</UseWPF>", RegexOptions.IgnoreCase)) ||
+                                 (hasExeOutput && Regex.IsMatch(content, @"<UseWindowsForms>\s*true\s*</UseWindowsForms>", RegexOptions.IgnoreCase)) ||
                                  hasLegacyDesktopUi ||
                                  isBlazorWasmSdk ||
                                  (hasExeOutput && content.Contains("Avalonia", StringComparison.OrdinalIgnoreCase)) ||
@@ -141,9 +149,13 @@ public partial class CSharpProjectParser
             {
                 props["output_type"] = outputTypeMatch.Groups[1].Value;
             }
+            if (hasExeOutput)
+            {
+                props["is_executable"] = "true";
+            }
 
             // Inspect <IsPackable>
-            var isPackableMatch = System.Text.RegularExpressions.Regex.Match(content, @"<IsPackable>\s*(true|false)\s*</IsPackable>", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+            var isPackableMatch = Regex.Match(content, @"<IsPackable>\s*(true|false)\s*</IsPackable>", RegexOptions.IgnoreCase);
             if (isPackableMatch.Success)
             {
                 props["is_packable"] = isPackableMatch.Groups[1].Value.ToLowerInvariant();
@@ -184,11 +196,11 @@ public partial class CSharpProjectParser
             var hasProtobufServer = false;
             if (content.Contains("<Protobuf", StringComparison.OrdinalIgnoreCase))
             {
-                var matches = System.Text.RegularExpressions.Regex.Matches(content, @"<Protobuf\b([^>]*)/?>", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
-                foreach (System.Text.RegularExpressions.Match m in matches)
+                var matches = Regex.Matches(content, @"<Protobuf\b([^>]*)/?>", RegexOptions.IgnoreCase);
+                foreach (Match m in matches)
                 {
                     var tag = m.Groups[1].Value;
-                    var gsMatch = System.Text.RegularExpressions.Regex.Match(tag, @"GrpcServices\s*=\s*[""']([^""']+)[""']", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+                    var gsMatch = Regex.Match(tag, @"GrpcServices\s*=\s*[""']([^""']+)[""']", RegexOptions.IgnoreCase);
                     if (gsMatch.Success)
                     {
                         var mode = gsMatch.Groups[1].Value;
@@ -235,9 +247,10 @@ public partial class CSharpProjectParser
             }
 
             // Inspect directory files for concrete capabilities
+            const string allFilesPattern = "*";
             try
             {
-                var allFiles = WorkspaceFileFilter.Default.EnumerateFiles(directoryPath, "*").ToList();
+                var allFiles = WorkspaceFileFilter.Default.EnumerateFiles(directoryPath, allFilesPattern).ToList();
                 foreach (var file in allFiles)
                 {
                     var ext = Path.GetExtension(file).ToLowerInvariant();
@@ -283,7 +296,7 @@ public partial class CSharpProjectParser
                             fileName.EndsWith("Consumer.cs", StringComparison.OrdinalIgnoreCase) ||
                             fileName.EndsWith("Handler.cs", StringComparison.OrdinalIgnoreCase))
                         {
-                            var fileText = PhysicalFileStore.ReadAllText(file);
+                            var fileText = FileStreamReader.ReadTextOnce(file);
                             if (fileText.Contains("AddRazorComponents") || fileText.Contains("MapRazorComponents"))
                             {
                                 hasAppCapability = true;
@@ -385,11 +398,15 @@ public partial class CSharpProjectParser
                 manifestType = "cli";
             }
 
+            const string roleApp = "App";
+            const string roleService = "Service";
+            const string roleWorker = "Worker";
+            const string roleCliTool = "CliTool";
             var detectedRoles = new List<string>();
-            if (hasAppCapability) detectedRoles.Add("App");
-            if (hasServiceCapability) detectedRoles.Add("Service");
-            if (hasWorkerCapability) detectedRoles.Add("Worker");
-            if (hasCliCapability) detectedRoles.Add("CliTool");
+            if (hasAppCapability) detectedRoles.Add(roleApp);
+            if (hasServiceCapability) detectedRoles.Add(roleService);
+            if (hasWorkerCapability) detectedRoles.Add(roleWorker);
+            if (hasCliCapability) detectedRoles.Add(roleCliTool);
 
             var secondaryRoles = detectedRoles
                 .Where(r => !string.Equals(r, primaryRole, StringComparison.OrdinalIgnoreCase))
@@ -418,14 +435,14 @@ public partial class CSharpProjectParser
         CollectPackagesFromXmlText(content, packages);
 
         var dir = Path.GetDirectoryName(csprojFile);
-        for (int depth = 0; depth < 4 && !string.IsNullOrEmpty(dir); depth++)
+        for (var depth = 0; depth < 4 && !string.IsNullOrEmpty(dir); depth++)
         {
             var buildProps = Path.Combine(dir, "Directory.Build.props");
             if (File.Exists(buildProps))
             {
                 try
                 {
-                    CollectPackagesFromXmlText(PhysicalFileStore.ReadAllText(buildProps), packages);
+                    CollectPackagesFromXmlText(FileStreamReader.ReadTextOnce(buildProps), packages);
                 }
                 catch
                 {

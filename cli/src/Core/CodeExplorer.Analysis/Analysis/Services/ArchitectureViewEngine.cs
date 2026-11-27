@@ -1,7 +1,5 @@
-using System.Text.Json;
 using System.Text.RegularExpressions;
 using CodeExplorer.Core.Protocol;
-using CodeExplorer.Cypher.Common;
 using Microsoft.Extensions.Logging;
 
 namespace CodeExplorer.Core.Analysis;
@@ -33,7 +31,7 @@ public class ArchitectureViewRequest
 /// Executes single-query architectural projections directly against the graph database,
 /// bypassing runtime BFS lifting and heuristics.
 /// </summary>
-public partial class ArchitectureViewEngine(IGraphClient db, Microsoft.Extensions.Logging.ILogger? logger = null)
+public partial class ArchitectureViewEngine(IGraphClient db, ILogger? logger = null)
 {
     private sealed class BoundedViewCache<TValue>(int maxEntries)
     {
@@ -121,7 +119,7 @@ public partial class ArchitectureViewEngine(IGraphClient db, Microsoft.Extension
 
     static ArchitectureViewEngine()
     {
-        CodeExplorer.Core.Parser.ParserRegistry.OnIndexCompletedHook = () => InvalidateCache();
+        ParserRegistry.OnIndexCompletedHook = () => InvalidateCache();
     }
 
     private void RecordEvidenceWarning(List<string>? warnings, string context, Exception ex)
@@ -151,8 +149,8 @@ public partial class ArchitectureViewEngine(IGraphClient db, Microsoft.Extension
             !string.Equals(db.DbPath, ":memory:", StringComparison.OrdinalIgnoreCase))
         {
             var dbPath = db.DbPath;
-            long dbLastWriteTicks = File.Exists(dbPath) ? File.GetLastWriteTimeUtc(dbPath).Ticks : 0;
-            long walLastWriteTicks = File.Exists(dbPath + "-wal") ? File.GetLastWriteTimeUtc(dbPath + "-wal").Ticks : 0;
+            var dbLastWriteTicks = File.Exists(dbPath) ? File.GetLastWriteTimeUtc(dbPath).Ticks : 0;
+            var walLastWriteTicks = File.Exists(dbPath + "-wal") ? File.GetLastWriteTimeUtc(dbPath + "-wal").Ticks : 0;
             return $"{dbPath}:{dbLastWriteTicks}:{walLastWriteTicks}";
         }
 
@@ -363,7 +361,7 @@ public partial class ArchitectureViewEngine(IGraphClient db, Microsoft.Extension
                                  id.StartWithIC("urn:");
         var isStandaloneDb = id.StartWithIC("db:");
 
-        string canonicalId = isExplicitResource || isStandaloneDb
+        var canonicalId = isExplicitResource || isStandaloneDb
             ? id
             : $"{OntologyConstants.IdPrefixes.Workspace}:{OntologyConstants.IdPrefixes.Database}:{cType.ToLowerInvariant()}:{cKey.ToLowerInvariant()}";
 

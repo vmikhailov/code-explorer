@@ -1,37 +1,38 @@
 <Project Sdk="Microsoft.NET.Sdk">
+    <PropertyGroup>
+        <TargetFrameworks>$(CeTargetFrameworks)</TargetFrameworks>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <Nullable>enable</Nullable>
+        <RootNamespace>CodeExplorer.Core</RootNamespace>
+        <IsPackable>false</IsPackable>
+    </PropertyGroup>
 
-  <PropertyGroup>
-    <TargetFrameworks>$(CeTargetFrameworks)</TargetFrameworks>
-    <ImplicitUsings>enable</ImplicitUsings>
-    <Nullable>enable</Nullable>
-    <RootNamespace>CodeExplorer.Core</RootNamespace>
-    <IsPackable>false</IsPackable>
-  </PropertyGroup>
+    <ItemGroup>
+        <InternalsVisibleTo Include="CodeExplorer.Server" />
+        <InternalsVisibleTo Include="CodeExplorer" />
+        <InternalsVisibleTo Include="CodeExplorer.Tests" />
+        <Using Include="CodeExplorer.Core.Database" />
+    </ItemGroup>
 
-  <ItemGroup>
-    <InternalsVisibleTo Include="CodeExplorer.Server" />
-    <InternalsVisibleTo Include="CodeExplorer" />
-    <InternalsVisibleTo Include="CodeExplorer.Tests" />
-    <Using Include="CodeExplorer.Core.Database" />
-  </ItemGroup>
+    <ItemGroup>
+        <PackageReference Include="JetBrains.Annotations" />
+    </ItemGroup>
 
-  <ItemGroup>
-    <PackageReference Include="JetBrains.Annotations" Version="2025.2.4" />
-  </ItemGroup>
+    <ItemGroup>
+        <ProjectReference Include="..\CodeExplorer.Core\CodeExplorer.Core.csproj" />
+        <ProjectReference Include="..\CodeExplorer.Storage\CodeExplorer.Storage.csproj" />
+        <ProjectReference Include="..\CodeExplorer.Gates\CodeExplorer.Gates.csproj" />
+        <ProjectReference Include="..\CodeExplorer.Indexing\CodeExplorer.Indexing.csproj" />
+        <ProjectReference Include="..\CodeExplorer.Intent\CodeExplorer.Intent.csproj" />
+    </ItemGroup>
 
-  <ItemGroup>
-    <ProjectReference Include="..\CodeExplorer.Core\CodeExplorer.Core.csproj" />
-    <ProjectReference Include="..\CodeExplorer.Storage\CodeExplorer.Storage.csproj" />
-    <ProjectReference Include="..\CodeExplorer.Gates\CodeExplorer.Gates.csproj" />
-    <ProjectReference Include="..\CodeExplorer.Indexing\CodeExplorer.Indexing.csproj" />
-  </ItemGroup>
-
-  <ItemGroup>
-    <EmbeddedResource Include="Resources\**\*.cypher" />
-    <EmbeddedResource Include="Resources\**\*.json" />
-    <EmbeddedResource Include="..\..\..\..\proto\ontology-schema.json" LogicalName="ontology-schema.json" />
-  </ItemGroup>
-  <ItemGroup>
-  </ItemGroup>
-
+    <ItemGroup>
+        <EmbeddedResource Include="Resources\**\*.cypher" />
+        <EmbeddedResource Include="Resources\**\*.json" />
+        <EmbeddedResource
+            Include="..\..\..\..\proto\ontology-schema.json"
+            LogicalName="ontology-schema.json"
+        />
+    </ItemGroup>
+    <ItemGroup></ItemGroup>
 </Project>

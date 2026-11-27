@@ -30,7 +30,7 @@ public class CypressLibraryParser : DeclarativeSemanticExtension
         yield return new PackageDescriptor("cypress", "Cypress", LibraryRole.TestFramework, "library", ["cypress"]);
     }
 
-    private static string? MapNodeTypeCore(Node node, ParsingContext ctx)
+    private static string? MapNodeTypeCore(Node node, SemanticParseContext ctx)
     {
         if (IsCyExternalCall(node, out _, out _))
         {
@@ -45,7 +45,7 @@ public class CypressLibraryParser : DeclarativeSemanticExtension
         return null;
     }
 
-    private static string? ExtractIdentifierStatic(Node node, ParsingContext ctx, string? projectName, string? relativePath)
+    private static string? ExtractIdentifierStatic(Node node, SemanticParseContext ctx, string? projectName, string? relativePath)
     {
         if (IsCyExternalCall(node, out var argNode, out _))
         {
@@ -71,7 +71,7 @@ public class CypressLibraryParser : DeclarativeSemanticExtension
         return null;
     }
 
-    private static void EnrichSymbolCore(Node node, SyntacticSymbol symbol, ParsingContext ctx)
+    private static void EnrichSymbolCore(Node node, SyntacticSymbol symbol, SemanticParseContext ctx)
     {
         if (IsCypressSuiteOrTest(node) || IsCyExternalCall(node, out _, out _))
         {
@@ -85,7 +85,7 @@ public class CypressLibraryParser : DeclarativeSemanticExtension
 
     private const string VisitMethodName = "visit";
 
-    private static void CollectReferencesCore(Node node, string scopeSymbolId, List<Reference> references, ParsingContext ctx)
+    private static void CollectReferencesCore(Node node, string scopeSymbolId, List<Reference> references, SemanticParseContext ctx)
     {
         if (IsCyCall(node, VisitMethodName, out var argNode))
         {

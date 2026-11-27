@@ -417,13 +417,13 @@ public partial class PostIndexAnalyzer
             if (list.Count <= 1) continue;
 
             // 1. Check equivalent schema / catalog pairs (stem vs stem+db, singular vs plural, etc.)
-            for (int i = 0; i < list.Count; i++)
+            for (var i = 0; i < list.Count; i++)
             {
                 var n1 = list[i];
                 var s1 = n1.Schema;
                 if (string.IsNullOrEmpty(s1) && n1.Name.Contains('.')) s1 = n1.Name.Split('.', 2)[1];
 
-                for (int j = 0; j < list.Count; j++)
+                for (var j = 0; j < list.Count; j++)
                 {
                     if (i == j) continue;
                     var n2 = list[j];

@@ -1,4 +1,3 @@
-using CodeExplorer.Cypher.Common;
 using CodeExplorer.Core.Parser.Incremental;
 using CodeExplorer.Options;
 using CommandLine;
@@ -271,7 +270,7 @@ public class IncrementalIndexingTests
             watcher.Start();
 
             // Simulate rapid edits (5 files created within 20ms)
-            for (int i = 0; i < 5; i++)
+            for (var i = 0; i < 5; i++)
             {
                 File.WriteAllText(Path.Combine(tempDir, $"file_{i}.cs"), $"content {i}");
                 await Task.Delay(10);
@@ -407,7 +406,7 @@ public class IncrementalIndexingTests
     [Test]
     public void Test_ScanOptions_Watch_Flag_Supported()
     {
-        var parser = new CommandLine.Parser(with => with.CaseInsensitiveEnumValues = true);
+        var parser = new Parser(with => with.CaseInsensitiveEnumValues = true);
 
         var resultScan = parser.ParseArguments<ScanOptions, IndexOptions>(["scan", "--watch"]);
         resultScan.Errors.Should().BeEmpty();
@@ -421,7 +420,7 @@ public class IncrementalIndexingTests
     [Test]
     public void Test_ScanOptions_Init_And_AutoInit_Flags_Supported()
     {
-        var parser = new CommandLine.Parser(with => with.CaseInsensitiveEnumValues = true);
+        var parser = new Parser(with => with.CaseInsensitiveEnumValues = true);
 
         var resInit = parser.ParseArguments<ScanOptions, IndexOptions>(["scan", "--init"]);
         resInit.Errors.Should().BeEmpty();
@@ -437,7 +436,7 @@ public class IncrementalIndexingTests
     [Test]
     public void Test_GateOptions_Init_Scan_Clear_Flags_Supported()
     {
-        var parser = new CommandLine.Parser(with => with.CaseInsensitiveEnumValues = true);
+        var parser = new Parser(with => with.CaseInsensitiveEnumValues = true);
 
         var res = parser.ParseArguments<GateOptions>(["gate", "check", "--init", "--scan", "--clear"]);
         res.Errors.Should().BeEmpty();
@@ -627,7 +626,7 @@ public class IncrementalIndexingTests
             await File.WriteAllTextAsync(tsFile, initialCode);
 
             // Phase 1: Full index with Client 1 (Process 1)
-            var client1 = new Core.Database.SqliteGraphClient(dbFile);
+            var client1 = new SqliteGraphClient(dbFile);
             var indexer1 = new WorkspaceIndexer(client1);
             await indexer1.IndexAsync(tempDir, clear: false);
 
@@ -654,17 +653,17 @@ public class IncrementalIndexingTests
             await File.WriteAllTextAsync(tsFile, modifiedCode);
 
             // Phase 3: Separate CLI process (Client 2, Indexer 2) runs incremental scan
-            var client2 = new Core.Database.SqliteGraphClient(dbFile);
+            var client2 = new SqliteGraphClient(dbFile);
             var indexer2 = new WorkspaceIndexer(client2);
 
             var countsBefore = await client2.GetGraphCountsAsync();
-            var changed = await indexer2.IndexIncrementalAsync(tempDir);
+            var changed = (await indexer2.IndexAsync(tempDir)).HasChanges;
             changed.Should().BeTrue("Incremental scan should detect and process the modified file.");
             var countsAfter = await client2.GetGraphCountsAsync();
             countsAfter.NodesCount.Should().Be(countsBefore.NodesCount, "Graph nodes count must be preserved for logic-only edit!");
 
             // Second incremental scan without file edits: must detect 0 changes
-            var changedAgain = await indexer2.IndexIncrementalAsync(tempDir);
+            var changedAgain = (await indexer2.IndexAsync(tempDir)).HasChanges;
             changedAgain.Should().BeFalse("Workspace should be up to date on subsequent check.");
 
             // Verify registry in SQLite was updated with new hash and preserved/updated snapshot
@@ -711,7 +710,7 @@ public class IncrementalIndexingTests
                 }
                 """);
 
-            await using (var client1 = new Core.Database.SqliteGraphClient(dbFile))
+            await using (var client1 = new SqliteGraphClient(dbFile))
             {
                 var indexer1 = new WorkspaceIndexer(client1);
                 await indexer1.IndexAsync(tempDir, clear: false);
@@ -737,10 +736,10 @@ public class IncrementalIndexingTests
                 }
                 """);
 
-            await using (var client2 = new Core.Database.SqliteGraphClient(dbFile))
+            await using (var client2 = new SqliteGraphClient(dbFile))
             {
                 var indexer2 = new WorkspaceIndexer(client2);
-                var changed = await indexer2.IndexIncrementalAsync(tempDir);
+                var changed = (await indexer2.IndexAsync(tempDir)).HasChanges;
                 changed.Should().BeTrue("Editing a catch clause must trigger incremental re-index");
 
                 var res2 = await client2.ExecuteCypherAsync(
@@ -763,10 +762,10 @@ public class IncrementalIndexingTests
                 }
                 """);
 
-            await using (var client3 = new Core.Database.SqliteGraphClient(dbFile))
+            await using (var client3 = new SqliteGraphClient(dbFile))
             {
                 var indexer3 = new WorkspaceIndexer(client3);
-                var changed = await indexer3.IndexIncrementalAsync(tempDir);
+                var changed = (await indexer3.IndexAsync(tempDir)).HasChanges;
                 changed.Should().BeTrue("Adding a statement to a catch clause must trigger incremental re-index");
 
                 var res3 = await client3.ExecuteCypherAsync(
@@ -814,7 +813,7 @@ public class IncrementalIndexingTests
                 }
                 """);
 
-            await using var client = new Core.Database.SqliteGraphClient(dbFile);
+            await using var client = new SqliteGraphClient(dbFile);
             var indexer = new WorkspaceIndexer(client);
             await indexer.IndexAsync(tempDir, clear: false);
 

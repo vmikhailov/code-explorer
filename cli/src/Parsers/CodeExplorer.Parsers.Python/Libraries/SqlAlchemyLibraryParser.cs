@@ -39,7 +39,7 @@ public class SqlAlchemyLibraryParser : DeclarativeSemanticExtension
         ];
     }
 
-    private static string? ExtractSqlAlchemyIdentifier(Node node, ParsingContext ctx, string? projectName, string? relativePath)
+    private static string? ExtractSqlAlchemyIdentifier(Node node, SemanticParseContext ctx, string? projectName, string? relativePath)
     {
         if (IsDeclarativeModel(node, out var modelTable))
         {
@@ -70,7 +70,7 @@ public class SqlAlchemyLibraryParser : DeclarativeSemanticExtension
         return null;
     }
 
-    private static void CollectSqlAlchemyReferences(Node node, string scopeSymbolId, List<Reference> references, ParsingContext ctx)
+    private static void CollectSqlAlchemyReferences(Node node, string scopeSymbolId, List<Reference> references, SemanticParseContext ctx)
     {
         if (IsDeclarativeModel(node, out var modelTable))
         {
@@ -166,7 +166,21 @@ public class SqlAlchemyLibraryParser : DeclarativeSemanticExtension
                 {
                     return false;
                 }
-                var resolvedTbl = PythonAstHelper.ResolveStringOrVariable(args[0]);
+                var firstTableArg = args[0];
+                string? resolvedTbl = null;
+                if (firstTableArg.Is(TreeSitterSyntax.Python.String))
+                {
+                    resolvedTbl = PythonAstHelper.ResolveStringOrVariable(firstTableArg);
+                }
+                else
+                {
+                    var varKey = firstTableArg.Text.Trim();
+                    if (!string.IsNullOrEmpty(varKey) && ConstantRegistry.TryResolve(null, varKey, out var constTbl))
+                    {
+                        resolvedTbl = constTbl;
+                    }
+                }
+                resolvedTbl = resolvedTbl?.Trim();
                 if (string.IsNullOrWhiteSpace(resolvedTbl) || !ResourceNamingHelper.IsValidTableIdentifier(resolvedTbl))
                 {
                     return false;

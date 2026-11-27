@@ -3,8 +3,6 @@ using CodeExplorer.Core.Analysis.Layers.Layer4_Semantic.Analyzers;
 using CodeExplorer.Core.Common.Nodes;
 using CodeExplorer.Core.Common.Nodes.Layer2_Boundaries;
 using CodeExplorer.Core.Common.Nodes.Layer4_Semantic;
-using CodeExplorer.Core.Database;
-using CodeExplorer.Core.Parser;
 using CodeExplorer.Core.Parser.Layers;
 using CodeExplorer.Parsers.Java;
 using NUnit.Framework;
@@ -23,7 +21,7 @@ public class DubboParserTests
         }
     }
 
-    private static async Task<(SyntaxTree Tree, ParsingContext Context, string TempDir)> ParseCodeAsync(
+    private static async Task<(SyntaxTree Tree, SemanticParseContext Context, string TempDir)> ParseCodeAsync(
         IFileParser parser, string code, string fileName)
     {
         var tempDir = Path.Combine(Path.GetTempPath(), "ce_dubbo_test_" + Guid.NewGuid().ToString("N"));
@@ -33,7 +31,7 @@ public class DubboParserTests
 
         var channel = Channel.CreateUnbounded<Func<Task>>();
         var client = new InMemoryGraphRepository();
-        var ctx = new ParsingContext(tempDir, tempDir, client, channel);
+        var ctx = new SemanticParseContext(tempDir);
 
         var syntaxTree = await parser.ParseAsync(filePath, "proj:root", ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
         Layer3SyntacticParser.ProcessVisitor(syntaxTree, ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);

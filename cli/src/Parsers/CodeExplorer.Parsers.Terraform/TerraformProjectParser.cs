@@ -1,5 +1,3 @@
-using CodeExplorer.Core.Parser;
-using CodeExplorer.Parsers.Terraform;
 using CodeExplorer.Parsers.Terraform.Hcl;
 
 [assembly: ParserAssembly]
@@ -93,7 +91,67 @@ public sealed class TerraformProjectParser : IProjectParser
         return false;
     }
 
+    public bool TryParse(ProjectParseContext context, out ProjectParseResult? result)
+    {
+        var activeIndex = context.DirectoryIndex ?? WorkspaceDirectoryIndex.Current;
+        if (activeIndex != null && activeIndex.TryGetCachedProjectParse(this, context.DirectoryPath, out var cached))
+        {
+            result = cached.Result;
+            return cached.Matched;
+        }
+
+        var dir = context.DirectoryPath;
+        var files = context.FilesInDirectory;
+        if (!IsProjectDirectory(dir, files))
+        {
+            activeIndex?.StoreProjectParse(this, dir, false, null);
+            result = null;
+            return false;
+        }
+
+        var parsedHclFiles = new List<HclFile>(files.Length);
+        for (var i = 0; i < files.Length; i++)
+        {
+            if (!IsHclSourceFile(files[i])) continue;
+            var content = SafeReadText(files[i]);
+            if (string.IsNullOrEmpty(content)) continue;
+            parsedHclFiles.Add(HclParser.Parse(content, files[i]));
+        }
+
+        var props = ExtractManifestPropertiesFromParsedHcl(files, parsedHclFiles);
+        var hasModuleFiles = files.Any(f => f.EndsWith(ExtTf, StringComparison.OrdinalIgnoreCase) || f.EndsWith(ExtTofu, StringComparison.OrdinalIgnoreCase));
+        var name = Path.GetFileName(dir.TrimEnd('/', '\\'));
+        var produced = hasModuleFiles ? new ProducedPackageInfo(name, DefaultVersion, TerraformLanguage) : null;
+        var deps = ExtractDependenciesFromParsedHcl(dir, parsedHclFiles);
+
+        result = new ProjectParseResult(
+            Project: new ParsedProjectDescriptor(
+                Name: name,
+                DirectoryPath: dir,
+                ProjectType: ProjectType,
+                ManifestProperties: props,
+                ProducedPackage: produced,
+                Dependencies: deps),
+            ClaimMode: ParserClaimMode.None);
+        activeIndex?.StoreProjectParse(this, dir, true, result);
+        return true;
+    }
+
     public Dictionary<string, string> ExtractManifestProperties(string directoryPath, string[] filesInDirectory)
+    {
+        var parsedHcl = new List<HclFile>(filesInDirectory.Length);
+        foreach (var file in filesInDirectory)
+        {
+            if (!IsHclSourceFile(file)) continue;
+            var content = SafeReadText(file);
+            if (!string.IsNullOrEmpty(content)) parsedHcl.Add(HclParser.Parse(content, file));
+        }
+        return ExtractManifestPropertiesFromParsedHcl(filesInDirectory, parsedHcl);
+    }
+
+    private static Dictionary<string, string> ExtractManifestPropertiesFromParsedHcl(
+        string[] filesInDirectory,
+        List<HclFile> parsedHclFiles)
     {
         var props = new Dictionary<string, string>(StringComparer.Ordinal);
         var hasTf = filesInDirectory.Any(f => f.EndsWith(ExtTf, StringComparison.OrdinalIgnoreCase));
@@ -108,13 +166,8 @@ public sealed class TerraformProjectParser : IProjectParser
             _ => KindTerraform
         };
 
-        foreach (var file in filesInDirectory)
+        foreach (var parsed in parsedHclFiles)
         {
-            if (!IsHclSourceFile(file)) continue;
-            var content = SafeReadText(file);
-            if (string.IsNullOrEmpty(content)) continue;
-
-            var parsed = HclParser.Parse(content, file);
             foreach (var block in parsed.Blocks)
             {
                 if (!string.Equals(block.BlockHeader, BlockTerraform, StringComparison.Ordinal)) continue;
@@ -150,15 +203,33 @@ public sealed class TerraformProjectParser : IProjectParser
 
     public Task<ProjectDependencyInfo> ParseDependenciesAsync(string projectDirectory)
     {
+        if (!Directory.Exists(projectDirectory))
+        {
+            return Task.FromResult(new ProjectDependencyInfo([], []));
+        }
+
+        var parsedHclFiles = new List<HclFile>();
+        foreach (var file in Directory.EnumerateFiles(projectDirectory, WildcardAllFiles, SearchOption.TopDirectoryOnly))
+        {
+            if (!IsHclSourceFile(file)) continue;
+            var content = SafeReadText(file);
+            if (!string.IsNullOrEmpty(content))
+            {
+                parsedHclFiles.Add(HclParser.Parse(content, file));
+            }
+        }
+
+        return Task.FromResult(ExtractDependenciesFromParsedHcl(projectDirectory, parsedHclFiles));
+    }
+
+    private static ProjectDependencyInfo ExtractDependenciesFromParsedHcl(
+        string projectDirectory,
+        List<HclFile> parsedHclFiles)
+    {
         var localPaths = new List<string>();
         var externalPackages = new List<ProducedPackageInfo>();
         var seenLocal = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         var seenPkg = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-
-        if (!Directory.Exists(projectDirectory))
-        {
-            return Task.FromResult(new ProjectDependencyInfo(localPaths, externalPackages));
-        }
 
         var normProjectDir = TerraformPathResolver.NormalizeDirPath(Path.GetFullPath(projectDirectory));
         var repoRoot = FindRepoRoot(normProjectDir);
@@ -183,18 +254,13 @@ public sealed class TerraformProjectParser : IProjectParser
             }
         }
 
-        foreach (var file in Directory.EnumerateFiles(projectDirectory, WildcardAllFiles, SearchOption.TopDirectoryOnly))
+        foreach (var hclFile in parsedHclFiles)
         {
-            if (!IsHclSourceFile(file)) continue;
-            var content = SafeReadText(file);
-            if (string.IsNullOrEmpty(content)) continue;
-
-            var hclFile = HclParser.Parse(content, file);
             ExtractBlockDependencies(hclFile, normProjectDir, repoRoot, AddLocalDir, AddPackage);
             ExtractReadTerragruntConfigDependencies(hclFile, normProjectDir, repoRoot, AddLocalDir);
         }
 
-        return Task.FromResult(new ProjectDependencyInfo(localPaths, externalPackages));
+        return new ProjectDependencyInfo(localPaths, externalPackages);
     }
 
     public Task<ProjectEnrichmentResult> EnrichProjectAsync(ProjectEnrichmentContext context) =>
@@ -398,7 +464,7 @@ public sealed class TerraformProjectParser : IProjectParser
     {
         try
         {
-            return PhysicalFileStore.ReadAllText(filePath);
+            return FileStreamReader.ReadTextOnce(filePath);
         }
         catch
         {

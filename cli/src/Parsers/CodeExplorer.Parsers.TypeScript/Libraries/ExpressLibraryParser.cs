@@ -38,7 +38,7 @@ public class ExpressLibraryParser : DeclarativeSemanticExtension
 
     public override IReadOnlyList<CustomAstRule> CustomAstRules => Rules;
 
-    private static string? ExtractIdentifierStatic(Node node, ParsingContext ctx, string? projectName, string? relativePath)
+    private static string? ExtractIdentifierStatic(Node node, SemanticParseContext ctx, string? projectName, string? relativePath)
     {
         if (IsExpressRouteCall(node))
         {
@@ -147,7 +147,7 @@ public class ExpressLibraryParser : DeclarativeSemanticExtension
                 }
             }
 
-            for (int i = curr.Children.Count - 1; i >= 0; i--)
+            for (var i = curr.Children.Count - 1; i >= 0; i--)
             {
                 var child = curr.Children[i];
                 if (child.IsValid() && (child.Is(TreeSitterSyntax.TypeScript.Program) ||
@@ -215,7 +215,7 @@ public class ExpressLibraryParser : DeclarativeSemanticExtension
         return $"/{prefix}/{route}";
     }
 
-    private static void CollectReferencesCore(Node node, string scopeSymbolId, List<Reference> references, ParsingContext ctx)
+    private static void CollectReferencesCore(Node node, string scopeSymbolId, List<Reference> references, SemanticParseContext ctx)
     {
         if (!node.Is(TreeSitterSyntax.TypeScript.CallExpression)) return;
 
@@ -249,9 +249,9 @@ public class ExpressLibraryParser : DeclarativeSemanticExtension
         }
     }
 
-    private static void EnrichSymbolCore(Node node, SyntacticSymbol symbol, ParsingContext ctx)
+    private static void EnrichSymbolCore(Node node, SyntacticSymbol symbol, SemanticParseContext ctx)
     {
-        if (symbol.Kind != CodeExplorer.Cypher.Common.SyntacticSymbolKind.EntryPoint) return;
+        if (symbol.Kind != SyntacticSymbolKind.EntryPoint) return;
         if (!IsExpressRouteCall(node)) return;
 
         var args = AstHelper.GetCallArguments(node);
@@ -321,7 +321,7 @@ public class ExpressLibraryParser : DeclarativeSemanticExtension
     private static bool IsNoiseIdentifier(string name) =>
         name is "req" or "res" or "next" or "err" or "error" or "undefined" or "null" or "true" or "false";
 
-    public override void DiscoverDeclarations(string filePath, string content, string? projectName, ParsingContext? ctx)
+    public override void DiscoverDeclarations(string filePath, string content, string? projectName, SemanticParseContext? ctx)
     {
         if (string.IsNullOrWhiteSpace(content) || !content.Contains(".use(")) return;
 
@@ -393,7 +393,7 @@ public class ExpressLibraryParser : DeclarativeSemanticExtension
         }
     }
 
-    public override void DiscoverDeclarations(Node rootNode, string relativePath, string? projectName, ParsingContext? ctx)
+    public override void DiscoverDeclarations(Node rootNode, string relativePath, string? projectName, SemanticParseContext? ctx)
     {
         if (!rootNode.IsValid()) return;
         var srcText = rootNode.Document?.SourceText;
@@ -465,7 +465,7 @@ public class ExpressLibraryParser : DeclarativeSemanticExtension
         }
     }
 
-    private static void TraverseForExpressMounts(Node node, string relativePath, string? projectName, ParsingContext? ctx, Dictionary<string, string> imports)
+    private static void TraverseForExpressMounts(Node node, string relativePath, string? projectName, SemanticParseContext? ctx, Dictionary<string, string> imports)
     {
         if (node.Is(TreeSitterSyntax.TypeScript.CallExpression))
         {
@@ -582,7 +582,7 @@ public class ExpressLibraryParser : DeclarativeSemanticExtension
         return true;
     }
 
-    private static void RegisterRouterMount(string currentFilePath, string importPath, string mountPrefix, ParsingContext? ctx)
+    private static void RegisterRouterMount(string currentFilePath, string importPath, string mountPrefix, SemanticParseContext? ctx)
     {
         if (string.IsNullOrWhiteSpace(importPath) || string.IsNullOrWhiteSpace(mountPrefix)) return;
 

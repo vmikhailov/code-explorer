@@ -1,10 +1,7 @@
-using CodeExplorer.Core.Common;
-using CodeExplorer.Core.Common.Nodes;
 using CodeExplorer.Core.Common.Nodes.Layer1_Physical;
 using CodeExplorer.Core.Common.Nodes.Layer3_Syntactic;
 using CodeExplorer.Core.Common.Nodes.Layer4_Semantic;
 using CodeExplorer.Core.Common.Relationships;
-using CodeExplorer.Cypher.Common;
 
 namespace CodeExplorer.Core.Parser.Layers;
 
@@ -69,7 +66,7 @@ internal static class CqrsMessageEnricher
 
     public static EnrichmentOutput EnrichCqrsMessages(
         Layer4Result? l4Result,
-        ParsingContext ctx,
+        Layer5Context ctx,
         Layer5AnalysisParser.SymbolLookups symbols,
         Dictionary<string, List<string>> messageHandlersByType,
         HashSet<(string From, string To, string Kind)> existingRefRels)
@@ -78,7 +75,7 @@ internal static class CqrsMessageEnricher
         var rels = new List<Relationship>();
         if (l4Result == null) return new EnrichmentOutput([], rels);
 
-        var syntaxStruct = l4Result.Prev?.SyntaxStructure ?? ctx.SyntaxStructure;
+        var syntaxStruct = ctx.SyntaxStructure;
         if (syntaxStruct == null) return new EnrichmentOutput([], rels);
 
         var typesById = new Dictionary<string, TypeNode>(StringComparer.Ordinal);
@@ -87,9 +84,9 @@ internal static class CqrsMessageEnricher
         CollectSyntaxTypesAndMethods(syntaxStruct, typesById, typesByName, typeFunctions);
 
         var filesByPath = new Dictionary<string, FileNode>(StringComparer.OrdinalIgnoreCase);
-        if (l4Result.Prev?.Prev?.Prev?.FilesStructure != null)
+        if (ctx.FilesStructure != null)
         {
-            CollectFiles(l4Result.Prev.Prev.Prev.FilesStructure, filesByPath);
+            CollectFiles(ctx.FilesStructure, filesByPath);
         }
 
         var modules = new List<ModuleNode>();
@@ -186,7 +183,7 @@ internal static class CqrsMessageEnricher
     }
 
     private static Dictionary<(string FilePath, string FnName), List<string>> BuildFunctionParameterMap(
-        ParsingContext ctx,
+        Layer5Context ctx,
         Dictionary<string, List<FunctionNode>> typeFunctions)
     {
         var map = new Dictionary<(string FilePath, string FnName), List<string>>();
@@ -572,7 +569,7 @@ internal static class CqrsMessageEnricher
     }
 
     private static void EmitMessageAndEdges(
-        ParsingContext ctx,
+        Layer5Context ctx,
         FunctionNode handlerFn,
         string messageName,
         OperationType role,

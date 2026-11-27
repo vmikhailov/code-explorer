@@ -1,3 +1,5 @@
+using Microsoft.Extensions.Logging.Abstractions;
+
 namespace CodeExplorer.Core.Analysis;
 
 public static class ModelManager
@@ -68,7 +70,7 @@ public static class ModelManager
         return (false, null, 0);
     }
 
-    public static async Task<string?> EnsureModelAvailableAsync(ParsingContext ctx, CancellationToken cancellationToken = default)
+    public static async Task<string?> EnsureModelAvailableAsync(IntentContext ctx, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(ctx);
         var existing = ResolveModelPath(ctx.HostWorkspacePath);
@@ -92,13 +94,13 @@ public static class ModelManager
     public static async Task<string?> DownloadModelAsync(
         string downloadUrl,
         string destinationPath,
-        ParsingContext? ctx = null,
+        IntentContext? ctx = null,
         IProgress<(long DownloadedBytes, long TotalBytes)>? progress = null,
         CancellationToken cancellationToken = default)
     {
         var log = ctx != null
             ? ctx.IntentLog
-            : new IntentLogger(Microsoft.Extensions.Logging.Abstractions.NullLogger.Instance);
+            : new IntentLogger(NullLogger.Instance);
         var targetDir = Path.GetDirectoryName(destinationPath);
         if (!string.IsNullOrEmpty(targetDir) && !Directory.Exists(targetDir))
         {

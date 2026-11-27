@@ -1,7 +1,5 @@
 using CodeExplorer.Core.Gates.Engine;
-using CodeExplorer.Core.Gates.Models;
 using CodeExplorer.Core.Gates.Storage;
-using CodeExplorer.Cypher.Common;
 
 namespace CodeExplorer.Core.Mcp;
 
@@ -177,7 +175,7 @@ internal static partial class McpContextPackBuilder
         var writes = items.Where(i => i.Access == AccessWriter).Select(i => i.FnName).Distinct(StringComparer.Ordinal).Count();
         var reads = items.Where(i => i.Access == AccessReader).Select(i => i.FnName).Distinct(StringComparer.Ordinal).Count();
 
-        int score = writes * 4 + reads * 2;
+        var score = writes * 4 + reads * 2;
         if (ownerKey.EndsWith("Service", StringComparison.Ordinal) || ownerKey.EndsWith("Repository", StringComparison.Ordinal))
         {
             score += 5;

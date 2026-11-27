@@ -1,7 +1,4 @@
 using CodeExplorer.Commands;
-using CodeExplorer.Core.Analysis;
-using CodeExplorer.Core.Database;
-using CodeExplorer.Core.Parser;
 using CodeExplorer.Options;
 using NUnit.Framework;
 
@@ -157,7 +154,7 @@ public class DeclarativeYamlDetectorsTests
                         route_prefix_annotation_names: [RpcService]
                     """);
 
-                var reindexed = await indexerA.IndexIncrementalAsync(wsA);
+                var reindexed = (await indexerA.IndexAsync(wsA)).HasChanges;
                 reindexed.Should().BeTrue();
 
                 var eps2 = (await dbA.ExecuteCypherAsync("MATCH (e:Endpoint) RETURN e.name AS name"))

@@ -1,7 +1,5 @@
 using System.Text;
 using System.Text.Json;
-using CodeExplorer.Core.Common;
-using CodeExplorer.Core.Parser;
 using CodeExplorer.Options;
 using YamlDotNet.Serialization;
 using YamlDotNet.Serialization.NamingConventions;

@@ -1,6 +1,5 @@
 using System.Collections.Frozen;
 using System.Text.RegularExpressions;
-using CodeExplorer.Core.Common.Nodes;
 using CodeExplorer.Core.Common.Nodes.Layer1_Physical;
 using CodeExplorer.Core.Common.Nodes.Layer2_Boundaries;
 
@@ -57,7 +56,7 @@ public static class Layer3FileSignalEnricher
         FileNode l1File,
         SyntaxTree syntaxTree,
         ProjectNode project,
-        ParsingContext ctx,
+        Layer3Context ctx,
         Func<string, bool> isRouteOrConfigCandidate)
     {
         var sourceText = syntaxTree.Document?.SourceText ?? l1File.PreloadedContent;
@@ -240,15 +239,15 @@ public static class Layer3FileSignalEnricher
         span.Length is > 12 and < 4096 && SqlKeywordPrefixPattern.IsMatch(span);
 
     private static void InspectSqlLiteralsRecursive(
-        CodeExplorer.Core.Parser.Syntax.SyntaxNode node,
+        Syntax.SyntaxNode node,
         ref bool hasSqlLiterals,
         List<string> schemas)
     {
         if (hasSqlLiterals && schemas.Count >= 5) return;
 
-        if (node is CodeExplorer.Core.Parser.Syntax.LiteralExprSyntax
+        if (node is Syntax.LiteralExprSyntax
             {
-                LiteralKind: CodeExplorer.Core.Parser.Syntax.LiteralSyntaxKind.String or CodeExplorer.Core.Parser.Syntax.LiteralSyntaxKind.RawString
+                LiteralKind: Syntax.LiteralSyntaxKind.String or Syntax.LiteralSyntaxKind.RawString
             })
         {
             var span = node.AsSpan().Trim();
@@ -283,11 +282,11 @@ public static class Layer3FileSignalEnricher
         }
     }
 
-    private static bool ContainsSqlShapedLiteral(CodeExplorer.Core.Parser.Syntax.SyntaxNode node)
+    private static bool ContainsSqlShapedLiteral(Syntax.SyntaxNode node)
     {
-        if (node is CodeExplorer.Core.Parser.Syntax.LiteralExprSyntax
+        if (node is Syntax.LiteralExprSyntax
             {
-                LiteralKind: CodeExplorer.Core.Parser.Syntax.LiteralSyntaxKind.String or CodeExplorer.Core.Parser.Syntax.LiteralSyntaxKind.RawString
+                LiteralKind: Syntax.LiteralSyntaxKind.String or Syntax.LiteralSyntaxKind.RawString
             })
         {
             var span = node.AsSpan().Trim();

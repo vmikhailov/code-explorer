@@ -1,5 +1,3 @@
-using CodeExplorer.Core.Analysis;
-using CodeExplorer.Core.Database;
 using CodeExplorer.Parsers.Python;
 using CodeExplorer.Parsers.Terraform.Hcl;
 using NUnit.Framework;

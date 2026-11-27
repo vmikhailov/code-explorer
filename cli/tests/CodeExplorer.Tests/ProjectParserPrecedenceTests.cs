@@ -195,7 +195,7 @@ public class ProjectParserPrecedenceTests
     [Test]
     public void FindProjectForFilePath_RootBuildOrchestrator_DoesNotClaimOrphanSubdirectoryFiles()
     {
-        var rootOrch = new CodeExplorer.Core.Common.Nodes.Layer2_Boundaries.ProjectNode(
+        var rootOrch = new Core.Common.Nodes.Layer2_Boundaries.ProjectNode(
             "ws:project::",
             "twenty",
             "",
@@ -205,7 +205,7 @@ public class ProjectParserPrecedenceTests
         {
             IsBuildOrchestrator = true
         };
-        var serverProj = new CodeExplorer.Core.Common.Nodes.Layer2_Boundaries.ProjectNode(
+        var serverProj = new Core.Common.Nodes.Layer2_Boundaries.ProjectNode(
             "ws:project:packages/twenty-server:",
             "twenty-server",
             "packages/twenty-server",
@@ -213,17 +213,17 @@ public class ProjectParserPrecedenceTests
             "Service",
             false);
 
-        var projects = new List<CodeExplorer.Core.Common.Nodes.Layer2_Boundaries.ProjectNode> { rootOrch, serverProj };
+        var projects = new List<Core.Common.Nodes.Layer2_Boundaries.ProjectNode> { rootOrch, serverProj };
 
-        CodeExplorer.Core.Parser.Layers.Layer2ProjectParser
+        Core.Parser.Layers.Layer2ProjectParser
             .FindProjectForFilePath("packages/twenty-server/src/main.ts", projects)
             .Should().BeSameAs(serverProj);
 
-        CodeExplorer.Core.Parser.Layers.Layer2ProjectParser
+        Core.Parser.Layers.Layer2ProjectParser
             .FindProjectForFilePath("packages/twenty-docker/podman/podman-compose.yml", projects)
             .Should().BeNull("a root build orchestrator must not swallow files in unclaimed subdirectories");
 
-        CodeExplorer.Core.Parser.Layers.Layer2ProjectParser
+        Core.Parser.Layers.Layer2ProjectParser
             .FindProjectForFilePath("package.json", projects)
             .Should().BeSameAs(rootOrch);
     }

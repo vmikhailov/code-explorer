@@ -80,7 +80,7 @@ public class ScriptProjectParser : IProjectParser
 
     private static bool IsScriptContainerRoot(string directoryPath, string[] filesInDirectory)
     {
-        if (!PhysicalFileStore.HasCachedDirectory(directoryPath))
+        if (!WorkspaceDirectoryIndex.HasCachedDirectoryInCurrent(directoryPath))
         {
             return false;
         }
@@ -90,7 +90,7 @@ public class ScriptProjectParser : IProjectParser
             return false;
         }
 
-        var childDirs = PhysicalFileStore.GetCachedDirectChildDirectories(directoryPath);
+        var childDirs = WorkspaceDirectoryIndex.GetCachedChildDirsInCurrent(directoryPath);
         if (childDirs.Count < 2)
         {
             return false;
@@ -150,9 +150,9 @@ public class ScriptProjectParser : IProjectParser
         }
 
         var scriptFiles = filesInDirectory.Where(IsScriptFile).ToList();
-        if (scriptFiles.Count == 0 && PhysicalFileStore.HasCachedDirectory(directoryPath))
+        if (scriptFiles.Count == 0 && WorkspaceDirectoryIndex.HasCachedDirectoryInCurrent(directoryPath))
         {
-            scriptFiles = PhysicalFileStore.EnumerateCachedFilesInSubtree(directoryPath)
+            scriptFiles = WorkspaceDirectoryIndex.EnumerateSubtreeInCurrent(directoryPath)
                 .Where(IsScriptFile)
                 .ToList();
         }

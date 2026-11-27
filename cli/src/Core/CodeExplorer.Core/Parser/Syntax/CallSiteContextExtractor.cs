@@ -1,5 +1,3 @@
-using CodeExplorer.Core.Common;
-
 namespace CodeExplorer.Core.Parser.Syntax;
 
 /// <summary>
@@ -43,7 +41,7 @@ public static class CallSiteContextExtractor
         byte loopDepth = 0;
         byte condDepth = 0;
         string? assignedVarName = null;
-        bool canCaptureAssignment = true;
+        var canCaptureAssignment = true;
         SyntaxNode? assignmentScope = null;
 
         SyntaxNode? prev = callNode;
@@ -129,7 +127,7 @@ public static class CallSiteContextExtractor
     {
         if (doc == null || line <= 0) return default;
         var targetZeroLine = line - 1;
-        for (int i = 0; i < doc.AllCalls.Count; i++)
+        for (var i = 0; i < doc.AllCalls.Count; i++)
         {
             var c = doc.AllCalls[i];
             if (c.Span.StartLine == targetZeroLine)
@@ -137,7 +135,7 @@ public static class CallSiteContextExtractor
                 return Extract(c);
             }
         }
-        for (int i = 0; i < doc.AllCalls.Count; i++)
+        for (var i = 0; i < doc.AllCalls.Count; i++)
         {
             var c = doc.AllCalls[i];
             if (c.Span.StartLine <= targetZeroLine && c.Span.EndLine >= targetZeroLine)
@@ -235,7 +233,7 @@ public static class CallSiteContextExtractor
         if (doc.HasParallelBatchCallsCache < 0)
         {
             sbyte hasBatch = 0;
-            for (int i = 0; i < doc.AllCalls.Count; i++)
+            for (var i = 0; i < doc.AllCalls.Count; i++)
             {
                 if (ParallelBatchLookup.Contains(doc.AllCalls[i].MethodNameSpan))
                 {
@@ -250,13 +248,13 @@ public static class CallSiteContextExtractor
         var startByte = enclosingScope.Span.StartByte;
         var endByte = enclosingScope.Span.EndByte;
 
-        for (int i = 0; i < doc.AllCalls.Count; i++)
+        for (var i = 0; i < doc.AllCalls.Count; i++)
         {
             var call = doc.AllCalls[i];
             if (call.Span.StartByte < startByte || call.Span.EndByte > endByte) continue;
             if (!ParallelBatchLookup.Contains(call.MethodNameSpan)) continue;
 
-            for (int a = 0; a < call.Arguments.Count; a++)
+            for (var a = 0; a < call.Arguments.Count; a++)
             {
                 if (call.Arguments[a].SpanContains(varName, StringComparison.Ordinal))
                 {

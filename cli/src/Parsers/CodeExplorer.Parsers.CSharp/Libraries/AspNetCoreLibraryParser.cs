@@ -85,7 +85,7 @@ public partial class AspNetCoreLibraryParser : DeclarativeSemanticExtension
         "Get", "Post", "Put", "Delete", "Patch", "Head", "Options"
     ];
 
-    private static void EnrichAspNetCoreSymbol(Node node, SyntacticSymbol symbol, ParsingContext ctx)
+    private static void EnrichAspNetCoreSymbol(Node node, SyntacticSymbol symbol, SemanticParseContext ctx)
     {
         if (IsRouteAttribute(node))
         {
@@ -315,7 +315,7 @@ public partial class AspNetCoreLibraryParser : DeclarativeSemanticExtension
                 classDecl = classDecl.Parent;
             }
 
-            string className = "";
+            var className = "";
             if (classDecl.IsValid())
             {
                 var classNameNode = classDecl.GetField(TreeSitterSyntax.Fields.Name);

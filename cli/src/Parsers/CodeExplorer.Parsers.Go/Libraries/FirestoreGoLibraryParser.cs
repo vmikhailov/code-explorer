@@ -49,7 +49,7 @@ public class FirestoreGoLibraryParser : DeclarativeSemanticExtension
         ];
     }
 
-    private static void EnrichFirestoreSymbol(Node node, SyntacticSymbol symbol, ParsingContext ctx)
+    private static void EnrichFirestoreSymbol(Node node, SyntacticSymbol symbol, SemanticParseContext ctx)
     {
         if (IsFirestoreCollectionCall(node, out _))
         {

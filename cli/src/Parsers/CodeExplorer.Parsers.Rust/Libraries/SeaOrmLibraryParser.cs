@@ -37,7 +37,7 @@ public class SeaOrmLibraryParser : DeclarativeSemanticExtension
         ];
     }
 
-    private static void CollectReferencesCore(Node node, string scopeSymbolId, List<Reference> references, ParsingContext ctx)
+    private static void CollectReferencesCore(Node node, string scopeSymbolId, List<Reference> references, SemanticParseContext ctx)
     {
         if (IsSeaOrmEntity(node, out var tableName) && !string.IsNullOrEmpty(tableName))
         {

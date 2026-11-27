@@ -45,7 +45,7 @@ public class TreeSitterRuntimeTests
     public void RGrammar_ParsesFunctionsCallsAndStringsIntoZeroAllocationTree()
     {
         using var lang = new Language(LangR);
-        using var parser = new CodeExplorer.TreeSitter.Parser(lang);
+        using var parser = new Parser(lang);
         using var tree = parser.Parse(RSourceCode);
 
         tree.Should().NotBeNull();
@@ -76,7 +76,7 @@ public class TreeSitterRuntimeTests
     public void TreeCursorWalk_AllocatesZeroManagedBytesAfterInternWarmup()
     {
         using var lang = new Language(LangCSharp);
-        using var parser = new CodeExplorer.TreeSitter.Parser(lang);
+        using var parser = new Parser(lang);
         const string csharpSample = """
             namespace Demo.OrderProcessing;
             public sealed class OrderService
@@ -99,17 +99,17 @@ public class TreeSitterRuntimeTests
         WalkAllNodes(root);
 
         var sw = System.Diagnostics.Stopwatch.StartNew();
-        long beforeBytes = GC.GetAllocatedBytesForCurrentThread();
-        int totalNodes = 0;
+        var beforeBytes = GC.GetAllocatedBytesForCurrentThread();
+        var totalNodes = 0;
         const int iterations = 1000;
-        for (int i = 0; i < iterations; i++)
+        for (var i = 0; i < iterations; i++)
         {
             totalNodes += WalkAllNodes(root);
         }
-        long afterBytes = GC.GetAllocatedBytesForCurrentThread();
+        var afterBytes = GC.GetAllocatedBytesForCurrentThread();
         sw.Stop();
 
-        long allocatedBytes = afterBytes - beforeBytes;
+        var allocatedBytes = afterBytes - beforeBytes;
         TestContext.Out.WriteLine($"Walked {totalNodes:N0} AST nodes ({iterations} iterations) in {sw.Elapsed.TotalMilliseconds:F2} ms ({totalNodes / sw.Elapsed.TotalSeconds:N0} nodes/sec), GC allocated: {allocatedBytes} bytes");
         allocatedBytes.Should().Be(0);
     }
@@ -126,7 +126,7 @@ public class TreeSitterRuntimeTests
             """;
 
         using var lang = new Language(LangTypeScript);
-        using var parser = new CodeExplorer.TreeSitter.Parser(lang);
+        using var parser = new Parser(lang);
         using var tree = parser.Parse(tsSample)!;
 
         tree.RootNode.HasError.Should().BeFalse();
@@ -156,7 +156,7 @@ public class TreeSitterRuntimeTests
             """;
 
         using var lang = new Language(LangCSharp);
-        using var parser = new CodeExplorer.TreeSitter.Parser(lang);
+        using var parser = new Parser(lang);
         using var tree = parser.Parse(csSample)!;
 
         tree.RootNode.HasError.Should().BeFalse();
@@ -164,9 +164,9 @@ public class TreeSitterRuntimeTests
 
     private static int WalkAllNodes(TSNode root)
     {
-        int count = 0;
+        var count = 0;
         using var cursor = root.Walk();
-        bool reachedRoot = false;
+        var reachedRoot = false;
         while (!reachedRoot)
         {
             var current = cursor.CurrentNode;
@@ -180,7 +180,7 @@ public class TreeSitterRuntimeTests
             if (cursor.GotoNextSibling())
                 continue;
 
-            bool retracing = true;
+            var retracing = true;
             while (retracing)
             {
                 if (!cursor.GotoParent())

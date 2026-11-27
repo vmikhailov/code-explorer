@@ -1,4 +1,3 @@
-using CodeExplorer.Core.Mcp;
 using CodeExplorer.Core.Mcp.Models;
 using CodeExplorer.Options;
 

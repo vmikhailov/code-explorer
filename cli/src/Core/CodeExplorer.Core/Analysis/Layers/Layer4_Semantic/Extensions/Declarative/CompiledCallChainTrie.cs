@@ -1,5 +1,4 @@
 using System.Collections.Frozen;
-using CodeExplorer.Core.Common.Relationships;
 using CodeExplorer.Core.Parser.Syntax;
 using Node = CodeExplorer.Core.Parser.Syntax.SyntaxNode;
 

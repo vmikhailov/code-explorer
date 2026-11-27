@@ -8,7 +8,7 @@ namespace CodeExplorer.Core.Parser;
 public partial class PostIndexAnalyzer
 {
     internal static void PruneUnverifiedConfigDbEdges(
-        ParsingContext ctx,
+        Layer5Context ctx,
         IReadOnlyList<ProjectNode> projects,
         IReadOnlyList<FileNode> files,
         IReadOnlyDictionary<string, ProjectNode> fileToProject,
@@ -138,7 +138,7 @@ public partial class PostIndexAnalyzer
                 {
                     vEngines.Add(ResourceReconciliationService.NormalizeEngineName(eng));
                 }
-                if (targetDb.DbType != CodeExplorer.Cypher.Common.DatabaseType.Unknown)
+                if (targetDb.DbType != DatabaseType.Unknown)
                 {
                     vDbTypes.Add(targetDb.DbType.ToCanonicalString());
                 }
@@ -285,7 +285,7 @@ public partial class PostIndexAnalyzer
 
             var isVerified = vEngines.Contains(normEng) ||
                              (!string.IsNullOrEmpty(key) && (vKeys.Contains(key) || key.Split([':', '.']).Any(part => vKeys.Contains(part)))) ||
-                             (targetDb.DbType == CodeExplorer.Cypher.Common.DatabaseType.Relational && vDbTypes.Contains("relational"));
+                             (targetDb.DbType == DatabaseType.Relational && vDbTypes.Contains("relational"));
 
             if (!isVerified)
             {
@@ -319,7 +319,7 @@ public partial class PostIndexAnalyzer
     }
 
     internal static async Task<List<Relationship>> ConsolidateServiceDatabasesAsync(
-        ParsingContext ctx,
+        Layer5Context ctx,
         Layer4Result l4Result,
         IReadOnlyList<ProjectNode> projects,
         IReadOnlyDictionary<string, ProjectNode> fileToProject,

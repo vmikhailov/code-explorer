@@ -1,8 +1,7 @@
+using CodeExplorer.Core.Common.Nodes;
 using System.Text.Json;
 using System.Text.Json.Serialization;
-using CodeExplorer.Core.Common.Nodes;
 using CodeExplorer.Core.Common.Nodes.Layer4_Semantic;
-using CodeExplorer.Cypher.Common;
 
 namespace CodeExplorer.Core.Parser.Layers;
 
@@ -39,7 +38,7 @@ internal static class DataSensitivityEnricher
     private sealed record ColumnNameDto(
         [property: JsonPropertyName("name")] string? Name);
 
-    public static List<Node> EnrichTableSensitivity(Layer4Result? l4Result)
+    public static List<Node> EnrichTableSensitivity(Layer4Result? l4Result, WorkspaceNode? workspace = null)
     {
         var updatedNodes = new List<Node>();
         if (l4Result == null) return updatedNodes;
@@ -75,9 +74,9 @@ internal static class DataSensitivityEnricher
         }
 
         Walk(l4Result.SemanticStructure);
-        if (l4Result.Prev?.Prev?.Prev?.Workspace != null)
+        if (workspace != null)
         {
-            Walk(l4Result.Prev.Prev.Prev.Workspace);
+            Walk(workspace);
         }
 
         // Synchronize duplicate TableNodes sharing the same canonical table name

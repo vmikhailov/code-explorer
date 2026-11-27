@@ -309,10 +309,10 @@ export const HTTP_API_PREFIX_CONFIG = {
 };
 ";
         AstConstantExtractor.ExtractAndRegister("src/config/http-api-prefix.config.ts", code, "integration-service-helper-nest");
-        TestContext.WriteLine("Constants registered count: " + ConstantRegistry.ProjectConstants.Count);
+        TestContext.Out.WriteLine("Constants registered count: " + ConstantRegistry.ProjectConstants.Count);
         foreach (var kvp in ConstantRegistry.ProjectConstants)
         {
-            TestContext.WriteLine($"  {kvp.Key} = {kvp.Value}");
+            TestContext.Out.WriteLine($"  {kvp.Key} = {kvp.Value}");
         }
         ConstantRegistry.TryResolve("integration-service-helper-nest", "HTTP_API_PREFIX_CONFIG.SMART_CPA.GLOBAL_PREFIX", out var val).Should().BeTrue();
         val.Should().Be("smart-cpa");

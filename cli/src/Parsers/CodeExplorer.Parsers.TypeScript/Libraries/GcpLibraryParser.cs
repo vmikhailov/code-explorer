@@ -34,7 +34,7 @@ public class GcpLibraryParser : DeclarativeSemanticExtension
     private const string ReceiveTopicNameProp = "receiveTopicName";
     private const string SubscriptionNameProp = "subscriptionName";
 
-    private static void CollectReferencesCore(Node node, string scopeSymbolId, List<Reference> references, ParsingContext ctx)
+    private static void CollectReferencesCore(Node node, string scopeSymbolId, List<Reference> references, SemanticParseContext ctx)
     {
         if (!node.Is(TreeSitterSyntax.TypeScript.CallExpression)) return;
 
@@ -425,7 +425,7 @@ public class GcpLibraryParser : DeclarativeSemanticExtension
                                  curr.FindChildOfType(TreeSitterSyntax.TypeScript.FormalParameters);
                 if (paramsNode.IsValid())
                 {
-                    int idx = 0;
+                    var idx = 0;
                     foreach (var p in paramsNode.Children)
                     {
                         if (!p.IsValid() || p.Type is "(" or ")" or ",") continue;

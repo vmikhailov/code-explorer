@@ -246,10 +246,10 @@ public class TypeScriptImportCallResolutionTests
         );
         """;
 
-        var tsTree = CodeExplorer.Parsers.TypeScript.TypeScriptSyntaxConverter.Instance.Parse(tsSource, "TypeScript", "sample.ts", "sample.ts");
+        var tsTree = Parsers.TypeScript.TypeScriptSyntaxConverter.Instance.Parse(tsSource, "TypeScript", "sample.ts", "sample.ts");
         tsTree.Diagnostics.Should().BeEmpty("TypeScript <typeof import(...)> and abstract override readonly must parse with 0 syntax errors");
 
-        var tsxTree = CodeExplorer.Parsers.TypeScript.TypeScriptSyntaxConverter.Instance.Parse(tsxSource, "Tsx", "sample.tsx", "sample.tsx");
+        var tsxTree = Parsers.TypeScript.TypeScriptSyntaxConverter.Instance.Parse(tsxSource, "Tsx", "sample.tsx", "sample.tsx");
         tsxTree.Diagnostics.Should().BeEmpty("TSX generic tagged template and bare '&' in JSX text must parse with 0 syntax errors");
     }
 }

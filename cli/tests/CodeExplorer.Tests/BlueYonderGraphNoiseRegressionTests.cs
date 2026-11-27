@@ -1,12 +1,7 @@
 using System.Threading.Channels;
-using CodeExplorer.Core.Common;
 using CodeExplorer.Core.Common.Nodes.Layer4_Semantic;
 using CodeExplorer.Core.Conventions.Services;
-using CodeExplorer.Core.Database;
-using CodeExplorer.Core.Parser;
-using CodeExplorer.Core.Parser.Layers;
 using CodeExplorer.Core.Parser.Sql.Dialects;
-using CodeExplorer.Cypher.Common;
 using CodeExplorer.Parsers.Sql;
 using NUnit.Framework;
 
@@ -70,7 +65,6 @@ public class BlueYonderGraphNoiseRegressionTests
         }
         finally
         {
-            PhysicalFileStore.ClearWorkspace(tempDir);
             if (Directory.Exists(tempDir)) Directory.Delete(tempDir, true);
         }
     }
@@ -103,7 +97,7 @@ public class BlueYonderGraphNoiseRegressionTests
         // 2. OAuth2 / OIDC token URL under 'oauth2' key must NOT match H2 or create a Database node
         var channel = Channel.CreateUnbounded<Func<Task>>();
         await using var memRepo = new InMemoryGraphRepository();
-        var ctx = new ParsingContext("ws", "c:/tmp/ws", memRepo, channel);
+        var ctx = new SemanticParseContext("ws", "c:/tmp/ws");
         var container = new SemanticStructureNode("ws:sem", "Semantic", "");
         ctx.SemanticStructure = container;
         var rels = new List<Relationship>();
@@ -275,7 +269,6 @@ public class BlueYonderGraphNoiseRegressionTests
         }
         finally
         {
-            PhysicalFileStore.ClearWorkspace(tempDir);
             if (Directory.Exists(tempDir)) Directory.Delete(tempDir, true);
         }
     }
@@ -365,7 +358,6 @@ public class BlueYonderGraphNoiseRegressionTests
         }
         finally
         {
-            PhysicalFileStore.ClearWorkspace(tempDir);
             if (Directory.Exists(tempDir)) Directory.Delete(tempDir, true);
         }
     }

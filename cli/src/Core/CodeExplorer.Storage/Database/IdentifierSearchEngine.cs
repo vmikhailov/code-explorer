@@ -1,5 +1,4 @@
 using System.Diagnostics;
-using CodeExplorer.Cypher.Common;
 using Microsoft.Data.Sqlite;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -103,7 +102,7 @@ public class IdentifierSearchEngine
             """;
         await initCmd.ExecuteNonQueryAsync(ct);
 
-        bool hasNativeColumns = false;
+        var hasNativeColumns = false;
         await using (var pragmaCmd = conn.CreateCommand())
         {
             pragmaCmd.CommandText = "SELECT COUNT(*) FROM pragma_table_info('nodes') WHERE name = 'name';";

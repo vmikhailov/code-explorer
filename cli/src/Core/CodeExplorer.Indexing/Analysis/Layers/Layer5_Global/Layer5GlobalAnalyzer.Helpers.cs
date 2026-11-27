@@ -295,7 +295,7 @@ public partial class Layer5AnalysisParser
 
         var hasExactMatch = false;
 
-        for (int i = 1; i <= len; i++)
+        for (var i = 1; i <= len; i++)
         {
             var a = partsA[^i];
             var b = partsB[^i];
@@ -335,7 +335,7 @@ public partial class Layer5AnalysisParser
         var prefixCount = longerParts.Length - len;
         if (len == 1 && prefixCount > 0)
         {
-            for (int i = 0; i < prefixCount; i++)
+            for (var i = 0; i < prefixCount; i++)
             {
                 var seg = longerParts[i];
                 if (AllowedApiPrefixSegments.Contains(seg)) continue;

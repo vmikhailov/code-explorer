@@ -1,5 +1,4 @@
 using System.Diagnostics.CodeAnalysis;
-using CodeExplorer.Cypher.Common;
 
 namespace CodeExplorer.Core.Common.Nodes;
 

@@ -48,7 +48,7 @@ public class MassTransitLibraryParser : DeclarativeSemanticExtension
         "RespondAsync"
     ];
 
-    private static void CollectMassTransitReferences(Node node, string scopeSymbolId, List<Reference> references, ParsingContext ctx)
+    private static void CollectMassTransitReferences(Node node, string scopeSymbolId, List<Reference> references, SemanticParseContext ctx)
     {
         // 1. Ingress: Consumer classes subscribe to message types
         if (IsConsumerClass(node))

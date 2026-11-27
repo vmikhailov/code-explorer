@@ -1,5 +1,4 @@
 using System.Collections.Frozen;
-using Node = CodeExplorer.Core.Parser.Syntax.SyntaxNode;
 
 namespace CodeExplorer.Parsers.TypeScript.Libraries;
 

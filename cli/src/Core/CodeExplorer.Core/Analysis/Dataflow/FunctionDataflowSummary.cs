@@ -88,7 +88,7 @@ public static class FunctionDataflowAnalyzer
         var varOrigins = new Dictionary<string, List<DataflowOrigin>>(StringComparer.Ordinal);
 
         // 1. Seed parameters
-        for (int i = 0; i < fn.Parameters.Count; i++)
+        for (var i = 0; i < fn.Parameters.Count; i++)
         {
             var p = fn.Parameters[i];
             var pName = !string.IsNullOrEmpty(p.Name) ? p.Name : $"p{i}";
@@ -114,7 +114,7 @@ public static class FunctionDataflowAnalyzer
 
     private static void ScanBlock(BlockStmtSyntax block, Dictionary<string, List<DataflowOrigin>> varOrigins, FunctionDataflowSummary summary)
     {
-        for (int i = 0; i < block.Children.Count; i++)
+        for (var i = 0; i < block.Children.Count; i++)
         {
             ScanNode(block.Children[i], varOrigins, summary);
         }
@@ -146,7 +146,7 @@ public static class FunctionDataflowAnalyzer
                 break;
 
             default:
-                for (int i = 0; i < node.Children.Count; i++)
+                for (var i = 0; i < node.Children.Count; i++)
                 {
                     ScanNode(node.Children[i], varOrigins, summary);
                 }
@@ -235,7 +235,7 @@ public static class FunctionDataflowAnalyzer
             summary.CallArgFlows[key] = argMap;
         }
 
-        for (int i = 0; i < call.Arguments.Count; i++)
+        for (var i = 0; i < call.Arguments.Count; i++)
         {
             var arg = call.Arguments[i];
             if (arg.Value != null)
@@ -318,7 +318,7 @@ public static class FunctionDataflowAnalyzer
                 break;
 
             case CollectionExprSyntax col:
-                for (int i = 0; i < col.Elements.Count; i++)
+                for (var i = 0; i < col.Elements.Count; i++)
                 {
                     list.AddRange(ResolveExprOrigins(col.Elements[i], varOrigins));
                 }

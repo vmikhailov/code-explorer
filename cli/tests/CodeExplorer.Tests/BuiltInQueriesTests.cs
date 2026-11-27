@@ -22,7 +22,7 @@ public class BuiltInQueriesTests
         await File.WriteAllTextAsync(Path.Combine(projADir, "ProjectA.csproj"), "<Project Sdk=\"Microsoft.NET.Sdk\"></Project>");
 
         var sbMethods = new System.Text.StringBuilder();
-        for (int i = 1; i <= 20; i++)
+        for (var i = 1; i <= 20; i++)
         {
             sbMethods.AppendLine($"    public void Method{i}() {{ }}");
         }

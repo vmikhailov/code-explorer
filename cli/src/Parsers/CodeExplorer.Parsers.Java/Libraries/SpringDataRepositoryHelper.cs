@@ -101,8 +101,8 @@ internal static partial class SpringDataRepositoryHelper
     private static WeakReference<WorkspaceEntityMaps>? _lastContextMaps;
 
     internal static WorkspaceEntityMaps GetOrCreateContextMaps(
-        ParsingContext? ctx,
-        System.Runtime.CompilerServices.ConditionalWeakTable<ParsingContext, WorkspaceEntityMaps> store)
+        SemanticParseContext? ctx,
+        System.Runtime.CompilerServices.ConditionalWeakTable<SemanticParseContext, WorkspaceEntityMaps> store)
     {
         if (ctx == null)
         {

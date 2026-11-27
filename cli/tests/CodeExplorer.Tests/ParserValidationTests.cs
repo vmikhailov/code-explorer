@@ -1,4 +1,3 @@
-using CodeExplorer.Core.Database;
 using System.Threading.Channels;
 using CodeExplorer.Core.Common.Nodes;
 using CodeExplorer.Core.Common.Nodes.Layer1_Physical;
@@ -39,7 +38,7 @@ public class ParserValidationTests
 
             await using var client = new InMemoryGraphRepository();
 
-            var ctx = new ParsingContext(workspacePath, workspacePath, client, channel);
+            var ctx = new SemanticParseContext(workspacePath);
 
             using var syntaxTree = await parser.ParseAsync(tempFile.FilePath, "parent-id", ctx.WorkspaceId,
                 ctx.AbsoluteWorkspacePath);
@@ -64,7 +63,7 @@ public class ParserValidationTests
 
         await using var client = new InMemoryGraphRepository();
 
-        var ctx = new ParsingContext(workspacePath, workspacePath, client, channel);
+        var ctx = new SemanticParseContext(workspacePath);
 
         using var syntaxTree = await parser.ParseAsync(tempFile.FilePath, "parent-id", ctx.WorkspaceId,
             ctx.AbsoluteWorkspacePath);
@@ -102,7 +101,7 @@ public class ParserValidationTests
 
         await using var client = new InMemoryGraphRepository();
 
-        var ctx = new ParsingContext(workspacePath, workspacePath, client, channel);
+        var ctx = new SemanticParseContext(workspacePath);
 
         using var syntaxTree = await parser.ParseAsync(tempFile.FilePath, "parent-id", ctx.WorkspaceId,
             ctx.AbsoluteWorkspacePath);
@@ -135,7 +134,7 @@ public class ParserValidationTests
 
         await using var client = new InMemoryGraphRepository();
 
-        var ctx = new ParsingContext(workspacePath, workspacePath, client, channel);
+        var ctx = new SemanticParseContext(workspacePath);
 
         using var syntaxTree = await parser.ParseAsync(tempFile.FilePath, "parent-id", ctx.WorkspaceId,
             ctx.AbsoluteWorkspacePath);
@@ -168,7 +167,7 @@ public class ParserValidationTests
 
         await using var client = new InMemoryGraphRepository();
 
-        var ctx = new ParsingContext(workspacePath, workspacePath, client, channel);
+        var ctx = new SemanticParseContext(workspacePath);
 
         using var syntaxTree = await parser.ParseAsync(tempFile.FilePath, "parent-id", ctx.WorkspaceId,
             ctx.AbsoluteWorkspacePath);
@@ -376,7 +375,7 @@ public class ParserValidationTests
 
         await using var client = new InMemoryGraphRepository();
 
-        var ctx = new ParsingContext(workspacePath, workspacePath, client, channel);
+        var ctx = new SemanticParseContext(workspacePath);
 
         using var syntaxTree = await parser.ParseAsync(tempFile.FilePath, "parent-id", ctx.WorkspaceId,
             ctx.AbsoluteWorkspacePath);
@@ -473,7 +472,7 @@ public class ParserValidationTests
 
         await using var client = new InMemoryGraphRepository();
 
-        var ctx = new ParsingContext(workspacePath, workspacePath, client, channel);
+        var ctx = new SemanticParseContext(workspacePath);
 
         using var syntaxTree = await parser.ParseAsync(tempFile.FilePath, "parent-id", ctx.WorkspaceId,
             ctx.AbsoluteWorkspacePath);
@@ -507,7 +506,7 @@ public class ParserValidationTests
 
         await using var client = new InMemoryGraphRepository();
 
-        var ctx = new ParsingContext(workspacePath, workspacePath, client, channel);
+        var ctx = new SemanticParseContext(workspacePath);
 
         using var syntaxTree = await parser.ParseAsync(tempFile.FilePath, "parent-id", ctx.WorkspaceId,
             ctx.AbsoluteWorkspacePath);
@@ -550,14 +549,15 @@ public class ParserValidationTests
 
         await using var client = new InMemoryGraphRepository();
 
-        var ctx = new ParsingContext(tempWorkspace, tempWorkspace, client, channel);
-        ctx.WorkspaceId = "1";
-
+        var l1Ctx = new Layer1Context(tempWorkspace, tempWorkspace, client) { WorkspaceId = "1" };
         WorkspaceIndexer.AutoRegisterParsers();
-        var l1Result = await new Layer1PhysicalParser().ParseAsync(ctx);
-        var l2Result = await new Layer2ProjectParser().ParseAsync(l1Result, ctx);
-        var l3Result = await new Layer3SyntacticParser().ParseAsync(l2Result, ctx);
-        var l4Result = await new Layer4SemanticParser().ParseAsync(l3Result, ctx);
+        var l1Result = await new Layer1PhysicalParser().ParseAsync(l1Ctx);
+        var l2Ctx = new Layer2Context(l1Ctx.Scope, l1Ctx.Sink, l1Result, l1Ctx.DirectoryIndex);
+        var l2Result = await new Layer2ProjectParser().ParseAsync(l2Ctx);
+        var l3Ctx = new Layer3Context(l1Ctx.Scope, l1Ctx.Sink, l1Result, l2Result, l1Ctx.DirectoryIndex);
+        var l3Result = await new Layer3SyntacticParser().ParseAsync(l3Ctx);
+        var ctx = new Layer4Context(l1Ctx.Scope, l1Ctx.Sink, l1Ctx.Git, l1Result, l2Result, l3Result, l3Ctx.Symbols, l3Ctx.Semantic, l2Ctx.GlobalProjectDependencies, l3Ctx.TreeRelationships);
+        var l4Result = await new Layer4SemanticParser().ParseAsync(ctx);
 
         var workspaceNode = l1Result.Workspace;
 
@@ -688,7 +688,7 @@ public class ParserValidationTests
 
         await using var client = new InMemoryGraphRepository();
 
-        var ctx = new ParsingContext(tempWorkspace, tempWorkspace, client, channel);
+        var ctx = new SemanticParseContext(tempWorkspace);
         ctx.WorkspaceId = "1";
 
         // 1. Python Parser - Flask & HTTP calls
@@ -783,7 +783,7 @@ public class ParserValidationTests
 
             await using var client = new InMemoryGraphRepository();
 
-            var ctx = new ParsingContext(tempWorkspace, tempWorkspace, client, channel);
+            var ctx = new SemanticParseContext(tempWorkspace);
             ctx.WorkspaceId = "1";
 
             ctx.SemanticStructure =
@@ -911,7 +911,7 @@ public class ParserValidationTests
 
         await using var client = new InMemoryGraphRepository();
 
-        var ctx = new ParsingContext(tempWorkspace, tempWorkspace, client, channel);
+        var ctx = new SemanticParseContext(tempWorkspace);
         ctx.WorkspaceId = "1";
 
         // 1. C# file parsing test (Dapper and Flurl)
@@ -1047,7 +1047,7 @@ public class ParserValidationTests
 
         await using var client = new InMemoryGraphRepository();
 
-        var ctx = new ParsingContext(workspacePath, workspacePath, client, channel);
+        var ctx = new SemanticParseContext(workspacePath);
 
         using var syntaxTreeTs =
             await tsParser.ParseAsync(tsFile, "parent-id", ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
@@ -1179,7 +1179,7 @@ public class MyHub {}
 
             await using var client = new InMemoryGraphRepository();
 
-            var ctx = new ParsingContext(tempDir, tempDir, client, channel);
+            var ctx = new SemanticParseContext(tempDir);
 
             using var syntaxTree = await parser.ParseAsync(tempFilePath, "parent-id", ctx.WorkspaceId,
                 ctx.AbsoluteWorkspacePath);
@@ -1251,7 +1251,7 @@ public class DicomClient {
 
             await using var client = new InMemoryGraphRepository();
 
-            var ctx = new ParsingContext(tempDir, tempDir, client, channel);
+            var ctx = new SemanticParseContext(tempDir);
 
             using var syntaxTree = await parser.ParseAsync(tempFilePath, "parent-id", ctx.WorkspaceId,
                 ctx.AbsoluteWorkspacePath);
@@ -1343,7 +1343,7 @@ public static class StartupExtensions
         {
             var channel = Channel.CreateUnbounded<Func<Task>>();
             await using var client = new InMemoryGraphRepository();
-            var ctx = new ParsingContext(tempDir, tempDir, client, channel);
+            var ctx = new SemanticParseContext(tempDir);
 
             using var syntaxTree = await parser.ParseAsync(tempFilePath, "parent-id", ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
             Layer3SyntacticParser.ProcessVisitor(syntaxTree, ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
@@ -1404,7 +1404,7 @@ public class RestService {
 
             await using var client = new InMemoryGraphRepository();
 
-            var ctx = new ParsingContext(tempDir, tempDir, client, channel);
+            var ctx = new SemanticParseContext(tempDir);
 
             using var syntaxTree = await parser.ParseAsync(tempFilePath, "parent-id", ctx.WorkspaceId,
                 ctx.AbsoluteWorkspacePath);
@@ -1459,7 +1459,7 @@ func registerRoutes() {
 
             await using var client = new InMemoryGraphRepository();
 
-            var ctx = new ParsingContext(tempDir, tempDir, client, channel);
+            var ctx = new SemanticParseContext(tempDir);
 
             var parser = new GoFileParser();
 
@@ -1530,7 +1530,7 @@ public interface IUsersApi
 
             await using var client = new InMemoryGraphRepository();
 
-            var ctx = new ParsingContext(tempDir, tempDir, client, channel);
+            var ctx = new SemanticParseContext(tempDir);
 
             using var syntaxTree = await parser.ParseAsync(tempFilePath, "parent-id", ctx.WorkspaceId,
                 ctx.AbsoluteWorkspacePath);

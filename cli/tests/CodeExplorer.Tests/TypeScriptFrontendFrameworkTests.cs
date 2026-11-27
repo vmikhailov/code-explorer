@@ -1,4 +1,3 @@
-using CodeExplorer.Core.Database;
 using System.Threading.Channels;
 using CodeExplorer.Core.Common.Nodes;
 using CodeExplorer.Core.Common.Nodes.Layer1_Physical;
@@ -21,9 +20,9 @@ public class TypeScriptFrontendFrameworkTests
         public string FilePath { get; }
         public SyntaxTree SyntaxTree { get; }
         public FileNode FileNode => SyntaxTree.FileNode;
-        public ParsingContext Context { get; }
+        public SemanticParseContext Context { get; }
 
-        private TestWorkspace(string dir, string file, SyntaxTree tree, ParsingContext ctx)
+        private TestWorkspace(string dir, string file, SyntaxTree tree, SemanticParseContext ctx)
         {
             DirectoryPath = dir;
             FilePath = file;
@@ -41,7 +40,7 @@ public class TypeScriptFrontendFrameworkTests
             var parser = new TypeScriptFileParser();
             var channel = Channel.CreateUnbounded<Func<Task>>();
             var client = new InMemoryGraphRepository();
-            var ctx = new ParsingContext(tempDir, tempDir, client, channel);
+            var ctx = new SemanticParseContext(tempDir);
 
             var syntaxTree = await parser.ParseAsync(filePath, "parent-id", ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
             Layer3SyntacticParser.ProcessVisitor(syntaxTree, ctx.WorkspaceId, ctx.AbsoluteWorkspacePath, ctx);

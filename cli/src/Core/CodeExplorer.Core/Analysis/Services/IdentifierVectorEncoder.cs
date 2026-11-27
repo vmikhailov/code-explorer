@@ -1,7 +1,6 @@
 using System.Numerics;
 using System.Text;
 using System.Text.RegularExpressions;
-using CodeExplorer.Cypher.Common;
 
 namespace CodeExplorer.Core.Analysis;
 
@@ -83,7 +82,7 @@ public static partial class IdentifierVectorEncoder
             // 4. Character 3-grams and 4-grams within words for fuzzy typo tolerance
             if (word.Length >= 3)
             {
-                for (int i = 0; i <= word.Length - 3; i++)
+                for (var i = 0; i <= word.Length - 3; i++)
                 {
                     HashFeature(vec, word.Substring(i, 3), weight: 1.0f);
                 }
@@ -91,7 +90,7 @@ public static partial class IdentifierVectorEncoder
 
             if (word.Length >= 4)
             {
-                for (int i = 0; i <= word.Length - 4; i++)
+                for (var i = 0; i <= word.Length - 4; i++)
                 {
                     HashFeature(vec, word.Substring(i, 4), weight: 1.2f);
                 }
@@ -113,12 +112,12 @@ public static partial class IdentifierVectorEncoder
             return 0f;
         }
 
-        float dot = 0f;
-        int i = 0;
+        var dot = 0f;
+        var i = 0;
 
         if (Vector.IsHardwareAccelerated)
         {
-            int vecSize = Vector<float>.Count;
+            var vecSize = Vector<float>.Count;
             var sumVec = Vector<float>.Zero;
 
             while (i <= Dimension - vecSize)
@@ -129,7 +128,7 @@ public static partial class IdentifierVectorEncoder
                 i += vecSize;
             }
 
-            for (int k = 0; k < vecSize; k++)
+            for (var k = 0; k < vecSize; k++)
             {
                 dot += sumVec[k];
             }
@@ -181,17 +180,17 @@ public static partial class IdentifierVectorEncoder
 
     private static void HashFeature(float[] vec, string feature, float weight)
     {
-        uint hash = Fnv1a32(feature);
-        int dim = (int)(hash % Dimension);
+        var hash = Fnv1a32(feature);
+        var dim = (int)(hash % Dimension);
         // Signed hash to ensure zero-mean distribution and reduce hash collision bias
-        float sign = (hash & 0x80000000) == 0 ? 1.0f : -1.0f;
+        var sign = (hash & 0x80000000) == 0 ? 1.0f : -1.0f;
         vec[dim] += sign * weight;
     }
 
     private static uint Fnv1a32(string text)
     {
-        uint hash = 2166136261;
-        for (int i = 0; i < text.Length; i++)
+        var hash = 2166136261;
+        for (var i = 0; i < text.Length; i++)
         {
             hash ^= text[i];
             hash *= 16777619;
@@ -244,15 +243,15 @@ public static partial class IdentifierVectorEncoder
     private static void Normalize(float[] vec)
     {
         double sumSq = 0;
-        for (int i = 0; i < Dimension; i++)
+        for (var i = 0; i < Dimension; i++)
         {
             sumSq += (double)vec[i] * vec[i];
         }
 
         if (sumSq > 0)
         {
-            float norm = (float)Math.Sqrt(sumSq);
-            for (int i = 0; i < Dimension; i++)
+            var norm = (float)Math.Sqrt(sumSq);
+            for (var i = 0; i < Dimension; i++)
             {
                 vec[i] /= norm;
             }

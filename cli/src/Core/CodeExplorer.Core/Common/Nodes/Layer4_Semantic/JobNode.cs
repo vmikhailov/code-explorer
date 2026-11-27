@@ -1,7 +1,6 @@
 using System.Text.Json.Serialization;
 using CodeExplorer.Core.Common.Nodes.Layer1_Physical;
 using CodeExplorer.Core.Common.Nodes.Layer3_Syntactic;
-using CodeExplorer.Cypher.Common;
 
 namespace CodeExplorer.Core.Common.Nodes.Layer4_Semantic;
 

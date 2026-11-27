@@ -31,7 +31,7 @@ public class GoRedisLegacyLibraryParser : DeclarativeSemanticExtension
 
     private const string RedisDbId = "redis";
 
-    private static void CollectRedisLegacyReferences(Node node, string scopeSymbolId, List<Reference> references, ParsingContext ctx)
+    private static void CollectRedisLegacyReferences(Node node, string scopeSymbolId, List<Reference> references, SemanticParseContext ctx)
     {
         if (GoRedisLibraryParser.IsRedisCall(node, out var method, out var target))
         {

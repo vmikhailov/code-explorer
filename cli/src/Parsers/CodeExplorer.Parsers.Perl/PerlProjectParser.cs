@@ -1,7 +1,4 @@
 using System.Text.RegularExpressions;
-using CodeExplorer.Core.Common;
-using CodeExplorer.Core.Common.Nodes.Layer2_Boundaries;
-using CodeExplorer.Core.Parser;
 
 [assembly: ParserAssembly]
 
@@ -79,8 +76,8 @@ public class PerlProjectParser : IProjectParser
         string[] childFiles,
         IProjectParser candidateChildParser)
     {
-        if (PhysicalFileStore.TryGetConfiguredProject(childDirectoryPath, out _) ||
-            (PhysicalFileStore.IsGitRepositoryRoot(childDirectoryPath) && !PhysicalFileStore.HasChildGitRepositories(childDirectoryPath)))
+        if (WorkspaceDirectoryIndex.TryGetConfiguredProjectInCurrent(childDirectoryPath, out _) ||
+            (WorkspaceDirectoryIndex.IsGitRepoRootInCurrent(childDirectoryPath) && !WorkspaceDirectoryIndex.HasChildGitReposInCurrent(childDirectoryPath)))
         {
             return true;
         }
@@ -123,8 +120,8 @@ public class PerlProjectParser : IProjectParser
             return !HasAncestorPerlProject(directoryPath);
         }
 
-        if (PhysicalFileStore.HasChildGitRepositories(directoryPath) ||
-            PhysicalFileStore.HasChildConfiguredProjects(directoryPath))
+        if (WorkspaceDirectoryIndex.HasChildGitReposInCurrent(directoryPath) ||
+            WorkspaceDirectoryIndex.HasChildConfiguredProjectsInCurrent(directoryPath))
         {
             return false;
         }
@@ -155,11 +152,11 @@ public class PerlProjectParser : IProjectParser
     {
         var packages = new List<ProducedPackageInfo>();
         var cpanfilePath = Path.Combine(projectDirectory, CpanfileName);
-        if (PhysicalFileStore.FileExistsInCachedDirectory(cpanfilePath))
+        if (WorkspaceDirectoryIndex.FileExistsInCurrentOrDisk(cpanfilePath))
         {
             try
             {
-                var content = PhysicalFileStore.ReadAllText(cpanfilePath);
+                var content = FileStreamReader.ReadTextOnce(cpanfilePath);
                 foreach (Match m in CpanRequiresRegex.Matches(content))
                 {
                     var pkg = m.Groups["pkg"].Value.Trim();
@@ -238,13 +235,13 @@ public class PerlProjectParser : IProjectParser
             }
         }
 
-        return PhysicalFileStore.FileExistsInCachedDirectory(Path.Combine(directoryPath, "requirements", "requirements.txt")) ||
-               PhysicalFileStore.FileExistsInCachedDirectory(Path.Combine(directoryPath, "public", "index.php"));
+        return WorkspaceDirectoryIndex.FileExistsInCurrentOrDisk(Path.Combine(directoryPath, "requirements", "requirements.txt")) ||
+               WorkspaceDirectoryIndex.FileExistsInCurrentOrDisk(Path.Combine(directoryPath, "public", "index.php"));
     }
 
     private static bool IsPerlContainerRoot(string directoryPath, string[] filesInDirectory)
     {
-        if (!PhysicalFileStore.HasCachedDirectory(directoryPath))
+        if (!WorkspaceDirectoryIndex.HasCachedDirectoryInCurrent(directoryPath))
         {
             return false;
         }
@@ -252,7 +249,7 @@ public class PerlProjectParser : IProjectParser
         var folderName = Path.GetFileName(directoryPath.TrimEnd(PathTrimChars));
         var parentDir = Directory.GetParent(directoryPath);
         if (parentDir != null &&
-            PhysicalFileStore.HasCachedDirectory(parentDir.FullName) &&
+            WorkspaceDirectoryIndex.HasCachedDirectoryInCurrent(parentDir.FullName) &&
             InternalPerlSubfolders.Contains(folderName))
         {
             return false;
@@ -263,15 +260,15 @@ public class PerlProjectParser : IProjectParser
             return false;
         }
 
-        if (PhysicalFileStore.IsGitRepositoryRoot(directoryPath) &&
-            !PhysicalFileStore.HasChildGitRepositories(directoryPath))
+        if (WorkspaceDirectoryIndex.IsGitRepoRootInCurrent(directoryPath) &&
+            !WorkspaceDirectoryIndex.HasChildGitReposInCurrent(directoryPath))
         {
             var phpCount = 0;
             var pyCount = 0;
             var perlCount = 0;
             var otherCodeCount = 0;
             var hasOtherManifest = false;
-            foreach (var file in PhysicalFileStore.EnumerateCachedFilesInSubtree(directoryPath))
+            foreach (var file in WorkspaceDirectoryIndex.EnumerateSubtreeInCurrent(directoryPath))
             {
                 var fn = Path.GetFileName(file);
                 var lowerFn = fn.ToLowerInvariant();
@@ -303,7 +300,7 @@ public class PerlProjectParser : IProjectParser
             }
         }
 
-        var childDirs = PhysicalFileStore.GetCachedDirectChildDirectories(directoryPath);
+        var childDirs = WorkspaceDirectoryIndex.GetCachedChildDirsInCurrent(directoryPath);
         var perlChildCount = 0;
         for (var i = 0; i < childDirs.Count; i++)
         {
@@ -313,7 +310,7 @@ public class PerlProjectParser : IProjectParser
                 continue;
             }
 
-            if (PhysicalFileStore.EnumerateCachedFilesInSubtree(childDirs[i].DirectoryPath).Any(IsPerlSourceFile))
+            if (WorkspaceDirectoryIndex.EnumerateSubtreeInCurrent(childDirs[i].DirectoryPath).Any(IsPerlSourceFile))
             {
                 perlChildCount++;
                 if (perlChildCount >= 2)
@@ -340,30 +337,30 @@ public class PerlProjectParser : IProjectParser
 
     private static bool HasAncestorPerlProject(string directoryPath)
     {
-        if ((PhysicalFileStore.IsGitRepositoryRoot(directoryPath) && !PhysicalFileStore.HasChildGitRepositories(directoryPath)) ||
-            (PhysicalFileStore.HasAnyConfiguredProjects && PhysicalFileStore.TryGetConfiguredProject(directoryPath, out _)))
+        if ((WorkspaceDirectoryIndex.IsGitRepoRootInCurrent(directoryPath) && !WorkspaceDirectoryIndex.HasChildGitReposInCurrent(directoryPath)) ||
+            (WorkspaceDirectoryIndex.HasAnyConfiguredProjectsInCurrent && WorkspaceDirectoryIndex.TryGetConfiguredProjectInCurrent(directoryPath, out _)))
         {
             return false;
         }
 
-        var useCacheBound = PhysicalFileStore.HasCachedDirectory(directoryPath);
+        var useCacheBound = WorkspaceDirectoryIndex.HasCachedDirectoryInCurrent(directoryPath);
         var current = Directory.GetParent(directoryPath);
         var depth = 0;
         while (current != null && depth < 16)
         {
             depth++;
-            if (useCacheBound && !PhysicalFileStore.HasCachedDirectory(current.FullName))
+            if (useCacheBound && !WorkspaceDirectoryIndex.HasCachedDirectoryInCurrent(current.FullName))
             {
                 break;
             }
 
-            if (PhysicalFileStore.HasChildGitRepositories(current.FullName) ||
-                PhysicalFileStore.HasChildConfiguredProjects(current.FullName))
+            if (WorkspaceDirectoryIndex.HasChildGitReposInCurrent(current.FullName) ||
+                WorkspaceDirectoryIndex.HasChildConfiguredProjectsInCurrent(current.FullName))
             {
                 break;
             }
 
-            var parentFiles = PhysicalFileStore.GetDirectoryFiles(current.FullName);
+            var parentFiles = WorkspaceDirectoryIndex.GetDirectoryFilesOrFallback(current.FullName);
             if (HasPerlManifest(parentFiles) ||
                 parentFiles.Any(IsPerlSourceFile) ||
                 parentFiles.Any(f => f.EndsWith(".py", StringComparison.OrdinalIgnoreCase) || f.EndsWith(".php", StringComparison.OrdinalIgnoreCase) || f.EndsWith(".phtml", StringComparison.OrdinalIgnoreCase) || Path.GetFileName(f).Equals("Dockerfile", StringComparison.OrdinalIgnoreCase)) ||
@@ -373,7 +370,7 @@ public class PerlProjectParser : IProjectParser
                 return true;
             }
 
-            if (PhysicalFileStore.IsGitRepositoryRoot(current.FullName))
+            if (WorkspaceDirectoryIndex.IsGitRepoRootInCurrent(current.FullName))
             {
                 break;
             }

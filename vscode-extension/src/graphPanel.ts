@@ -16,6 +16,8 @@ export function getViewTitle(viewMode?: string): string {
       return 'CodeExplorer: Architecture Matrix';
     case 'project':
       return 'CodeExplorer: Project Map';
+    case 'project-dependencies':
+      return 'CodeExplorer: Project Dependencies';
     case 'contexts':
       return 'CodeExplorer: Bounded Contexts';
     case 'layers':
@@ -46,6 +48,7 @@ export class GraphPanel {
     'semantic',
     'matrix',
     'project',
+    'project-dependencies',
     'contexts',
     'layers',
     'c1',

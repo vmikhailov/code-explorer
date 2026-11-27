@@ -1,8 +1,5 @@
-using System.Collections.Concurrent;
 using System.Collections.Frozen;
 using System.Text.RegularExpressions;
-using CodeExplorer.Core.Parser;
-using CodeExplorer.Core.Parser.Syntax;
 using Node = CodeExplorer.Core.Parser.Syntax.SyntaxNode;
 
 namespace CodeExplorer.Parsers.Go.Libraries;
@@ -109,13 +106,13 @@ public class GrpcGoLibraryParser : DeclarativeSemanticExtension
         return clean.EndsWith(ServiceSuffix, StringComparison.OrdinalIgnoreCase) ? clean : $"{clean}{ServiceSuffix}";
     }
 
-    private static void EnrichGrpcGoSymbol(Node node, SyntacticSymbol symbol, ParsingContext ctx)
+    private static void EnrichGrpcGoSymbol(Node node, SyntacticSymbol symbol, SemanticParseContext ctx)
     {
         if (IsGrpcMethod(node, out _, out _))
         {
             symbol.Protocol = "gRPC";
             symbol.Properties["protocol"] = "gRPC";
-            symbol.OperationType = CodeExplorer.Cypher.Common.OperationType.Unary;
+            symbol.OperationType = OperationType.Unary;
         }
         else if (IsGrpcClientCall(node, out var serviceName, out var methodName))
         {

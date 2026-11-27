@@ -1,6 +1,5 @@
 using System.Collections.Frozen;
 using System.Text.RegularExpressions;
-using CodeExplorer.Core.Parser;
 using Node = CodeExplorer.Core.Parser.Syntax.SyntaxNode;
 
 namespace CodeExplorer.Parsers.Python.Libraries;
@@ -50,7 +49,7 @@ public class FastApiLibraryParser : DeclarativeSemanticExtension
         ];
     }
 
-    private static void CollectFastApiReferences(Node node, string scopeSymbolId, List<Reference> references, ParsingContext ctx)
+    private static void CollectFastApiReferences(Node node, string scopeSymbolId, List<Reference> references, SemanticParseContext ctx)
     {
         if (!IsFastApiDecorator(node)) return;
 
@@ -73,7 +72,7 @@ public class FastApiLibraryParser : DeclarativeSemanticExtension
         }
     }
 
-    private static void EnrichFastApiSymbol(Node node, SyntacticSymbol symbol, ParsingContext ctx)
+    private static void EnrichFastApiSymbol(Node node, SyntacticSymbol symbol, SemanticParseContext ctx)
     {
         if (!IsFastApiDecorator(node)) return;
 
@@ -727,7 +726,7 @@ public class FastApiLibraryParser : DeclarativeSemanticExtension
         return raw.Trim('\'', '"');
     }
 
-    public override void DiscoverDeclarations(Node rootNode, string relativePath, string? projectName, ParsingContext? ctx)
+    public override void DiscoverDeclarations(Node rootNode, string relativePath, string? projectName, SemanticParseContext? ctx)
     {
         if (!rootNode.IsValid()) return;
         var srcText = rootNode.Document?.SourceText;
@@ -741,7 +740,7 @@ public class FastApiLibraryParser : DeclarativeSemanticExtension
         TraverseForFastApiDeclarations(rootNode, relativePath, projectName, ctx, importTargets);
     }
 
-    private static void TraverseForFastApiDeclarations(Node node, string relativePath, string? projectName, ParsingContext? ctx, Dictionary<string, string>? importTargets = null)
+    private static void TraverseForFastApiDeclarations(Node node, string relativePath, string? projectName, SemanticParseContext? ctx, Dictionary<string, string>? importTargets = null)
     {
         if (node.Is(TreeSitterSyntax.Python.Call))
         {

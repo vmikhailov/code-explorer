@@ -1,3 +1,5 @@
+using System.Text.Json;
+using CodeExplorer.Core.Common.Nodes;
 using CodeExplorer.Core.Database;
 
 [assembly: ParserAssembly]
@@ -32,14 +34,14 @@ public partial class TypeScriptProjectParser : IProjectParser
         dirName.Equals("esm", StringComparison.OrdinalIgnoreCase) ||
         dirName.Equals("cjs", StringComparison.OrdinalIgnoreCase);
 
-    public void InspectDirectoryFiles(string directoryPath, FileInfo[] files, CodeExplorer.Core.Common.Nodes.WorkspaceNode workspace)
+    public void InspectDirectoryFiles(string directoryPath, FileInfo[] files, Core.Common.Nodes.WorkspaceNode workspace)
     {
         foreach (var file in files)
         {
             var ext = file.Extension;
             if (ext.Equals(".node", StringComparison.OrdinalIgnoreCase))
             {
-                var sig = CodeExplorer.Core.Common.Nodes.AnalysisSignalStore.Signals(workspace);
+                var sig = Core.Common.Nodes.AnalysisSignalStore.Signals(workspace);
                 sig.HasNativeNode = true;
                 sig.HasNativeAddon = true;
             }
@@ -47,19 +49,19 @@ public partial class TypeScriptProjectParser : IProjectParser
                      ext.Equals(".dylib", StringComparison.OrdinalIgnoreCase) ||
                      ext.Equals(".so", StringComparison.OrdinalIgnoreCase))
             {
-                CodeExplorer.Core.Common.Nodes.AnalysisSignalStore.Signals(workspace).HasNativeAddon = true;
+                Core.Common.Nodes.AnalysisSignalStore.Signals(workspace).HasNativeAddon = true;
             }
         }
     }
 
-    public void InspectDirectoryFilePaths(string directoryPath, string[] filePaths, CodeExplorer.Core.Common.Nodes.WorkspaceNode workspace)
+    public void InspectDirectoryFilePaths(string directoryPath, string[] filePaths, Core.Common.Nodes.WorkspaceNode workspace)
     {
         for (var i = 0; i < filePaths.Length; i++)
         {
             var fp = filePaths[i];
             if (fp.EndsWith(".node", StringComparison.OrdinalIgnoreCase))
             {
-                var sig = CodeExplorer.Core.Common.Nodes.AnalysisSignalStore.Signals(workspace);
+                var sig = Core.Common.Nodes.AnalysisSignalStore.Signals(workspace);
                 sig.HasNativeNode = true;
                 sig.HasNativeAddon = true;
             }
@@ -67,7 +69,7 @@ public partial class TypeScriptProjectParser : IProjectParser
                      fp.EndsWith(".dylib", StringComparison.OrdinalIgnoreCase) ||
                      fp.EndsWith(".so", StringComparison.OrdinalIgnoreCase))
             {
-                CodeExplorer.Core.Common.Nodes.AnalysisSignalStore.Signals(workspace).HasNativeAddon = true;
+                Core.Common.Nodes.AnalysisSignalStore.Signals(workspace).HasNativeAddon = true;
             }
         }
     }
@@ -90,7 +92,8 @@ public partial class TypeScriptProjectParser : IProjectParser
         var packageJson = filesInDirectory.FirstOrDefault(f => Path.GetFileName(f).Equals("package.json", StringComparison.OrdinalIgnoreCase));
         if (packageJson != null)
         {
-            if (IsSubpathEntryPointPackageJson(packageJson, directoryPath) ||
+            var fullPackageJson = Path.IsPathRooted(packageJson) ? packageJson : Path.Combine(directoryPath, packageJson);
+            if (IsSubpathEntryPointPackageJson(fullPackageJson, directoryPath) ||
                 IsInsideParentWebOrHybridProject(directoryPath) ||
                 IsAbsorbedWorkersSiteDirectory(directoryPath) ||
                 IsVendoredFrontendAssetDirectory(directoryPath))
@@ -167,13 +170,13 @@ public partial class TypeScriptProjectParser : IProjectParser
     private static bool IsInsideParentWebOrHybridProject(string directoryPath)
     {
         var parentDir = Path.GetDirectoryName(directoryPath);
-        int depth = 0;
+        var depth = 0;
         while (parentDir != null && parentDir.Length >= 3 && depth < 3)
         {
             depth++;
             try
             {
-                var parentFiles = PhysicalFileStore.GetDirectoryFiles(parentDir);
+                var parentFiles = WorkspaceDirectoryIndex.GetDirectoryFilesOrFallback(parentDir);
                 var hasParentCsproj = parentFiles.Any(f => f.EndsWith(".csproj", StringComparison.OrdinalIgnoreCase));
                 if (hasParentCsproj)
                 {
@@ -200,20 +203,20 @@ public partial class TypeScriptProjectParser : IProjectParser
 
     private static bool IsInsideParentProject(string directoryPath)
     {
-        var dirFiles = PhysicalFileStore.GetDirectoryFiles(directoryPath);
+        var dirFiles = WorkspaceDirectoryIndex.GetDirectoryFilesOrFallback(directoryPath);
         if (dirFiles.Any(f => Path.GetFileName(f).Equals("project.json", StringComparison.OrdinalIgnoreCase)))
         {
             return false;
         }
 
         var parentDir = Path.GetDirectoryName(directoryPath);
-        int depth = 0;
+        var depth = 0;
         while (parentDir != null && parentDir.Length >= 3 && depth < 8)
         {
             depth++;
             try
             {
-                var parentFiles = PhysicalFileStore.GetDirectoryFiles(parentDir);
+                var parentFiles = WorkspaceDirectoryIndex.GetDirectoryFilesOrFallback(parentDir);
                 if (parentFiles.Any(f => f.EndsWith(".csproj", StringComparison.OrdinalIgnoreCase)))
                 {
                     return true;
@@ -223,7 +226,7 @@ public partial class TypeScriptProjectParser : IProjectParser
                 if (parentPkgJson != null)
                 {
                     const string propWorkspaces = "workspaces";
-                    var content = PhysicalFileStore.ReadAllText(parentPkgJson);
+                    var content = FileStreamReader.ReadTextOnce(parentPkgJson);
                     var pRoot = CypherValue.TryParseJsonText(content);
                     if (pRoot.Kind == CypherValueKind.Object)
                     {
@@ -236,7 +239,7 @@ public partial class TypeScriptProjectParser : IProjectParser
                     }
                 }
             }
-            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.Text.Json.JsonException)
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or JsonException)
             {
                 // Ignore
             }
@@ -249,10 +252,10 @@ public partial class TypeScriptProjectParser : IProjectParser
     {
         try
         {
-            var allFiles = PhysicalFileStore.HasCachedDirectory(directoryPath)
-                ? PhysicalFileStore.EnumerateCachedFilesInSubtree(directoryPath)
+            var allFiles = WorkspaceDirectoryIndex.HasCachedDirectoryInCurrent(directoryPath)
+                ? WorkspaceDirectoryIndex.EnumerateSubtreeInCurrent(directoryPath)
                 : WorkspaceFileFilter.Default.EnumerateFiles(directoryPath, "*");
-            bool hasAnyDts = false;
+            var hasAnyDts = false;
             foreach (var f in allFiles)
             {
                 var lower = f.ToLowerInvariant();
@@ -274,7 +277,7 @@ public partial class TypeScriptProjectParser : IProjectParser
         }
     }
 
-    public static bool IsSubpathEntryPointPackageJson(string? packageJsonPath, string directoryPath)
+    public static bool IsSubpathEntryPointPackageJson(string? packageJsonPath, string directoryPath, CypherValue? preParsedPkgJson = null)
     {
         if (string.IsNullOrEmpty(packageJsonPath) || !File.Exists(packageJsonPath))
         {
@@ -283,8 +286,7 @@ public partial class TypeScriptProjectParser : IProjectParser
 
         try
         {
-            var content = PhysicalFileStore.ReadAllText(packageJsonPath);
-            var root = CypherValue.TryParseJsonText(content);
+            var root = preParsedPkgJson ?? CypherValue.TryParseJsonText(FileStreamReader.ReadTextOnce(packageJsonPath));
             if (root.Kind != CypherValueKind.Object || root.AsObject().Count == 0)
             {
                 return false;
@@ -311,125 +313,154 @@ public partial class TypeScriptProjectParser : IProjectParser
 
             return !hasRootManifestFields;
         }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.Text.Json.JsonException)
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or JsonException)
         {
             return false;
         }
     }
 
+    private sealed record TsDirectoryManifestBundle(
+        string? PackageJsonPath,
+        CypherValue? PackageJson,
+        CypherValue? ProjectJson,
+        string[]? WranglerLines);
+
+    private static TsDirectoryManifestBundle ReadDirectoryManifestBundleOnce(string directoryPath, string[] filesInDirectory)
+    {
+        var pkgPath = filesInDirectory.FirstOrDefault(f => Path.GetFileName(f).Equals("package.json", StringComparison.OrdinalIgnoreCase));
+        if (pkgPath != null && !Path.IsPathRooted(pkgPath))
+        {
+            pkgPath = Path.Combine(directoryPath, pkgPath);
+        }
+        else if (pkgPath == null)
+        {
+            var fallbackPkg = Path.Combine(directoryPath, "package.json");
+            if (WorkspaceDirectoryIndex.FileExistsInCurrentOrDisk(fallbackPkg)) pkgPath = fallbackPkg;
+        }
+
+        CypherValue? pkgRoot = null;
+        if (pkgPath != null && File.Exists(pkgPath))
+        {
+            var pkgContent = FileStreamReader.ReadTextOnce(pkgPath);
+            if (!string.IsNullOrEmpty(pkgContent))
+            {
+                pkgRoot = CypherValue.TryParseJsonText(pkgContent);
+            }
+        }
+
+        CypherValue? projRoot = null;
+        var rawProjPath = filesInDirectory.FirstOrDefault(f => Path.GetFileName(f).Equals("project.json", StringComparison.OrdinalIgnoreCase));
+        var projPath = rawProjPath != null
+            ? (Path.IsPathRooted(rawProjPath) ? rawProjPath : Path.Combine(directoryPath, rawProjPath))
+            : Path.Combine(directoryPath, "project.json");
+        if (WorkspaceDirectoryIndex.FileExistsInCurrentOrDisk(projPath) && File.Exists(projPath))
+        {
+            var projContent = FileStreamReader.ReadTextOnce(projPath);
+            if (!string.IsNullOrEmpty(projContent))
+            {
+                projRoot = CypherValue.TryParseJsonText(projContent);
+            }
+        }
+
+        string[]? wranglerLines = null;
+        var rawWranglerPath = filesInDirectory.FirstOrDefault(f => Path.GetFileName(f).Equals("wrangler.toml", StringComparison.OrdinalIgnoreCase));
+        var wranglerPath = rawWranglerPath != null
+            ? (Path.IsPathRooted(rawWranglerPath) ? rawWranglerPath : Path.Combine(directoryPath, rawWranglerPath))
+            : Path.Combine(directoryPath, "wrangler.toml");
+        if (WorkspaceDirectoryIndex.FileExistsInCurrentOrDisk(wranglerPath) && File.Exists(wranglerPath))
+        {
+            var wranglerText = FileStreamReader.ReadTextOnce(wranglerPath);
+            if (!string.IsNullOrEmpty(wranglerText))
+            {
+                wranglerLines = wranglerText.Split(['\r', '\n'], StringSplitOptions.RemoveEmptyEntries);
+            }
+        }
+
+        return new TsDirectoryManifestBundle(pkgPath, pkgRoot, projRoot, wranglerLines);
+    }
+
     public string GetProjectName(string directoryPath, string[] filesInDirectory)
     {
-        var wranglerName = TryExtractWranglerName(directoryPath, filesInDirectory);
+        var bundle = ReadDirectoryManifestBundleOnce(directoryPath, filesInDirectory);
+        return ExtractProjectNameFromBundle(directoryPath, bundle);
+    }
+
+    private static string ExtractProjectNameFromBundle(string directoryPath, TsDirectoryManifestBundle bundle)
+    {
+        var wranglerName = TryExtractWranglerNameFromLines(directoryPath, bundle.WranglerLines);
         if (!string.IsNullOrEmpty(wranglerName))
         {
             return wranglerName;
         }
 
-        var projectJsonPath = Path.Combine(directoryPath, "project.json");
-        if (File.Exists(projectJsonPath))
+        const string propName = "name";
+        if (bundle.ProjectJson is { Kind: CypherValueKind.Object } pRoot &&
+            pRoot.TryGetProperty(propName, out var pNameProp) &&
+            pNameProp.Kind == CypherValueKind.String)
         {
-            try
-            {
-                const string propName = "name";
-                var content = PhysicalFileStore.ReadAllText(projectJsonPath);
-                var root = CypherValue.TryParseJsonText(content);
-
-                if (root.TryGetProperty(propName, out var nameProp) &&
-                    nameProp.Kind == CypherValueKind.String)
-                {
-                    var rawName = nameProp.AsNullableString();
-
-                    if (!string.IsNullOrWhiteSpace(rawName))
-                    {
-                        var name = rawName.Trim();
-
-                        if (name.StartsWith('@') && name.Contains('/'))
-                        {
-                            name = name[(name.IndexOf('/') + 1)..].Trim();
-                        }
-
-                        if (!string.IsNullOrEmpty(name))
-                        {
-                            var stripped = WorkspaceConventions.StripServicePrefix(name);
-                            return !string.IsNullOrEmpty(stripped) ? stripped : name;
-                        }
-                    }
-                }
-            }
-            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.Text.Json.JsonException)
-            {
-                // Fallback to package.json or directory name
-            }
+            var normalized = NormalizeTsManifestName(pNameProp.AsNullableString());
+            if (!string.IsNullOrEmpty(normalized)) return normalized;
         }
 
-        var packageJsonPath = Path.Combine(directoryPath, "package.json");
-        if (File.Exists(packageJsonPath))
+        if (bundle.PackageJson is { Kind: CypherValueKind.Object } pkgRoot &&
+            pkgRoot.TryGetProperty(propName, out var nameProp) &&
+            nameProp.Kind == CypherValueKind.String)
         {
-            try
-            {
-                const string propName = "name";
-                var content = PhysicalFileStore.ReadAllText(packageJsonPath);
-                var root = CypherValue.TryParseJsonText(content);
-
-                if (root.TryGetProperty(propName, out var nameProp) &&
-                    nameProp.Kind == CypherValueKind.String)
-                {
-                    var rawName = nameProp.AsNullableString();
-
-                    if (!string.IsNullOrWhiteSpace(rawName))
-                    {
-                        var name = rawName.Trim();
-
-                        if (name.StartsWith('@') && name.Contains('/'))
-                        {
-                            name = name[(name.IndexOf('/') + 1)..].Trim();
-                        }
-
-                        if (!string.IsNullOrEmpty(name))
-                        {
-                            var stripped = WorkspaceConventions.StripServicePrefix(name);
-                            return !string.IsNullOrEmpty(stripped) ? stripped : name;
-                        }
-                    }
-                }
-            }
-            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.Text.Json.JsonException)
-            {
-                // Fallback to directory name
-            }
+            var normalized = NormalizeTsManifestName(nameProp.AsNullableString());
+            if (!string.IsNullOrEmpty(normalized)) return normalized;
         }
 
         return Path.GetFileName(directoryPath.TrimEnd('/', '\\'));
     }
 
+    private static string? NormalizeTsManifestName(string? rawName)
+    {
+        if (string.IsNullOrWhiteSpace(rawName)) return null;
+        var name = rawName.Trim();
+        if (name.StartsWith('@') && name.Contains('/'))
+        {
+            name = name[(name.IndexOf('/') + 1)..].Trim();
+        }
+        if (string.IsNullOrEmpty(name)) return null;
+        var stripped = WorkspaceConventions.StripServicePrefix(name);
+        return !string.IsNullOrEmpty(stripped) ? stripped : name;
+    }
+
     public bool TryParse(ProjectParseContext context, out ProjectParseResult? result)
     {
+        var activeIndex = context.DirectoryIndex ?? WorkspaceDirectoryIndex.Current;
+        if (activeIndex != null && activeIndex.TryGetCachedProjectParse(this, context.DirectoryPath, out var cached))
+        {
+            result = cached.Result;
+            return cached.Matched;
+        }
+
         var dir = context.DirectoryPath;
         var files = context.FilesInDirectory;
 
         if (!IsProjectDirectory(dir, files))
         {
+            activeIndex?.StoreProjectParse(this, dir, false, null);
             result = null;
             return false;
         }
 
-        var name = GetProjectName(dir, files);
+        var bundle = ReadDirectoryManifestBundleOnce(dir, files);
+        var name = ExtractProjectNameFromBundle(dir, bundle);
         if (string.IsNullOrEmpty(name))
         {
             name = Path.GetFileName(dir.TrimEnd('/', '\\'));
         }
 
-        var props = ExtractManifestProperties(dir, files);
+        var props = ExtractManifestPropertiesFromBundle(dir, files, bundle);
         var absorbedSubpaths = new List<string>();
         var excludedSubpaths = new List<string>();
         var entryPointPaths = new List<string>();
         var sourceRoots = new List<string>();
         var subProjects = new List<ParsedProjectDescriptor>();
 
-        // 1. Wrangler (Cloudflare Worker) embedded workers-site and static bucket handling
-        InspectWranglerLayout(dir, files, absorbedSubpaths, excludedSubpaths, entryPointPaths, sourceRoots);
+        InspectWranglerLayoutFromLines(dir, bundle.WranglerLines, absorbedSubpaths, excludedSubpaths, entryPointPaths, sourceRoots);
 
-        // 2. Conventional static asset subfolders (public_src, public) when inside a worker or build orchestrator
         foreach (var staticCandidate in new[] { "public_src", "public", "workers/public" })
         {
             var fullCandidate = Path.Combine(dir, staticCandidate);
@@ -439,7 +470,6 @@ public partial class TypeScriptProjectParser : IProjectParser
             }
         }
 
-        // 3. VS Code Extension embedded webview folders (Primary/Secondary relationship -> absorbed into parent extension)
         if (props.GetValueOrDefault("is_vscode_extension") == "true")
         {
             foreach (var webviewDirName in new[] { "webview", "webview-ui", "media", "views" })
@@ -452,20 +482,21 @@ public partial class TypeScriptProjectParser : IProjectParser
             }
         }
 
-        // 4. Declarative SubProjects in angular.json or nest-cli.json
         ExtractWorkspaceManifestSubProjects(dir, sourceRoots, excludedSubpaths, subProjects);
-
-        // 5. Detect build-orchestrator root package.json (e.g. Gulp/Webpack static builder wrapping child workers in subfolders)
-        DetectBuildOrchestratorProperties(dir, files, props);
+        DetectBuildOrchestratorPropertiesFromBundle(dir, files, bundle.PackageJson, props);
 
         if (absorbedSubpaths.Count > 0)
         {
-            props["absorbed_subpaths"] = System.Text.Json.JsonSerializer.Serialize(absorbedSubpaths);
+            props["absorbed_subpaths"] = JsonSerializer.Serialize(absorbedSubpaths);
         }
         if (excludedSubpaths.Count > 0)
         {
-            props["excluded_subpaths"] = System.Text.Json.JsonSerializer.Serialize(excludedSubpaths);
+            props["excluded_subpaths"] = JsonSerializer.Serialize(excludedSubpaths);
         }
+
+        var produced = ExtractProducedPackageFromBundle(bundle.PackageJson);
+        var deps = ExtractDependenciesFromBundle(dir, bundle);
+        var meta = ExtractManifestMetadataFromBundle(dir, files, bundle.PackageJson, props);
 
         result = new ProjectParseResult(
             Project: new ParsedProjectDescriptor(
@@ -477,9 +508,19 @@ public partial class TypeScriptProjectParser : IProjectParser
                 AbsorbedSubpaths: absorbedSubpaths.Count > 0 ? absorbedSubpaths : null,
                 ExcludedSubpaths: excludedSubpaths.Count > 0 ? excludedSubpaths : null,
                 EntryPointPaths: entryPointPaths.Count > 0 ? entryPointPaths : null,
-                SubProjects: subProjects.Count > 0 ? subProjects : null),
+                SubProjects: subProjects.Count > 0 ? subProjects : null,
+                ProducedPackage: produced,
+                Dependencies: deps,
+                ManifestMetadata: meta),
             ClaimMode: ParserClaimMode.AbsorbSecondaryInDirectory);
+        activeIndex?.StoreProjectParse(this, dir, true, result);
         return true;
+    }
+
+    public ParsedProjectManifestMetadata? InspectDirectoryManifestMetadata(ProjectParseContext context)
+    {
+        var bundle = ReadDirectoryManifestBundleOnce(context.DirectoryPath, context.FilesInDirectory);
+        return ExtractManifestMetadataFromBundle(context.DirectoryPath, context.FilesInDirectory, bundle.PackageJson, null);
     }
 
     private const string PropIsBuildOrchestrator = "is_build_orchestrator";
@@ -530,208 +571,202 @@ public partial class TypeScriptProjectParser : IProjectParser
         return true;
     }
 
-    public async Task<ProducedPackageInfo?> GetProducedPackageAsync(string projectDirectory)
+    public Task<ProducedPackageInfo?> GetProducedPackageAsync(string projectDirectory)
     {
-        var packageJsonPath = Path.Combine(projectDirectory, "package.json");
-        if (!File.Exists(packageJsonPath)) return null;
-
-        try
-        {
-            var content = await PhysicalFileStore.ReadAllTextAsync(packageJsonPath);
-            var root = CypherValue.TryParseJsonText(content);
-
-            if (root.TryGetProperty("name", out var nameProp) &&
-                nameProp.Kind == CypherValueKind.String)
-            {
-                var name = nameProp.AsNullableString();
-                if (string.IsNullOrEmpty(name)) return null;
-
-                const string defaultVersion = "1.0.0";
-                var version = defaultVersion;
-
-                if (root.TryGetProperty("version", out var versionProp) &&
-                    versionProp.Kind == CypherValueKind.String)
-                {
-                    version = versionProp.AsString(defaultVersion);
-                }
-
-                return new ProducedPackageInfo(name, version, "npm");
-            }
-        }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.Text.Json.JsonException)
-        {
-            // Ignore
-        }
-
-        return null;
+        var files = WorkspaceDirectoryIndex.GetDirectoryFilesOrFallback(projectDirectory);
+        var bundle = ReadDirectoryManifestBundleOnce(projectDirectory, files);
+        return Task.FromResult(ExtractProducedPackageFromBundle(bundle.PackageJson));
     }
 
-    public async Task<ProjectDependencyInfo> ParseDependenciesAsync(string projectDirectory)
+    internal static ProducedPackageInfo? ExtractProducedPackageFromBundle(CypherValue? pkgRoot)
+    {
+        const string ecoNpm = "npm";
+        if (pkgRoot is not { Kind: CypherValueKind.Object } root) return null;
+        if (!root.TryGetProperty(OntologyConstants.ManifestFields.Name, out var nameProp) || nameProp.Kind != CypherValueKind.String)
+        {
+            return null;
+        }
+
+        var name = nameProp.AsNullableString();
+        if (string.IsNullOrEmpty(name)) return null;
+
+        const string defaultVersion = "1.0.0";
+        var version = root.TryGetProperty(OntologyConstants.ManifestFields.Version, out var versionProp) && versionProp.Kind == CypherValueKind.String
+            ? versionProp.AsString(defaultVersion)
+            : defaultVersion;
+
+        return new ProducedPackageInfo(name, version, ecoNpm);
+    }
+
+    public Task<ProjectDependencyInfo> ParseDependenciesAsync(string projectDirectory)
+    {
+        var files = WorkspaceDirectoryIndex.GetDirectoryFilesOrFallback(projectDirectory);
+        var bundle = ReadDirectoryManifestBundleOnce(projectDirectory, files);
+        return Task.FromResult(ExtractDependenciesFromBundle(projectDirectory, bundle));
+    }
+
+    private static ProjectDependencyInfo ExtractDependenciesFromBundle(string projectDirectory, TsDirectoryManifestBundle bundle)
     {
         var localProjectPaths = new List<string>();
         var externalPackages = new List<ProducedPackageInfo>();
 
-        var packageJsonPath = Path.Combine(projectDirectory, "package.json");
-        if (!File.Exists(packageJsonPath))
-        {
-            var projectJsonPath = Path.Combine(projectDirectory, "project.json");
-            if (File.Exists(projectJsonPath))
-            {
-                var parent = Path.GetDirectoryName(projectDirectory);
-                while (parent != null && parent.Length >= 3)
-                {
-                    var rootPkg = Path.Combine(parent, "package.json");
-                    if (File.Exists(rootPkg) && File.Exists(Path.Combine(parent, "nx.json")))
-                    {
-                        packageJsonPath = rootPkg;
-                        break;
-                    }
-                    parent = Path.GetDirectoryName(parent);
-                }
-            }
+        var pkgJsonPath = bundle.PackageJsonPath;
+        var pkgRoot = bundle.PackageJson;
 
-            if (!File.Exists(packageJsonPath))
+        if (pkgRoot == null && bundle.ProjectJson != null)
+        {
+            var parent = Path.GetDirectoryName(projectDirectory);
+            while (parent != null && parent.Length >= 3)
             {
-                return new ProjectDependencyInfo(localProjectPaths, externalPackages);
+                var rootPkg = Path.Combine(parent, "package.json");
+                if (File.Exists(rootPkg) && File.Exists(Path.Combine(parent, "nx.json")))
+                {
+                    pkgJsonPath = rootPkg;
+                    var rootContent = FileStreamReader.ReadTextOnce(rootPkg);
+                    if (!string.IsNullOrEmpty(rootContent))
+                    {
+                        pkgRoot = CypherValue.TryParseJsonText(rootContent);
+                    }
+                    break;
+                }
+                parent = Path.GetDirectoryName(parent);
             }
         }
 
-        try
+        if (pkgRoot is { Kind: CypherValueKind.Object } root && pkgJsonPath != null)
         {
-            var content = await PhysicalFileStore.ReadAllTextAsync(packageJsonPath);
-            var root = CypherValue.TryParseJsonText(content);
-
-            var depProperties = new[] { "dependencies", "devDependencies" };
-
-            foreach (var propName in depProperties)
-            {
-                if (root.TryGetProperty(propName, out var depsObj) &&
-                    depsObj.Kind == CypherValueKind.Object)
-                {
-                    const string defaultUnknownVersion = "unknown";
-                    foreach (var prop in depsObj.AsObject())
-                    {
-                        var packageName = prop.Key;
-                        var packageVersion = prop.Value.AsString(defaultUnknownVersion);
-
-                        // Check if it is a local file/path reference (e.g. file:../lib or workspace:../lib)
-                        if (packageVersion.StartsWith("file:", StringComparison.Ordinal) ||
-                            (packageVersion.StartsWith("workspace:", StringComparison.Ordinal) &&
-                             (packageVersion.Contains('/') || packageVersion.Contains('\\'))))
-                        {
-                            var relativePath = packageVersion[(packageVersion.IndexOf(':') + 1)..];
-
-                            if (!string.IsNullOrEmpty(relativePath) && (relativePath.StartsWith('.') ||
-                                                                        relativePath.StartsWith('/') ||
-                                                                        relativePath.StartsWith('\\')))
-                            {
-                                try
-                                {
-                                    var referencedDir =
-                                        Path.GetFullPath(Path.Combine(Path.GetDirectoryName(packageJsonPath) ?? string.Empty,
-                                            relativePath)).Replace('\\', '/');
-
-                                    if (Directory.Exists(referencedDir) || File.Exists(referencedDir))
-                                    {
-                                        localProjectPaths.Add(referencedDir);
-                                        continue;
-                                    }
-                                }
-                                catch (Exception ex) when (ex is ArgumentException or PathTooLongException)
-                                {
-                                    // Fallback to external package
-                                }
-                            }
-                        }
-
-                        // Treat as npm package reference
-                        externalPackages.Add(new ProducedPackageInfo(packageName, packageVersion, "npm", propName == "devDependencies" ? "dev" : "runtime"));
-                    }
-                }
-            }
-        }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.Text.Json.JsonException)
-        {
-            // Ignore
+            CollectNpmDependencies(pkgJsonPath, root, localProjectPaths, externalPackages);
         }
 
-        var localProjectJson = Path.Combine(projectDirectory, "project.json");
-        if (File.Exists(localProjectJson))
+        if (bundle.ProjectJson is { Kind: CypherValueKind.Object } pRoot)
         {
-            try
-            {
-                var pContent = await PhysicalFileStore.ReadAllTextAsync(localProjectJson);
-                var pRoot = CypherValue.TryParseJsonText(pContent);
-
-                if (pRoot.TryGetProperty("implicitDependencies", out var impProp) && impProp.Kind == CypherValueKind.Array)
-                {
-                    foreach (var imp in impProp.AsArray())
-                    {
-                        var depName = imp.AsNullableString();
-                        if (!string.IsNullOrWhiteSpace(depName))
-                        {
-                            externalPackages.Add(new ProducedPackageInfo(depName.Trim(), "*", "npm", "runtime"));
-                        }
-                    }
-                }
-
-                if (pRoot.TryGetProperty("targets", out var targetsProp) && targetsProp.Kind == CypherValueKind.Object)
-                {
-                    foreach (var target in targetsProp.AsObject())
-                    {
-                        if (target.Value.Kind == CypherValueKind.Object &&
-                            target.Value.TryGetProperty("dependsOn", out var depOnProp) &&
-                            depOnProp.Kind == CypherValueKind.Array)
-                        {
-                            foreach (var depItem in depOnProp.AsArray())
-                            {
-                                if (depItem.Kind == CypherValueKind.String)
-                                {
-                                    var str = depItem.AsString();
-                                    var colon = str.IndexOf(':');
-                                    var pName = colon > 0 ? str[..colon] : str;
-                                    if (!string.IsNullOrWhiteSpace(pName) && !pName.StartsWith('^'))
-                                    {
-                                        externalPackages.Add(new ProducedPackageInfo(pName.Trim(), "*", "npm", "runtime"));
-                                    }
-                                }
-                                else if (depItem.Kind == CypherValueKind.Object &&
-                                         depItem.TryGetProperty("projects", out var projsProp))
-                                {
-                                    if (projsProp.Kind == CypherValueKind.String)
-                                    {
-                                        var pName = projsProp.AsString();
-                                        if (!string.IsNullOrWhiteSpace(pName))
-                                        {
-                                            externalPackages.Add(new ProducedPackageInfo(pName.Trim(), "*", "npm", "runtime"));
-                                        }
-                                    }
-                                    else if (projsProp.Kind == CypherValueKind.Array)
-                                    {
-                                        foreach (var pi in projsProp.AsArray())
-                                        {
-                                            var pName = pi.AsNullableString();
-                                            if (!string.IsNullOrWhiteSpace(pName))
-                                            {
-                                                externalPackages.Add(new ProducedPackageInfo(pName.Trim(), "*", "npm", "runtime"));
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-
-                ExtractTsConfigPathDependencies(projectDirectory, localProjectPaths, externalPackages);
-            }
-            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.Text.Json.JsonException)
-            {
-                // Best effort
-            }
+            CollectNxProjectJsonDependencies(pRoot, externalPackages);
+            ExtractTsConfigPathDependencies(projectDirectory, localProjectPaths, externalPackages);
         }
 
         return new ProjectDependencyInfo(localProjectPaths, externalPackages);
+    }
+
+    internal static void CollectNpmDependencies(
+        string packageJsonPath,
+        CypherValue root,
+        List<string> localProjectPaths,
+        List<ProducedPackageInfo> externalPackages)
+    {
+        foreach (var propName in new[] { "dependencies", "devDependencies" })
+        {
+            if (!root.TryGetProperty(propName, out var depsObj) || depsObj.Kind != CypherValueKind.Object) continue;
+
+            const string defaultUnknownVersion = "unknown";
+            foreach (var prop in depsObj.AsObject())
+            {
+                var packageName = prop.Key;
+                var packageVersion = prop.Value.AsString(defaultUnknownVersion);
+
+                if (packageVersion.StartsWith("file:", StringComparison.Ordinal) ||
+                    (packageVersion.StartsWith("workspace:", StringComparison.Ordinal) &&
+                     (packageVersion.Contains('/') || packageVersion.Contains('\\'))))
+                {
+                    var relativePath = packageVersion[(packageVersion.IndexOf(':') + 1)..];
+                    if (!string.IsNullOrEmpty(relativePath) &&
+                        (relativePath.StartsWith('.') || relativePath.StartsWith('/') || relativePath.StartsWith('\\')))
+                    {
+                        try
+                        {
+                            var referencedDir = Path.GetFullPath(Path.Combine(
+                                Path.GetDirectoryName(packageJsonPath) ?? string.Empty,
+                                relativePath)).Replace('\\', '/');
+
+                            if (Directory.Exists(referencedDir) || File.Exists(referencedDir))
+                            {
+                                localProjectPaths.Add(referencedDir);
+                                continue;
+                            }
+                        }
+                        catch (Exception ex) when (ex is ArgumentException or PathTooLongException)
+                        {
+                            // Fallback to external package
+                        }
+                    }
+                }
+
+                const string ecoNpm = "npm";
+                const string scopeDev = "dev";
+                const string scopeRuntime = "runtime";
+                externalPackages.Add(new ProducedPackageInfo(packageName, packageVersion, ecoNpm, propName == "devDependencies" ? scopeDev : scopeRuntime));
+            }
+        }
+    }
+
+    private static void CollectNxProjectJsonDependencies(CypherValue pRoot, List<ProducedPackageInfo> externalPackages)
+    {
+        const string propImplicitDependencies = "implicitDependencies";
+        const string propTargets = "targets";
+        const string propDependsOn = "dependsOn";
+        const string propProjects = "projects";
+        const string wildcardVer = "*";
+        const string ecoNpm = "npm";
+        const string scopeRuntime = "runtime";
+
+        if (pRoot.TryGetProperty(propImplicitDependencies, out var impProp) && impProp.Kind == CypherValueKind.Array)
+        {
+            foreach (var imp in impProp.AsArray())
+            {
+                var depName = imp.AsNullableString();
+                if (!string.IsNullOrWhiteSpace(depName))
+                {
+                    externalPackages.Add(new ProducedPackageInfo(depName.Trim(), wildcardVer, ecoNpm, scopeRuntime));
+                }
+            }
+        }
+
+        if (!pRoot.TryGetProperty(propTargets, out var targetsProp) || targetsProp.Kind != CypherValueKind.Object) return;
+
+        foreach (var target in targetsProp.AsObject())
+        {
+            if (target.Value.Kind != CypherValueKind.Object ||
+                !target.Value.TryGetProperty(propDependsOn, out var depOnProp) ||
+                depOnProp.Kind != CypherValueKind.Array)
+            {
+                continue;
+            }
+
+            foreach (var depItem in depOnProp.AsArray())
+            {
+                if (depItem.Kind == CypherValueKind.String)
+                {
+                    var str = depItem.AsString();
+                    var colon = str.IndexOf(':');
+                    var pName = colon > 0 ? str[..colon] : str;
+                    if (!string.IsNullOrWhiteSpace(pName) && !pName.StartsWith('^'))
+                    {
+                        externalPackages.Add(new ProducedPackageInfo(pName.Trim(), wildcardVer, ecoNpm, scopeRuntime));
+                    }
+                }
+                else if (depItem.Kind == CypherValueKind.Object && depItem.TryGetProperty(propProjects, out var projsProp))
+                {
+                    if (projsProp.Kind == CypherValueKind.String)
+                    {
+                        var pName = projsProp.AsString();
+                        if (!string.IsNullOrWhiteSpace(pName))
+                        {
+                            externalPackages.Add(new ProducedPackageInfo(pName.Trim(), wildcardVer, ecoNpm, scopeRuntime));
+                        }
+                    }
+                    else if (projsProp.Kind == CypherValueKind.Array)
+                    {
+                        foreach (var pi in projsProp.AsArray())
+                        {
+                            var pName = pi.AsNullableString();
+                            if (!string.IsNullOrWhiteSpace(pName))
+                            {
+                                externalPackages.Add(new ProducedPackageInfo(pName.Trim(), wildcardVer, ecoNpm, scopeRuntime));
+                            }
+                        }
+                    }
+                }
+            }
+        }
     }
 
     private static void ExtractTsConfigPathDependencies(
@@ -762,7 +797,7 @@ public partial class TypeScriptProjectParser : IProjectParser
 
         try
         {
-            var content = PhysicalFileStore.ReadAllText(tsConfigPath);
+            var content = FileStreamReader.ReadTextOnce(tsConfigPath);
             var root = CypherValue.TryParseJsonText(content);
             if (!root.TryGetProperty("compilerOptions", out var coProp) ||
                 coProp.Kind != CypherValueKind.Object ||
@@ -817,8 +852,8 @@ public partial class TypeScriptProjectParser : IProjectParser
 
             if (pathMappings.Count == 0) return;
 
-            var candidateFiles = PhysicalFileStore.HasCachedDirectory(projectDirectory)
-                ? PhysicalFileStore.EnumerateCachedFilesInSubtree(projectDirectory)
+            var candidateFiles = WorkspaceDirectoryIndex.HasCachedDirectoryInCurrent(projectDirectory)
+                ? WorkspaceDirectoryIndex.EnumerateSubtreeInCurrent(projectDirectory)
                 : Directory.EnumerateFiles(projectDirectory, "*.*", SearchOption.AllDirectories);
 
             var tsFiles = candidateFiles
@@ -841,17 +876,10 @@ public partial class TypeScriptProjectParser : IProjectParser
                     break;
                 }
 
-                string text;
-                try
-                {
-                    text = PhysicalFileStore.ReadAllText(file);
-                }
-                catch
-                {
-                    continue;
-                }
+                var text = FileStreamReader.ReadTextOnce(file);
+                if (string.IsNullOrEmpty(text)) continue;
 
-                foreach (var (alias, target, shortName) in pathMappings)
+                foreach (var (alias, target, _) in pathMappings)
                 {
                     if (matchedTargets.Contains(target)) continue;
 
@@ -877,7 +905,7 @@ public partial class TypeScriptProjectParser : IProjectParser
                 }
             }
         }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.Text.Json.JsonException)
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or JsonException)
         {
             // Ignore
         }

@@ -2,7 +2,6 @@ using System.Threading.Channels;
 using CodeExplorer.Core.Common.Nodes;
 using CodeExplorer.Core.Common.Nodes.Layer2_Boundaries;
 using CodeExplorer.Core.Common.Nodes.Layer4_Semantic;
-using CodeExplorer.Core.Database;
 using CodeExplorer.Core.Parser.Layers;
 using CodeExplorer.Parsers.Java;
 using NUnit.Framework;
@@ -110,7 +109,7 @@ public class JavaEnterpriseCoverageTests
 
             var channel = Channel.CreateUnbounded<Func<Task>>();
             await using var client = new InMemoryGraphRepository();
-            var ctx = new ParsingContext(tempDir, tempDir, client, channel);
+            var ctx = new SemanticParseContext(tempDir);
             var parser = new JavaFileParser();
 
             // Simulate Layer 3 early declaration discovery across both files
@@ -168,7 +167,7 @@ public class JavaEnterpriseCoverageTests
 
             var channel = Channel.CreateUnbounded<Func<Task>>();
             await using var client = new InMemoryGraphRepository();
-            var ctx = new ParsingContext(tempDir, tempDir, client, channel);
+            var ctx = new SemanticParseContext(tempDir);
             var parser = new JavaFileParser();
 
             ((IFileParser)parser).DiscoverDeclarations(docPath, docCode, "inventory-service", ctx);
@@ -214,7 +213,7 @@ public class JavaEnterpriseCoverageTests
 
             var channel = Channel.CreateUnbounded<Func<Task>>();
             await using var client = new InMemoryGraphRepository();
-            var ctx = new ParsingContext(tempDir, tempDir, client, channel);
+            var ctx = new SemanticParseContext(tempDir);
             var parser = new JavaFileParser();
 
             using var syntaxTree = await parser.ParseAsync(filePath, ParentId, ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
@@ -269,7 +268,7 @@ public class JavaEnterpriseCoverageTests
 
             var channel = Channel.CreateUnbounded<Func<Task>>();
             await using var client = new InMemoryGraphRepository();
-            var ctx = new ParsingContext(tempDir, tempDir, client, channel);
+            var ctx = new SemanticParseContext(tempDir);
             var parser = new JavaFileParser();
 
             using var syntaxTree = await parser.ParseAsync(filePath, ParentId, ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
@@ -328,7 +327,7 @@ public class JavaEnterpriseCoverageTests
 
             var channel = Channel.CreateUnbounded<Func<Task>>();
             await using var client = new InMemoryGraphRepository();
-            var ctx = new ParsingContext(tempDir, tempDir, client, channel);
+            var ctx = new SemanticParseContext(tempDir);
             var parser = new JavaFileParser();
 
             using var syntaxTree = await parser.ParseAsync(filePath, ParentId, ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
@@ -381,7 +380,7 @@ public class JavaEnterpriseCoverageTests
 
             var channel = Channel.CreateUnbounded<Func<Task>>();
             await using var client = new InMemoryGraphRepository();
-            var ctx = new ParsingContext(tempDir, tempDir, client, channel);
+            var ctx = new SemanticParseContext(tempDir);
             var parser = new JavaFileParser();
 
             using var syntaxTree = await parser.ParseAsync(filePath, ParentId, ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
@@ -436,7 +435,7 @@ public class JavaEnterpriseCoverageTests
 
             var channel = Channel.CreateUnbounded<Func<Task>>();
             await using var client = new InMemoryGraphRepository();
-            var ctx = new ParsingContext(tempDir, tempDir, client, channel);
+            var ctx = new SemanticParseContext(tempDir);
             var parser = new JavaFileParser();
 
             using var syntaxTree = await parser.ParseAsync(routerPath, ParentId, ctx.WorkspaceId, ctx.AbsoluteWorkspacePath);
