@@ -46,20 +46,37 @@ public partial class PostIndexAnalyzer
         {
             allDbById.TryAdd(d.Id, d);
         }
-        var projectsById = new Dictionary<string, ProjectNode>(projects.Count, StringComparer.OrdinalIgnoreCase);
+        var projectsById = new Dictionary<string, ProjectNode>(projects.Count * 2, StringComparer.OrdinalIgnoreCase);
         foreach (var p in projects)
         {
             projectsById.TryAdd(p.Id, p);
+            if (p.Id.EndsWith(':'))
+            {
+                projectsById.TryAdd(p.Id.TrimEnd(':'), p);
+            }
         }
+        var (projByDir, projRootDirect, projRootSubtree) = Layer2ProjectParser.BuildProjectDirectoryIndex(projects);
 
         var ownerCache = new Dictionary<string, ProjectNode?>(StringComparer.OrdinalIgnoreCase);
         ProjectNode? GetCachedOwner(string callerId)
         {
             if (ownerCache.TryGetValue(callerId, out var cached))
                 return cached;
-            var resolved = projectsById.GetValueOrDefault(callerId) ?? FindOwningProjectForId(callerId, projects, fileToProject);
+            var resolved = projectsById.GetValueOrDefault(callerId)
+                           ?? FindOwningProjectForIdFast(callerId, projectsById, fileToProject, projByDir, projRootDirect, projRootSubtree);
             ownerCache[callerId] = resolved;
             return resolved;
+        }
+
+        var dependsOnByFrom = new Dictionary<string, List<string>>(StringComparer.OrdinalIgnoreCase);
+        foreach (var rel in dependsOnRels)
+        {
+            if (!dependsOnByFrom.TryGetValue(rel.From, out var targets))
+            {
+                targets = [];
+                dependsOnByFrom[rel.From] = targets;
+            }
+            targets.Add(rel.To);
         }
 
         var preResolvedDbUsages = new List<(string CallerId, string? CallerOwnerId, DatabaseNode TargetDb)>();
@@ -105,9 +122,15 @@ public partial class PostIndexAnalyzer
         {
             var domainProjIds = domainProjs.Select(p => p.Id).ToHashSet(StringComparer.OrdinalIgnoreCase);
             // Also include referenced projects via DEPENDS_ON within the domain or related
-            foreach (var rel in dependsOnRels)
+            for (var pIdx = 0; pIdx < domainProjs.Count; pIdx++)
             {
-                if (domainProjIds.Contains(rel.From)) domainProjIds.Add(rel.To);
+                if (dependsOnByFrom.TryGetValue(domainProjs[pIdx].Id, out var depTargets))
+                {
+                    for (var tIdx = 0; tIdx < depTargets.Count; tIdx++)
+                    {
+                        domainProjIds.Add(depTargets[tIdx]);
+                    }
+                }
             }
 
             var domainFileNodes = new List<FileNode>();
@@ -377,11 +400,16 @@ public partial class PostIndexAnalyzer
         HashSet<string>? rawImplicitDbIds = null)
     {
         var workloadToProject = BuildWorkloadToProjectMap(l4Result, projects);
-        var projectsById = new Dictionary<string, ProjectNode>(projects.Count, StringComparer.OrdinalIgnoreCase);
+        var projectsById = new Dictionary<string, ProjectNode>(projects.Count * 2, StringComparer.OrdinalIgnoreCase);
         foreach (var pr in projects)
         {
             projectsById.TryAdd(pr.Id, pr);
+            if (pr.Id.EndsWith(':'))
+            {
+                projectsById.TryAdd(pr.Id.TrimEnd(':'), pr);
+            }
         }
+        var (projByDir, projRootDirect, projRootSubtree) = Layer2ProjectParser.BuildProjectDirectoryIndex(projects);
         var resolvedOwnersCache = new Dictionary<string, ProjectNode?>(StringComparer.OrdinalIgnoreCase);
 
         ProjectNode? ResolveOwner(string id)
@@ -403,17 +431,7 @@ public partial class PostIndexAnalyzer
                 resolvedOwnersCache[id] = exactProj;
                 return exactProj;
             }
-            if (id.Contains(":p:", StringComparison.OrdinalIgnoreCase) ||
-                id.Contains(":project:", StringComparison.OrdinalIgnoreCase))
-            {
-                var p = projects.FirstOrDefault(pr => id.StartWithIC(pr.Id));
-                if (p != null)
-                {
-                    resolvedOwnersCache[id] = p;
-                    return p;
-                }
-            }
-            var found = FindOwningProjectForId(id, projects, fileToProject);
+            var found = FindOwningProjectForIdFast(id, projectsById, fileToProject, projByDir, projRootDirect, projRootSubtree);
             resolvedOwnersCache[id] = found;
             return found;
         }

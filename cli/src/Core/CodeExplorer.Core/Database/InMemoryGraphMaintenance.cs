@@ -153,6 +153,7 @@ public static class InMemoryGraphMaintenance
         IReadOnlyDictionary<(string From, string To, RelationshipKind Kind), Relationship> relationships)
     {
         var projects = new List<(string Id, string Name, string? Path)>();
+        var nonCallableProjectIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         var endpoints = new List<EndpointCandidateSnapshot>();
         var externalServices = new List<ExternalServiceCandidateSnapshot>();
 
@@ -165,6 +166,10 @@ public static class InMemoryGraphMaintenance
                     var name = GetNodeStringProperty(node, PropName);
                     var path = GetNodeNullableStringProperty(node, PropPath);
                     projects.Add((node.Id, name, path));
+                    if (IsNonCallableProjectNode(node))
+                    {
+                        nonCallableProjectIds.Add(node.Id);
+                    }
                     break;
                 }
                 case NodeKind.Endpoint:
@@ -203,7 +208,21 @@ public static class InMemoryGraphMaintenance
             }
         }
 
-        return new ExternalServicePurgeSnapshot(projects, endpoints, servicesCallingEndpoints, externalServices);
+        return new ExternalServicePurgeSnapshot(projects, endpoints, servicesCallingEndpoints, externalServices, nonCallableProjectIds);
+    }
+
+    private static bool IsNonCallableProjectNode(Node node)
+    {
+        if (node.OntologyNode is ProjectNode pn && !node.HasMaterializedProperties)
+        {
+            return pn.IsLibrary ||
+                   pn.IsTest ||
+                   pn.EntityKind is ProjectEntityKind.Library or ProjectEntityKind.Test or ProjectEntityKind.ScriptProject or ProjectEntityKind.CliTool;
+        }
+
+        var role = GetNodeStringProperty(node, PropRole);
+        return GetNodeBoolProperty(node, PropIsLibrary) ||
+               role is "SharedLibrary" or "Library" or "Test" or "CliTool" or "ScriptProject";
     }
 
     public static List<(string Id, string Name)> LoadTopicsForPurge(IReadOnlyDictionary<string, Node> nodes)
@@ -825,6 +844,19 @@ public static class InMemoryGraphMaintenance
     {
         var props = new Dictionary<string, string>(StringComparer.Ordinal);
         if (!rel.HasTelemetry) return props;
+
+        if (!rel.HasMaterializedProperties)
+        {
+            if (!string.IsNullOrEmpty(rel.Category))
+            {
+                props["category"] = rel.Category;
+            }
+            if (!string.IsNullOrEmpty(rel.DependencyType))
+            {
+                props["dependency_type"] = rel.DependencyType;
+            }
+            return props;
+        }
 
         buffer.Clear();
         writer.Reset(buffer);

@@ -370,8 +370,8 @@ public partial class PostIndexAnalyzer
 
                 var candDomain = ResourceSemanticAnalyzer.CleanProjectNameToDomain(p.Name).ToLowerInvariant();
                 var candFolder = EndpointScoringEngine.NormalizeAlphanumeric(Path.GetFileName(p.Path.TrimEnd('/', '\\'))).ToLowerInvariant();
-                if ((candDomain.Length >= 6 && Math.Abs(candDomain.Length - normKey.Length) <= 1 && ComputeLevenshteinDistance(normKey, candDomain) <= 1) ||
-                    (candFolder.Length >= 6 && Math.Abs(candFolder.Length - normKey.Length) <= 1 && ComputeLevenshteinDistance(normKey, candFolder) <= 1))
+                if ((candDomain.Length >= 6 && Math.Abs(candDomain.Length - normKey.Length) <= 1 && EndpointScoringEngine.LevenshteinDistance(normKey, candDomain) <= 1) ||
+                    (candFolder.Length >= 6 && Math.Abs(candFolder.Length - normKey.Length) <= 1 && EndpointScoringEngine.LevenshteinDistance(normKey, candFolder) <= 1))
                 {
                     return p;
                 }
@@ -381,27 +381,180 @@ public partial class PostIndexAnalyzer
         return null;
     }
 
-    private static int ComputeLevenshteinDistance(string s, string t)
+    private sealed class PreparedServiceProjectCatalog
     {
-        if (string.IsNullOrEmpty(s)) return t?.Length ?? 0;
-        if (string.IsNullOrEmpty(t)) return s.Length;
+        public required List<ProjectNode> CallableProjects { get; init; }
+        public required Dictionary<string, ProjectNode> ProjectById { get; init; }
+        public required Dictionary<string, ProjectNode> ExactDomainOrStemMap { get; init; }
+        public required List<ProjectMatchCandidate> ScoringCandidates { get; init; }
+        public required (ProjectNode Project, string CandDomain, string CandFolder)[] NonWorkerFuzzyCandidates { get; init; }
 
-        var d = new int[s.Length + 1, t.Length + 1];
-        for (var i = 0; i <= s.Length; i++) d[i, 0] = i;
-        for (var j = 0; j <= t.Length; j++) d[0, j] = j;
-
-        for (var i = 1; i <= s.Length; i++)
+        public static PreparedServiceProjectCatalog Build(
+            IReadOnlyList<ProjectNode> projects,
+            IReadOnlySet<string>? callableProjectIds = null)
         {
-            for (var j = 1; j <= t.Length; j++)
+            var callable = new List<ProjectNode>(projects.Count);
+            var byId = new Dictionary<string, ProjectNode>(projects.Count, StringComparer.OrdinalIgnoreCase);
+            var exactMap = new Dictionary<string, ProjectNode>(projects.Count * 3, StringComparer.OrdinalIgnoreCase);
+            var scoring = new List<ProjectMatchCandidate>(projects.Count);
+            var fuzzy = new List<(ProjectNode Project, string CandDomain, string CandFolder)>(projects.Count);
+
+            for (var i = 0; i < projects.Count; i++)
             {
-                var cost = (s[i - 1] == t[j - 1]) ? 0 : 1;
-                d[i, j] = Math.Min(
-                    Math.Min(d[i - 1, j] + 1, d[i, j - 1] + 1),
-                    d[i - 1, j - 1] + cost);
+                var p = projects[i];
+                if (!Layer5RuntimeCallBinder.IsCallableServiceTarget(p) ||
+                    (callableProjectIds != null && !callableProjectIds.Contains(p.Id)))
+                {
+                    continue;
+                }
+
+                callable.Add(p);
+                byId.TryAdd(p.Id, p);
+
+                var domain = ResourceSemanticAnalyzer.CleanProjectNameToDomain(p.Name).ToLowerInvariant();
+                var folderNorm = EndpointScoringEngine.NormalizeAlphanumeric(Path.GetFileName(p.Path.TrimEnd('/', '\\'))).ToLowerInvariant();
+                var nameNorm = EndpointScoringEngine.NormalizeAlphanumeric(p.Name).ToLowerInvariant();
+
+                if (!string.IsNullOrEmpty(domain)) exactMap.TryAdd(domain, p);
+                if (!string.IsNullOrEmpty(folderNorm)) exactMap.TryAdd(folderNorm, p);
+                if (!string.IsNullOrEmpty(nameNorm)) exactMap.TryAdd(nameNorm, p);
+
+                var isWorker = p.Role == OntologyConstants.ProjectRoles.Worker ||
+                               p.PrimaryRole is "WorkerService" or "Scheduler" or "Worker";
+                if (!isWorker)
+                {
+                    scoring.Add(new ProjectMatchCandidate(p.Id, p.Name, p.Path, p.TryGetSignals()?.GitRepo, p.IsLibrary));
+                    if (!p.IsLibrary)
+                    {
+                        fuzzy.Add((p, domain, folderNorm));
+                    }
+                }
             }
+
+            return new PreparedServiceProjectCatalog
+            {
+                CallableProjects = callable,
+                ProjectById = byId,
+                ExactDomainOrStemMap = exactMap,
+                ScoringCandidates = scoring,
+                NonWorkerFuzzyCandidates = [.. fuzzy]
+            };
         }
 
-        return d[s.Length, t.Length];
+        public ProjectNode? Match(string key)
+        {
+            if (string.IsNullOrWhiteSpace(key) || key is "*" or "unknown-service" or "app" or "api" || CallableProjects.Count == 0)
+            {
+                return null;
+            }
+
+            var cleanKey = key.Trim().ToLowerInvariant();
+            var protoIdx = cleanKey.IndexOf("://", StringComparison.Ordinal);
+            if (protoIdx >= 0) cleanKey = cleanKey[(protoIdx + 3)..];
+            var slashIdx = cleanKey.IndexOf('/');
+            if (slashIdx >= 0) cleanKey = cleanKey[..slashIdx];
+            var colonIdx = cleanKey.IndexOf(':');
+            if (colonIdx >= 0) cleanKey = cleanKey[..colonIdx];
+
+            if (cleanKey is "app" or "api" or "service" or "services" ||
+                IsGarbageExternalService(cleanKey) ||
+                IsLoopbackExternalHost(cleanKey) ||
+                Layer5RuntimeCallBinder.IsGenericSingleWordServiceTarget(cleanKey))
+            {
+                return null;
+            }
+
+            cleanKey = ConfigurationIndex.StripServiceOptionsSuffixes(cleanKey);
+            if (WorkspaceConventions.TryGetServiceAlias(cleanKey, out var aliased))
+            {
+                cleanKey = aliased.ToLowerInvariant();
+            }
+
+            const string envPrefixLong = "environment.";
+            const string envPrefixShort = "env.";
+            const string configPrefix = "config.";
+            if (cleanKey.StartWithIC(envPrefixLong)) cleanKey = cleanKey[envPrefixLong.Length..];
+            else if (cleanKey.StartWithIC(envPrefixShort)) cleanKey = cleanKey[envPrefixShort.Length..];
+            else if (cleanKey.StartWithIC(configPrefix)) cleanKey = cleanKey[configPrefix.Length..];
+            else if (cleanKey.Contains('.'))
+            {
+                var firstDot = cleanKey.IndexOf('.');
+                if (firstDot > 0)
+                {
+                    var candidatePrefixMatch = Match(cleanKey[..firstDot]);
+                    if (candidatePrefixMatch != null) return candidatePrefixMatch;
+                }
+            }
+
+            if (WorkspaceConventions.TryGetServiceAlias(cleanKey, out aliased))
+            {
+                cleanKey = aliased.ToLowerInvariant();
+            }
+            if (Layer5RuntimeCallBinder.IsGenericSingleWordServiceTarget(cleanKey))
+            {
+                return null;
+            }
+
+            var normKey = cleanKey.Replace("-", "").Replace("_", "").Replace("service", "");
+            if (string.IsNullOrWhiteSpace(normKey) || normKey.Length < 3 || Layer5RuntimeCallBinder.IsGenericSingleWordServiceTarget(normKey))
+            {
+                return null;
+            }
+
+            var dotNorm = cleanKey.Replace("-", ".").Replace("_", ".");
+            var suffixDotNorm = "." + dotNorm;
+            var suffixCleanKey = "." + cleanKey;
+            var isGatewayKey = normKey is "gateway" or "apigateway";
+            for (var i = 0; i < CallableProjects.Count; i++)
+            {
+                var p = CallableProjects[i];
+                if (p.Name.EndsWith(suffixDotNorm, StringComparison.OrdinalIgnoreCase) ||
+                    p.Name.EndsWith(suffixCleanKey, StringComparison.OrdinalIgnoreCase) ||
+                    (isGatewayKey && (p.Name.EndsWith("Gateway", StringComparison.OrdinalIgnoreCase) || p.Name.Contains("ApiGateway", StringComparison.OrdinalIgnoreCase))))
+                {
+                    return p;
+                }
+            }
+
+            if (ExactDomainOrStemMap.TryGetValue(normKey, out var exactNonLib))
+            {
+                return exactNonLib;
+            }
+
+            var svcSuffix = $".Services.{key}";
+            var gwSuffix = $".Gateways.{key}";
+            for (var i = 0; i < CallableProjects.Count; i++)
+            {
+                var p = CallableProjects[i];
+                if (p.Name.EndsWith(svcSuffix, StringComparison.OrdinalIgnoreCase) ||
+                    p.Name.EndsWith(gwSuffix, StringComparison.OrdinalIgnoreCase))
+                {
+                    return p;
+                }
+            }
+
+            var match = EndpointScoringEngine.MatchCall(cleanKey, null, null, ScoringCandidates);
+            if (match.IsInternal && match.Project != null && match.ProjectScore >= 50.0 &&
+                ProjectById.TryGetValue(match.Project.ProjectId, out var matchedProj))
+            {
+                return matchedProj;
+            }
+
+            if (normKey.Length >= 6)
+            {
+                for (var i = 0; i < NonWorkerFuzzyCandidates.Length; i++)
+                {
+                    var (p, candDomain, candFolder) = NonWorkerFuzzyCandidates[i];
+                    if ((candDomain.Length >= 6 && Math.Abs(candDomain.Length - normKey.Length) <= 1 && EndpointScoringEngine.LevenshteinDistance(normKey, candDomain) <= 1) ||
+                        (candFolder.Length >= 6 && Math.Abs(candFolder.Length - normKey.Length) <= 1 && EndpointScoringEngine.LevenshteinDistance(normKey, candFolder) <= 1))
+                    {
+                        return p;
+                    }
+                }
+            }
+
+            return null;
+        }
     }
 
     public static string ExtractDomainFromExternalServiceId(string extId)
@@ -427,15 +580,17 @@ public partial class PostIndexAnalyzer
         ExternalServicePurgeSnapshot snapshot,
         bool isSubtreeScan = false)
     {
-        var projectList = new List<ProjectNode>();
+        var nonCallableIds = snapshot.NonCallableProjectIds;
+        var projectList = new List<ProjectNode>(snapshot.Projects.Count);
         foreach (var (pId, pName, pPath) in snapshot.Projects)
         {
-            if (!string.IsNullOrEmpty(pId))
+            if (!string.IsNullOrEmpty(pId) && (nonCallableIds == null || !nonCallableIds.Contains(pId)))
             {
                 projectList.Add(new ProjectNode(pId, pName, pPath ?? "", ""));
             }
         }
 
+        var preparedCatalog = PreparedServiceProjectCatalog.Build(projectList);
         var servicesCallingEndpoints = snapshot.ServicesCallingEndpoints;
         var idsToDelete = new List<string>();
         var matchingProjCache = new Dictionary<string, ProjectNode?>(StringComparer.OrdinalIgnoreCase);
@@ -493,7 +648,7 @@ public partial class PostIndexAnalyzer
             // Check if this ExternalService matches an internal project with high confidence
             if (!matchingProjCache.TryGetValue(cand, out var matchingProj))
             {
-                matchingProj = FindMatchingServiceProject(cand, projectList);
+                matchingProj = preparedCatalog.Match(cand);
                 matchingProjCache[cand] = matchingProj;
             }
             if (matchingProj != null)

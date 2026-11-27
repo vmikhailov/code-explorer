@@ -1,6 +1,6 @@
 {
   "gateId": "SIG-M-R-003",
-  "allowedViolations": 145,
+  "allowedViolations": 142,
   "entries": [
     {
       "fingerprint": "c45d43acbdd602bb348a87446dcbc3b191322e91f81d05052371c1d13ef5958c",
@@ -59,16 +59,6 @@
       "column": 5,
       "symbol": "BuildWorkloadToProjectMap",
       "target": "3 linear scan(s) in loop",
-      "acknowledgedAt": "2026-11-27T19:14:14.497307+00:00",
-      "reason": "Baseline snapshot captured at 2026-11-27 19:14:14"
-    },
-    {
-      "fingerprint": "3c2e4d04aa8c3e938481cd20e6b86e72cdd5e602f3ff9f8a771e5356bd18ae74",
-      "file": "cli/src/Core/CodeExplorer.Indexing/Analysis/Layers/Layer5_Global/PostIndexAnalyzer.Databases.InMemory.cs",
-      "line": 9,
-      "column": 5,
-      "symbol": "CanonicalizeDatabasesInMemoryAsync",
-      "target": "4 linear scan(s) in loop",
       "acknowledgedAt": "2026-11-27T19:14:14.497307+00:00",
       "reason": "Baseline snapshot captured at 2026-11-27 19:14:14"
     },
@@ -923,16 +913,6 @@
       "reason": "Baseline snapshot captured at 2026-11-27 19:14:14"
     },
     {
-      "fingerprint": "1c37c6c3835a83205501c58cc6931520b841dfe2e337be37762a7d356a3be5d2",
-      "file": "cli/src/Core/CodeExplorer.Indexing/Analysis/Layers/Layer5_Global/Layer5GlobalAnalyzer.cs",
-      "line": 24,
-      "column": 5,
-      "symbol": "ParseAsync",
-      "target": "2 linear scan(s) in loop",
-      "acknowledgedAt": "2026-11-27T19:14:14.497307+00:00",
-      "reason": "Baseline snapshot captured at 2026-11-27 19:14:14"
-    },
-    {
       "fingerprint": "69a1b5f32d07e5466d87c69bf3768bdc71e5fd44dfd03f0a3b3b328ea85855ad",
       "file": "cli/src/Parsers/CodeExplorer.Parsers.Kotlin/KotlinFileParser.cs",
       "line": 673,
@@ -1198,16 +1178,6 @@
       "line": 86,
       "column": 5,
       "symbol": "RunIncrementalIntentAnalysisAsync",
-      "target": "1 linear scan(s) in loop",
-      "acknowledgedAt": "2026-11-27T19:14:14.497307+00:00",
-      "reason": "Baseline snapshot captured at 2026-11-27 19:14:14"
-    },
-    {
-      "fingerprint": "000796ed4e464d3e4c72f8074f3b60f7811673c838ef238af18a0cabd332860d",
-      "file": "cli/src/Core/CodeExplorer.Core/Analysis/Services/EndpointScoringEngine.cs",
-      "line": 207,
-      "column": 5,
-      "symbol": "ScoreProjectMatch",
       "target": "1 linear scan(s) in loop",
       "acknowledgedAt": "2026-11-27T19:14:14.497307+00:00",
       "reason": "Baseline snapshot captured at 2026-11-27 19:14:14"

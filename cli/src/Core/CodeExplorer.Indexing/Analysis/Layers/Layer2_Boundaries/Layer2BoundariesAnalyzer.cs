@@ -162,11 +162,14 @@ public partial class Layer2ProjectParser
 
     public static Dictionary<string, ProjectNode> BuildFileToProjectMap(IEnumerable<FileNode> files, IEnumerable<ProjectNode> projects)
     {
-        var projList = projects is List<ProjectNode> l ? l : projects.ToList();
+        var projList = projects is IReadOnlyList<ProjectNode> ro ? ro : projects.ToList();
+        var (byDir, rootDirectOnly, rootSubtree) = BuildProjectDirectoryIndex(projList);
+        var spanLookup = byDir.GetAlternateLookup<ReadOnlySpan<char>>();
         var map = new Dictionary<string, ProjectNode>(StringComparer.OrdinalIgnoreCase);
+
         foreach (var file in files)
         {
-            var p = FindProjectForFilePath(file.Path, projList);
+            var p = ResolveProjectFromDirectoryIndex(file.Path, spanLookup, rootDirectOnly, rootSubtree);
             if (p != null)
             {
                 map[file.Id] = p;
@@ -177,6 +180,75 @@ public partial class Layer2ProjectParser
             }
         }
         return map;
+    }
+
+    internal static (Dictionary<string, ProjectNode> ByDir, ProjectNode? RootDirectOnly, ProjectNode? RootSubtree) BuildProjectDirectoryIndex(
+        IReadOnlyList<ProjectNode> projects)
+    {
+        var byDir = new Dictionary<string, ProjectNode>(projects.Count, StringComparer.OrdinalIgnoreCase);
+        ProjectNode? rootDirectOnly = null;
+        ProjectNode? rootSubtree = null;
+
+        for (var i = 0; i < projects.Count; i++)
+        {
+            var p = projects[i];
+            var pPath = (p.Path ?? string.Empty).NormalizeSlashes().Trim('/');
+            if (pPath.Length == 0)
+            {
+                rootDirectOnly ??= p;
+                var isRootScriptFallback = p.EntityKind == ProjectEntityKind.ScriptProject ||
+                                           p.ProjectType is ProjectLanguage.Script or ProjectLanguage.Batch or ProjectLanguage.PowerShell or ProjectLanguage.Shell;
+                var isRootBuildOrchestrator = p.IsBuildOrchestrator == true;
+                if (!isRootScriptFallback && !isRootBuildOrchestrator)
+                {
+                    rootSubtree ??= p;
+                }
+                continue;
+            }
+
+            byDir.TryAdd(pPath, p);
+        }
+
+        return (byDir, rootDirectOnly, rootSubtree);
+    }
+
+    internal static ProjectNode? ResolveProjectFromDirectoryIndex(
+        string? rawPath,
+        Dictionary<string, ProjectNode>.AlternateLookup<ReadOnlySpan<char>> spanLookup,
+        ProjectNode? rootDirectOnly,
+        ProjectNode? rootSubtree)
+    {
+        if (string.IsNullOrEmpty(rawPath))
+        {
+            return null;
+        }
+
+        var cleanSpan = rawPath.Contains('\\')
+            ? rawPath.Replace('\\', '/').AsSpan().Trim('/')
+            : rawPath.AsSpan().Trim('/');
+        if (cleanSpan.IsEmpty)
+        {
+            return rootDirectOnly;
+        }
+
+        var candidate = cleanSpan;
+        while (true)
+        {
+            if (spanLookup.TryGetValue(candidate, out var matched))
+            {
+                return matched;
+            }
+
+            var lastSlash = candidate.LastIndexOf('/');
+            if (lastSlash <= 0)
+            {
+                break;
+            }
+
+            candidate = candidate[..lastSlash];
+        }
+
+        return cleanSpan.Contains('/') ? rootSubtree : rootDirectOnly;
     }
 
     public static bool IsEnclosedInProject(FileNode file, ProjectNode project, List<ProjectNode> projects)

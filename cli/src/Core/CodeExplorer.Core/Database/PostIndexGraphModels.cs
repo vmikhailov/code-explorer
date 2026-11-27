@@ -59,7 +59,8 @@ public record ExternalServicePurgeSnapshot(
     List<(string Id, string Name, string? Path)> Projects,
     List<EndpointCandidateSnapshot> Endpoints,
     HashSet<string> ServicesCallingEndpoints,
-    List<ExternalServiceCandidateSnapshot> ExternalServices
+    List<ExternalServiceCandidateSnapshot> ExternalServices,
+    IReadOnlySet<string>? NonCallableProjectIds = null
 );
 
 public record DbProjectSnapshot(

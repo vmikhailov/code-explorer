@@ -9,6 +9,9 @@ public sealed class TypeScriptSyntaxConverter : TreeSitterSyntaxConverterBase
 {
     public static readonly TypeScriptSyntaxConverter Instance = new();
 
+    protected override string? TryPreprocessOnParseError(string sourceText, string languageName) =>
+        TypeScriptParseErrorRecovery.TryBlankUntypedDestructuredArrowParams(sourceText);
+
     protected override SyntaxNode CreateSyntaxNode(string rawKind, TextSpan span, string parentRawKind) =>
         rawKind switch
         {

@@ -130,6 +130,10 @@ public partial class Layer3SyntacticParser
         foreach (var enrichment in ctx.WorkspaceEnrichments.OfType<ConfigurationFileInformation>())
         {
             ConfigurationIndex.Register(enrichment, null);
+            if (enrichment.Values is List<ConfigValue> wsValues)
+            {
+                wsValues.Clear();
+            }
         }
 
         foreach (var project in OrderProjectsTopologically(l2Result))
@@ -137,6 +141,10 @@ public partial class Layer3SyntacticParser
             foreach (var enrichment in project.Enrichments.OfType<ConfigurationFileInformation>())
             {
                 ConfigurationIndex.Register(enrichment, project.Name);
+                if (enrichment.Values is List<ConfigValue> projValues)
+                {
+                    projValues.Clear();
+                }
             }
         }
         ctx.Layer3Log.ConfigurationIndexRegistered(ConfigurationIndex.GetDiscoveredUrls().Count);
@@ -286,14 +294,14 @@ public partial class Layer3SyntacticParser
                 continue;
             }
 
-            var pctDone = totalProjects > 0 ? (int)Math.Round(nProject * 100.0 / totalProjects) : 100;
             var progressPct = totalProjects > 0 ? 14 + (int)(38.0 * nProject / totalProjects) : 52;
             const string layer3StageName = "Layer 3: Syntactic";
-            ctx.ReportProgress(progressPct, layer3StageName, $"Scanning project {nProject}/{totalProjects} ({pctDone}%): {project.Name} ({projectFileCount} files)", nProject, totalProjects);
-            ctx.Layer3Log.ParsingProject(nProject, totalProjects, pctDone, project.Name, projectFileCount);
+            ctx.ReportProgress(progressPct, layer3StageName, $"Scanning project {nProject}/{totalProjects}: {project.Name} ({projectFileCount} files)", nProject, totalProjects);
+            ctx.Layer3Log.ParsingProject(nProject, totalProjects, project.Name, projectFileCount);
 
             if (projectFiles == null || projectFileCount == 0)
             {
+                yield return (project, projectSyntaxNode, []);
                 continue;
             }
 
@@ -311,7 +319,11 @@ public partial class Layer3SyntacticParser
                 var i = lptOrder[slot];
                 var file = projectFiles[i];
                 var fileParser = WorkspaceIndexer.GetParserForFile(file.FullPath);
-                if (fileParser == null) return;
+                if (fileParser == null)
+                {
+                    file.PreloadedContent = null;
+                    return;
+                }
 
                 if (!parentByChildId.TryGetValue(file.Id, out var parentNode)) return;
                 var parentId = parentNode.Id;
@@ -480,10 +492,7 @@ public partial class Layer3SyntacticParser
                 batch.Add(item.Value);
             }
 
-            if (batch.Count > 0)
-            {
-                yield return (project, projectSyntaxNode, batch);
-            }
+            yield return (project, projectSyntaxNode, batch);
         }
     }
 

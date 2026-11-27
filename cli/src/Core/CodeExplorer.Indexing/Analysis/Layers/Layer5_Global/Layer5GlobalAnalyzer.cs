@@ -31,14 +31,14 @@ public partial class Layer5AnalysisParser
 
         // 1. Upload the early enqueued relationships after all nodes are created
         var belongsToRels = new List<Relationship>();
+        var projectsByPath = BuildProjectsByPathIndex(ctx.Projects);
 
         // Syntactic BelongsTo
         if (ctx.SyntaxStructure != null)
         {
             foreach (var pSyntax in ctx.SyntaxStructure.Children)
             {
-                var matchedProj = ctx.Projects.FirstOrDefault(p => p.Path == pSyntax.Path);
-                if (matchedProj != null)
+                if (!string.IsNullOrEmpty(pSyntax.Path) && projectsByPath.TryGetValue(pSyntax.Path, out var matchedProj))
                 {
                     belongsToRels.Add(Relationship.FromRelationship(new BelongsToRelationship(pSyntax.Id, matchedProj.Id)));
                 }
@@ -48,8 +48,7 @@ public partial class Layer5AnalysisParser
         // Semantic BelongsTo
         foreach (var pSem in l4Result.SemanticStructure.Children)
         {
-            var matchedProj = ctx.Projects.FirstOrDefault(p => p.Path == pSem.Path);
-            if (matchedProj != null)
+            if (!string.IsNullOrEmpty(pSem.Path) && projectsByPath.TryGetValue(pSem.Path, out var matchedProj))
             {
                 belongsToRels.Add(Relationship.FromRelationship(new BelongsToRelationship(pSem.Id, matchedProj.Id)));
             }
@@ -328,7 +327,7 @@ public partial class Layer5AnalysisParser
 
         // Prepare and filter endpoints and entry points
         var prepEndpoints = new List<PreparedEndpoint>(endpoints.Count);
-        var endpointsByShape = new Dictionary<string, List<PreparedEndpoint>>(StringComparer.OrdinalIgnoreCase);
+        var endpointIndex = new LateBindingEndpointIndex();
         foreach (var ep in endpoints)
         {
             nodeToProject.TryGetValue(ep.Id, out var targetProj);
@@ -336,22 +335,11 @@ public partial class Layer5AnalysisParser
             if (!string.IsNullOrEmpty(prep.RouteNorm) && !prep.IsApiPrefixOnly)
             {
                 prepEndpoints.Add(prep);
-                if (prep.HasStaticSegment)
-                {
-                    if (!endpointsByShape.TryGetValue(prep.Canonical.CanonicalShape, out var shapeList))
-                    {
-                        shapeList = new List<PreparedEndpoint>(2);
-                        endpointsByShape[prep.Canonical.CanonicalShape] = shapeList;
-                    }
-                    shapeList.Add(prep);
-                }
+                endpointIndex.Add(prep);
             }
         }
 
-        var projectsWithEndpoints = prepEndpoints
-            .Select(e => e.TargetProj?.Id)
-            .OfType<string>()
-            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var projectsWithEndpoints = endpointIndex.ProjectsWithEndpoints;
 
         var prepEntryPoints = new List<PreparedEntryPoint>(entryPoints.Count);
         foreach (var entry in entryPoints)
@@ -366,6 +354,7 @@ public partial class Layer5AnalysisParser
             if (!string.IsNullOrEmpty(prep.EntryNorm) && !prep.IsApiPrefixOnly)
             {
                 prepEntryPoints.Add(prep);
+                endpointIndex.AddEntryPoint(prep);
             }
         }
 
@@ -416,7 +405,8 @@ public partial class Layer5AnalysisParser
             var matchedEndpoint = false;
 
             var candidateEntryPoints = new List<PreparedEntryPoint>();
-            foreach (var entryPoint in prepEntryPoints)
+            var narrowedEntryPoints = endpointIndex.GetEntryPointCandidates(extService, CheckProjectMatch);
+            foreach (var entryPoint in narrowedEntryPoints)
             {
                 if (ctx.IsSubtreeScan && !localExtIds.Contains(extService.Service.Id) && !localEntryPointIds.Contains(entryPoint.EntryPoint.Id))
                 {
@@ -461,7 +451,7 @@ public partial class Layer5AnalysisParser
 
             // O(1) CanonicalShape hash-join lookup first
             if (extService.HasStaticSegment &&
-                endpointsByShape.TryGetValue(extService.Canonical.CanonicalShape, out var exactShapeCandidates))
+                endpointIndex.ByShape.TryGetValue(extService.Canonical.CanonicalShape, out var exactShapeCandidates))
             {
                 foreach (var endpoint in exactShapeCandidates)
                 {
@@ -485,7 +475,8 @@ public partial class Layer5AnalysisParser
 
             if (candidateEndpoints.Count == 0)
             {
-                foreach (var endpoint in prepEndpoints)
+                var narrowedCandidates = endpointIndex.GetFallbackCandidates(extService, prepEndpoints, CheckProjectMatch);
+                foreach (var endpoint in narrowedCandidates)
                 {
                     if (ctx.IsSubtreeScan && !localExtIds.Contains(extService.Service.Id) && !localEndpointIds.Contains(endpoint.Endpoint.Id))
                     {
@@ -602,7 +593,8 @@ public partial class Layer5AnalysisParser
             }
 
             processedExt++;
-            if (processedExt % 100 == 0 || Stopwatch.GetElapsedTime(lastReport).TotalSeconds >= 3)
+            const double progressIntervalSeconds = 3.0;
+            if (processedExt == totalExt || Stopwatch.GetElapsedTime(lastReport).TotalSeconds >= progressIntervalSeconds)
             {
                 lastReport = Stopwatch.GetTimestamp();
                 var pct = (double)processedExt / totalExt * 100.0;
@@ -990,5 +982,19 @@ public partial class Layer5AnalysisParser
         await ctx.DbClient.UploadRelationshipsAsync(relsToUpload);
         ctx.AddNodesCount(nodesToUpload.Count);
         ctx.AddRelsCount(relsToUpload.Count);
+    }
+
+    private static Dictionary<string, ProjectNode> BuildProjectsByPathIndex(IReadOnlyList<ProjectNode> projects)
+    {
+        var map = new Dictionary<string, ProjectNode>(projects.Count, StringComparer.Ordinal);
+        for (var i = 0; i < projects.Count; i++)
+        {
+            var proj = projects[i];
+            if (!string.IsNullOrEmpty(proj.Path))
+            {
+                map.TryAdd(proj.Path, proj);
+            }
+        }
+        return map;
     }
 }

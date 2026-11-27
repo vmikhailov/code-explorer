@@ -1,6 +1,6 @@
 {
   "gateId": "SIG-M-R-004",
-  "allowedViolations": 187,
+  "allowedViolations": 184,
   "entries": [
     {
       "fingerprint": "8b865dd10ad06d3e8d98282e565d86633d78a1292e04ef9bc5c94b2d930fc931",
@@ -299,16 +299,6 @@
       "column": 26,
       "symbol": "CollectMessagingRuleReferences",
       "target": "ExtractMessagingTopics",
-      "acknowledgedAt": "2026-11-27T19:14:15.2494516+00:00",
-      "reason": "Baseline snapshot captured at 2026-11-27 19:14:15"
-    },
-    {
-      "fingerprint": "2ed7e91d43cc06d9fdbced95040fd50d4e90f61928d6f2f1bda3fdc4d80b1528",
-      "file": "cli/src/Core/CodeExplorer.Core/Analysis/Services/EndpointScoringEngine.cs",
-      "line": 122,
-      "column": 29,
-      "symbol": "MatchCall",
-      "target": "ScoreProjectMatch",
       "acknowledgedAt": "2026-11-27T19:14:15.2494516+00:00",
       "reason": "Baseline snapshot captured at 2026-11-27 19:14:15"
     },
@@ -1489,26 +1479,6 @@
       "column": 13,
       "symbol": "BuildSymbolLookups",
       "target": "DeduplicateStringLists",
-      "acknowledgedAt": "2026-11-27T19:14:15.2494516+00:00",
-      "reason": "Baseline snapshot captured at 2026-11-27 19:14:15"
-    },
-    {
-      "fingerprint": "180c8e9b602a0d236dd464979d33dc4be60b3a40e37c95328ff5206eec0d9fe5",
-      "file": "cli/src/Core/CodeExplorer.Indexing/Analysis/Layers/Layer5_Global/Layer5GlobalAnalyzer.Helpers.cs",
-      "line": 122,
-      "column": 21,
-      "symbol": "DoesProjectMatchServiceDomain",
-      "target": "ScoreProjectMatch",
-      "acknowledgedAt": "2026-11-27T19:14:15.2494516+00:00",
-      "reason": "Baseline snapshot captured at 2026-11-27 19:14:15"
-    },
-    {
-      "fingerprint": "2e4e6917fe38b59906818291b11e5df16834ae0be81ec770cd9e492162ed448c",
-      "file": "cli/src/Core/CodeExplorer.Indexing/Analysis/Layers/Layer5_Global/Layer5GlobalAnalyzer.Helpers.cs",
-      "line": 138,
-      "column": 54,
-      "symbol": "DoesProjectMatchServiceDomain",
-      "target": "ScoreProjectMatch",
       "acknowledgedAt": "2026-11-27T19:14:15.2494516+00:00",
       "reason": "Baseline snapshot captured at 2026-11-27 19:14:15"
     },

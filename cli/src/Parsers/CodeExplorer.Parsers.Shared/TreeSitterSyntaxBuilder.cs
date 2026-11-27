@@ -249,6 +249,8 @@ public abstract class TreeSitterSyntaxConverterBase
         return false;
     }
 
+    protected virtual string? TryPreprocessOnParseError(string sourceText, string languageName) => null;
+
     /// <summary>
     /// Parses source text using Tree-sitter into a complete <see cref="SyntaxDocument"/>,
     /// immediately disposing the native <see cref="Tree"/> and reusing the thread-local <see cref="TsParser"/>.
@@ -261,7 +263,26 @@ public abstract class TreeSitterSyntaxConverterBase
     {
         sourceText ??= string.Empty;
         var parser = GetThreadParser(languageName);
-        using var tree = parser.Parse(sourceText);
+        var tree = parser.Parse(sourceText);
+        if (tree is { RootNode.HasError: true })
+        {
+            var normalized = TryPreprocessOnParseError(sourceText, languageName);
+            if (normalized != null && normalized.Length == sourceText.Length)
+            {
+                var retryTree = parser.Parse(normalized);
+                if (retryTree != null && !retryTree.RootNode.IsNull && !retryTree.RootNode.HasError)
+                {
+                    tree.Dispose();
+                    tree = retryTree;
+                }
+                else
+                {
+                    retryTree?.Dispose();
+                }
+            }
+        }
+
+        using var ownedTree = tree;
 
         var fullSpan = ComputeFullSpan(sourceText, tree?.RootNode);
         var doc = new SyntaxDocument

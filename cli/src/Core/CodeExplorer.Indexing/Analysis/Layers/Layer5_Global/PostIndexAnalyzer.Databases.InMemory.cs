@@ -53,14 +53,24 @@ public partial class PostIndexAnalyzer
             ? (prebuiltFileToProject as Dictionary<string, ProjectNode> ?? new Dictionary<string, ProjectNode>(prebuiltFileToProject, StringComparer.OrdinalIgnoreCase))
             : Layer2ProjectParser.BuildFileToProjectMap(files, projects);
 
+        var projectsById = new Dictionary<string, ProjectNode>(projects.Count * 2, StringComparer.OrdinalIgnoreCase);
+        foreach (var pr in projects)
+        {
+            projectsById.TryAdd(pr.Id, pr);
+            if (pr.Id.EndsWith(':'))
+            {
+                projectsById.TryAdd(pr.Id.TrimEnd(':'), pr);
+            }
+        }
+        var (projByDir, projRootDirect, projRootSubtree) = Layer2ProjectParser.BuildProjectDirectoryIndex(projects);
+
         var workloadToProject = new Dictionary<string, ProjectNode>(StringComparer.OrdinalIgnoreCase);
         if (l4Result.SemanticStructure != null)
         {
             foreach (var wl in l4Result.SemanticStructure.Children)
             {
                 var projId = (wl as CompositeNode)?.ProjectId;
-                var proj = !string.IsNullOrEmpty(projId) ? projects.FirstOrDefault(p => p.Id == projId) : null;
-                if (proj != null)
+                if (!string.IsNullOrEmpty(projId) && projectsById.TryGetValue(projId, out var proj))
                 {
                     workloadToProject[wl.Id] = proj;
                 }
@@ -72,21 +82,21 @@ public partial class PostIndexAnalyzer
             {
                 if (rel.Kind == RelationshipKind.ImplementedBy)
                 {
-                    var proj = projects.FirstOrDefault(p => p.Id == rel.To || p.Id.TrimEnd(':') == rel.To.TrimEnd(':'));
-                    if (proj != null) workloadToProject[rel.From] = proj;
+                    if (projectsById.TryGetValue(rel.To, out var proj) ||
+                        projectsById.TryGetValue(rel.To.TrimEnd(':'), out proj))
+                    {
+                        workloadToProject[rel.From] = proj;
+                    }
                 }
                 else if (rel.Kind == RelationshipKind.Deploys)
                 {
-                    var proj = projects.FirstOrDefault(p => p.Id == rel.From || p.Id.TrimEnd(':') == rel.From.TrimEnd(':'));
-                    if (proj != null) workloadToProject[rel.To] = proj;
+                    if (projectsById.TryGetValue(rel.From, out var proj) ||
+                        projectsById.TryGetValue(rel.From.TrimEnd(':'), out proj))
+                    {
+                        workloadToProject[rel.To] = proj;
+                    }
                 }
             }
-        }
-
-        var projectsById = new Dictionary<string, ProjectNode>(projects.Count, StringComparer.OrdinalIgnoreCase);
-        foreach (var pr in projects)
-        {
-            projectsById.TryAdd(pr.Id, pr);
         }
 
         var testSourceCache = new Dictionary<(string Id, string Path), bool>();
@@ -120,7 +130,7 @@ public partial class PostIndexAnalyzer
             if (fromId.Contains(":p:", StringComparison.OrdinalIgnoreCase) ||
                 fromId.Contains(":project:", StringComparison.OrdinalIgnoreCase))
             {
-                var matchingProj = projects.FirstOrDefault(pr => fromId.StartWithIC(pr.Id));
+                var matchingProj = FindOwningProjectForIdFast(fromId, projectsById, fileToProject, projByDir, projRootDirect, projRootSubtree);
                 if (matchingProj != null &&
                     (matchingProj.IsTest || string.Equals(matchingProj.Role, "Test", StringComparison.OrdinalIgnoreCase) ||
                      WorkspaceConventions.IsTestFilePath(matchingProj.Path)))
@@ -202,6 +212,8 @@ public partial class PostIndexAnalyzer
                                  IsRelationalEngine(e));
 
         var rawImplicitDbIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var canonicalChildById = new Dictionary<string, Dictionary<string, IOntologyNode>>(StringComparer.OrdinalIgnoreCase);
+        var dataSetGrandChildIds = new Dictionary<string, HashSet<string>>(StringComparer.Ordinal);
 
         foreach (var db in allDbNodes)
         {
@@ -211,7 +223,7 @@ public partial class PostIndexAnalyzer
                                  WorkspaceConventions.IsTestFilePath(db.Path);
             var hasNonTestAccess = (!isExplicitTest && isDeclaredInProduction) ||
                                    nonTestAccessedTargets.Contains(db.Id) ||
-                                   db.Children.Any(c => nonTestAccessedTargets.Contains(c.Id));
+                                   HasAccessedChildNode(db, nonTestAccessedTargets);
             if (!hasNonTestAccess)
             {
                 continue;
@@ -294,28 +306,15 @@ public partial class PostIndexAnalyzer
                 targetCanonical.Flags &= ~SymbolFlags.IsImplicitSchema;
                 targetCanonical.IsExplicitSchema = true;
             }
-            foreach (var child in db.Children)
-            {
-                var existingChild = targetCanonical.Children.FirstOrDefault(c => c.Id == child.Id);
-                if (existingChild == null)
-                {
-                    targetCanonical.Children.Add(child);
-                }
-                else if (existingChild is DataSetNode existingDs && child is DataSetNode newDs)
-                {
-                    foreach (var grandChild in newDs.Children)
-                    {
-                        if (!existingDs.Children.Any(gc => gc.Id == grandChild.Id))
-                        {
-                            existingDs.Children.Add(grandChild);
-                        }
-                    }
-                }
-            }
+            MergeDatabaseChildrenFast(targetCanonical, db, canonicalChildById, dataSetGrandChildIds);
 
             // Also map child DataSetNodes (representing schemas in SQL) to their canonical database nodes
-            foreach (var ds in db.Children.OfType<DataSetNode>())
+            for (var dsIdx = 0; dsIdx < db.Children.Count; dsIdx++)
             {
+                if (db.Children[dsIdx] is not DataSetNode ds)
+                {
+                    continue;
+                }
                 var (dsCName, dsCType, dsCKey) = CanonicalizeDatabase(db.Name, db.DbType.ToCanonicalString(), rawEngine, ds.Name, primaryRelationalEngine);
                 var dsCanonicalId = BuildCanonicalDatabaseId(ds.Id, dsCType, dsCKey, ctx.WorkspaceId);
                 rawToCanonical[ds.Id] = dsCanonicalId;
@@ -491,5 +490,74 @@ public partial class PostIndexAnalyzer
             rawImplicitDbIds);
 
         return (canonicalRels, rawToCanonical);
+    }
+
+    private static bool HasAccessedChildNode(DatabaseNode db, HashSet<string> nonTestAccessedTargets)
+    {
+        for (var i = 0; i < db.Children.Count; i++)
+        {
+            if (nonTestAccessedTargets.Contains(db.Children[i].Id))
+            {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static void MergeDatabaseChildrenFast(
+        DatabaseNode targetCanonical,
+        DatabaseNode sourceDb,
+        Dictionary<string, Dictionary<string, IOntologyNode>> canonicalChildById,
+        Dictionary<string, HashSet<string>> dataSetGrandChildIds)
+    {
+        if (!canonicalChildById.TryGetValue(targetCanonical.Id, out var childMap))
+        {
+            childMap = new Dictionary<string, IOntologyNode>(StringComparer.Ordinal);
+            for (var i = 0; i < targetCanonical.Children.Count; i++)
+            {
+                var existing = targetCanonical.Children[i];
+                childMap.TryAdd(existing.Id, existing);
+            }
+            canonicalChildById[targetCanonical.Id] = childMap;
+        }
+
+        for (var i = 0; i < sourceDb.Children.Count; i++)
+        {
+            var child = sourceDb.Children[i];
+            if (!childMap.TryGetValue(child.Id, out var existingChild))
+            {
+                childMap[child.Id] = child;
+                targetCanonical.Children.Add(child);
+            }
+            else if (existingChild is DataSetNode existingDs && child is DataSetNode newDs)
+            {
+                MergeDataSetChildrenFast(existingDs, newDs, dataSetGrandChildIds);
+            }
+        }
+    }
+
+    private static void MergeDataSetChildrenFast(
+        DataSetNode existingDs,
+        DataSetNode newDs,
+        Dictionary<string, HashSet<string>> dataSetGrandChildIds)
+    {
+        if (!dataSetGrandChildIds.TryGetValue(existingDs.Id, out var gcIds))
+        {
+            gcIds = new HashSet<string>(existingDs.Children.Count, StringComparer.Ordinal);
+            for (var i = 0; i < existingDs.Children.Count; i++)
+            {
+                gcIds.Add(existingDs.Children[i].Id);
+            }
+            dataSetGrandChildIds[existingDs.Id] = gcIds;
+        }
+
+        for (var i = 0; i < newDs.Children.Count; i++)
+        {
+            var grandChild = newDs.Children[i];
+            if (gcIds.Add(grandChild.Id))
+            {
+                existingDs.Children.Add(grandChild);
+            }
+        }
     }
 }

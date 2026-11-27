@@ -5,6 +5,17 @@ All notable changes to the CodeExplorer project (CLI, MCP Server, and VS Code Ex
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.108.1] - 2026-11-27
+
+### Fixed
+- **4.6× Faster Cold Scan on 600+ Repository Polyglot Workspaces (`Layer3ProjectFileStreamer`, `Layer2ProjectParser`, `ConfigurationIndex`, `ConfigurationParser`, `LibraryConfigurationRegistry`, `SemanticParseContext`, `LateBindingEndpointIndex`, `EndpointScoringEngine`, `PostIndexAnalyzer`, `InMemoryGraphMaintenance`)**:
+  - Replaced $O(F \times P)$ linear project-prefix scans in `GroupFilesByEnclosingProject`, `BuildFileToProjectMap`, and `FindOwningProjectForId` with zero-allocation `ReadOnlySpan<char>` directory dictionary lookups.
+  - Filtered OpenAPI/Swagger/AsyncAPI specification documents out of `ConfigurationIndex.Register`, indexed discovered config URLs by file (`GetDiscoveredUrlsForFile`), added lock-free snapshot reads in `LibraryConfigurationRegistry.TryProcess`, deduplicated multi-tenant config `SERVICE_CALL` edges and semantic child insertions (`TryAddChildOnce`, `ResolveWorkloadIdByProjectId`), and released parsed config buffers immediately after Layer 3 registration.
+  - Added multi-axis `LateBindingEndpointIndex` (by GraphQL route, target project ID with per-domain match caching, normalized static route stems, and `EntryPoint` index) in `Layer5AnalysisParser.PerformLateBindingAsync` and throttled console progress logging to 3-second intervals.
+  - Rewrote `EndpointScoringEngine.LevenshteinDistance` on 1D `stackalloc int` with mathematical length-bound pruning, cached prepared project match variants, precomputed `PreparedServiceProjectCatalog` across `PurgePhantomExternalServices` and `MaterializeDirectProjectRelationships`, and fast-pathed typed relationship property extraction in `InMemoryGraphMaintenance`.
+- **TypeScript / TSX Untyped Destructured Function Type Recovery & Diagnostic Deduplication (`TypeScriptParseErrorRecovery`, `TypeScriptSyntaxConverter`, `TreeSitterSyntaxBuilder`, `Layer3SyntacticAnalyzer`)**: Added cold-path length-preserving normalization for valid TypeScript untyped destructured parameters inside parenthesized function types (e.g. `(({ table }) => React.ReactNode)`) where upstream `tree-sitter-typescript` emitted false-positive `ERROR` nodes, and guarded `RecordDocumentDiagnostics` with `SymbolFlags.HasParseIssues` so genuine syntax warnings are recorded once per file.
+- **Aligned Per-Project Layer 3 & Layer 4 Progress Logs (`PipelineLoggers`, `Layer3SyntacticAnalyzer`, `Layer4SemanticAnalyzer`)**: Unified Layer 3 and Layer 4 per-project log lines (`Scanning project k/N: <Name> (<Files> files)...` and `Enriched project k/N: <Name>...`) on every project with matching 1-to-1 indices and without redundant percentage suffixes.
+
 ## [1.108.0] - 2026-11-27
 
 ### Added

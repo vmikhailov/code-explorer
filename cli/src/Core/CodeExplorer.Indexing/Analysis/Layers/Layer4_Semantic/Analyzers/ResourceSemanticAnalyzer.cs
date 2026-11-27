@@ -127,13 +127,8 @@ public partial class ResourceSemanticAnalyzer
     {
         if (workloadNode != null) return workloadNode.Id;
 
-        if (ctx.SemanticStructure != null)
-        {
-            var match = ctx.SemanticStructure.Children.FirstOrDefault(c =>
-                c is CompositeNode comp &&
-                string.Equals(comp.ProjectId, projectNode.Id, StringComparison.OrdinalIgnoreCase));
-            if (match != null) return match.Id;
-        }
+        var resolved = ctx.ResolveWorkloadIdByProjectId(projectNode.Id);
+        if (resolved != null) return resolved;
 
         var prefix = projectNode.IsTest
             ? OntologyConstants.IdPrefixes.TestSuite

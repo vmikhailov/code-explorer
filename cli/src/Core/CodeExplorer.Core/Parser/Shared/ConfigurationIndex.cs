@@ -39,6 +39,7 @@ public static class ConfigurationIndex
     private const string SchemeHttp = "http://";
     private const string SchemeHttps = "https://";
     private const string SchemeLb = "lb://";
+    private const string ParentDirTraversal = "..";
 
     // Project -> (NormalizedKey -> Value)
     private static readonly ConcurrentDictionary<string, ConcurrentDictionary<string, string>> _projectConfigs =
@@ -51,6 +52,10 @@ public static class ConfigurationIndex
     // Discovered service endpoints from config values
     private static readonly ConcurrentBag<DiscoveredServiceUrl> _discoveredUrls = [];
 
+    // Discovered service endpoints indexed by normalized file path for O(1) Layer 4 lookup
+    private static readonly ConcurrentDictionary<string, List<DiscoveredServiceUrl>> _discoveredUrlsByFile =
+        new(StringComparer.OrdinalIgnoreCase);
+
     // Parsed entries per file for single-pass reading
     private static readonly ConcurrentDictionary<string, List<ConfigEntry>> _fileConfigs =
         new(StringComparer.OrdinalIgnoreCase);
@@ -60,7 +65,49 @@ public static class ConfigurationIndex
         _projectConfigs.Clear();
         _globalConfigs.Clear();
         _fileConfigs.Clear();
+        _discoveredUrlsByFile.Clear();
         while (_discoveredUrls.TryTake(out _)) { }
+    }
+
+    public static IReadOnlyList<DiscoveredServiceUrl> GetDiscoveredUrlsForFile(string? filePath, string? relativePath = null)
+    {
+        if (!string.IsNullOrWhiteSpace(filePath))
+        {
+            var normDirect = filePath.Replace('\\', '/');
+            if (_discoveredUrlsByFile.TryGetValue(normDirect, out var list))
+            {
+                lock (list)
+                {
+                    return [.. list];
+                }
+            }
+
+            if (!Path.IsPathRooted(filePath) || filePath.Contains(ParentDirTraversal, StringComparison.Ordinal))
+            {
+                var normFull = Path.GetFullPath(filePath).Replace('\\', '/');
+                if (_discoveredUrlsByFile.TryGetValue(normFull, out list))
+                {
+                    lock (list)
+                    {
+                        return [.. list];
+                    }
+                }
+            }
+        }
+
+        if (!string.IsNullOrWhiteSpace(relativePath))
+        {
+            var normRel = relativePath.Replace('\\', '/').TrimStart('/');
+            if (_discoveredUrlsByFile.TryGetValue(normRel, out var relList))
+            {
+                lock (relList)
+                {
+                    return [.. relList];
+                }
+            }
+        }
+
+        return [];
     }
 
     public static IReadOnlyList<DiscoveredServiceUrl> GetDiscoveredUrls(string? projectName = null)
@@ -161,17 +208,8 @@ public static class ConfigurationIndex
     {
         if (string.IsNullOrWhiteSpace(filePath)) return [];
 
-        var normPath = Path.GetFullPath(filePath).Replace('\\', '/');
-        if (_fileConfigs.TryGetValue(normPath, out var entries))
-        {
-            lock (entries)
-            {
-                return [.. entries];
-            }
-        }
-
         var altKey = filePath.Replace('\\', '/');
-        if (_fileConfigs.TryGetValue(altKey, out entries))
+        if (_fileConfigs.TryGetValue(altKey, out var entries))
         {
             lock (entries)
             {
@@ -179,12 +217,30 @@ public static class ConfigurationIndex
             }
         }
 
-        var match = _fileConfigs.FirstOrDefault(kvp => kvp.Key.EndsWith(altKey, StringComparison.OrdinalIgnoreCase));
-        if (match.Value != null)
+        if (!Path.IsPathRooted(filePath) || filePath.Contains(ParentDirTraversal, StringComparison.Ordinal))
         {
-            lock (match.Value)
+            var normPath = Path.GetFullPath(filePath).Replace('\\', '/');
+            if (!string.Equals(normPath, altKey, StringComparison.OrdinalIgnoreCase) &&
+                _fileConfigs.TryGetValue(normPath, out entries))
             {
-                return [.. match.Value];
+                lock (entries)
+                {
+                    return [.. entries];
+                }
+            }
+        }
+
+        if (!Path.IsPathRooted(filePath) && _fileConfigs.Count <= 256)
+        {
+            foreach (var kvp in _fileConfigs)
+            {
+                if (kvp.Key.EndsWith(altKey, StringComparison.OrdinalIgnoreCase))
+                {
+                    lock (kvp.Value)
+                    {
+                        return [.. kvp.Value];
+                    }
+                }
             }
         }
 
@@ -220,6 +276,26 @@ public static class ConfigurationIndex
                fileName.Equals(BackstageCatalogYml, StringComparison.OrdinalIgnoreCase);
     }
 
+    private const string OpenApiRootKey = "openapi";
+    private const string SwaggerRootKey = "swagger";
+    private const string AsyncApiRootKey = "asyncapi";
+
+    private static bool IsApiSpecificationDocument(IReadOnlyList<ConfigValue> values)
+    {
+        var checkLimit = Math.Min(values.Count, 12);
+        for (var i = 0; i < checkLimit; i++)
+        {
+            var key = values[i].Key;
+            if (key.Equals(OpenApiRootKey, StringComparison.OrdinalIgnoreCase) ||
+                key.Equals(SwaggerRootKey, StringComparison.OrdinalIgnoreCase) ||
+                key.Equals(AsyncApiRootKey, StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+        }
+        return false;
+    }
+
     /// <summary>
     /// Registers already-parsed configuration (produced once by shared file parsers) into the index
     /// and <see cref="ConstantRegistry"/>. Performs no file IO.
@@ -227,39 +303,62 @@ public static class ConfigurationIndex
     public static void Register(ConfigurationFileInformation info, string? projectName)
     {
         if (IsServiceCatalogMetadataFile(info.SourceFilePath) ||
-            (!Path.IsPathRooted(info.SourceFilePath) && WorkspaceConventions.IsTestFilePath(info.SourceFilePath)))
+            (!Path.IsPathRooted(info.SourceFilePath) && WorkspaceConventions.IsTestFilePath(info.SourceFilePath)) ||
+            IsApiSpecificationDocument(info.Values))
         {
             return;
         }
-        foreach (var value in info.Values)
+
+        var normFile = Path.GetFullPath(info.SourceFilePath).Replace('\\', '/');
+        var fileList = _fileConfigs.GetOrAdd(normFile, static _ => []);
+        var pDict = !string.IsNullOrWhiteSpace(projectName)
+            ? _projectConfigs.GetOrAdd(projectName.Trim(), static _ => new(StringComparer.OrdinalIgnoreCase))
+            : null;
+
+        lock (fileList)
         {
-            RegisterConfigValue(value.Key, value.Value, info.SourceFilePath, projectName);
+            for (var i = 0; i < info.Values.Count; i++)
+            {
+                var val = info.Values[i];
+                RegisterConfigValueCore(val.Key, val.Value, info.SourceFilePath, normFile, projectName, pDict, fileList);
+            }
         }
     }
 
     private static void RegisterConfigValue(string keyPath, string value, string filePath, string? projectName)
+    {
+        var normFile = Path.GetFullPath(filePath).Replace('\\', '/');
+        var fileList = _fileConfigs.GetOrAdd(normFile, static _ => []);
+        var pDict = !string.IsNullOrWhiteSpace(projectName)
+            ? _projectConfigs.GetOrAdd(projectName.Trim(), static _ => new(StringComparer.OrdinalIgnoreCase))
+            : null;
+        lock (fileList)
+        {
+            RegisterConfigValueCore(keyPath, value, filePath, normFile, projectName, pDict, fileList);
+        }
+    }
+
+    private static void RegisterConfigValueCore(
+        string keyPath,
+        string value,
+        string filePath,
+        string normFile,
+        string? projectName,
+        ConcurrentDictionary<string, string>? pDict,
+        List<ConfigEntry> fileList)
     {
         if (string.IsNullOrWhiteSpace(keyPath) || string.IsNullOrWhiteSpace(value)) return;
 
         var cleanKey = keyPath.Trim();
         var cleanVal = value.Trim().Trim('"', '\'', '`');
 
-        // Store in ConfigurationIndex internal dictionaries
-        if (!string.IsNullOrWhiteSpace(projectName))
+        if (pDict != null)
         {
-            var pDict = _projectConfigs.GetOrAdd(projectName.Trim(), _ => new(StringComparer.OrdinalIgnoreCase));
             pDict[cleanKey] = cleanVal;
         }
         _globalConfigs.TryAdd(cleanKey, cleanVal);
 
-        // Record parsed entry for file
-        var entry = new ConfigEntry(cleanKey, cleanVal, filePath, projectName);
-        var normFile = Path.GetFullPath(filePath).Replace('\\', '/');
-        var fileList = _fileConfigs.GetOrAdd(normFile, _ => []);
-        lock (fileList)
-        {
-            fileList.Add(entry);
-        }
+        fileList.Add(new ConfigEntry(cleanKey, cleanVal, filePath, projectName));
 
         // Standard C# format: Section:SubSection:Key
         ConstantRegistry.Register(projectName, cleanKey, cleanVal);
@@ -349,11 +448,31 @@ public static class ConfigurationIndex
             cleanVal.StartWithIC(SchemeHttps) ||
             cleanVal.StartWithIC(SchemeLb))
         {
-            InspectAndRegisterUrl(cleanKey, cleanVal, filePath, projectName);
+            InspectAndRegisterUrl(cleanKey, cleanVal, filePath, normFile, projectName);
         }
     }
 
-    private static void InspectAndRegisterUrl(string keyPath, string url, string filePath, string? projectName)
+    private static void AddDiscoveredUrlForFile(string normFile, string rawFilePath, DiscoveredServiceUrl endpoint)
+    {
+        _discoveredUrls.Add(endpoint);
+        var list = _discoveredUrlsByFile.GetOrAdd(normFile, static _ => []);
+        lock (list)
+        {
+            list.Add(endpoint);
+        }
+
+        var rawNorm = rawFilePath.Replace('\\', '/').TrimStart('/');
+        if (!string.Equals(rawNorm, normFile, StringComparison.OrdinalIgnoreCase))
+        {
+            var relList = _discoveredUrlsByFile.GetOrAdd(rawNorm, static _ => []);
+            lock (relList)
+            {
+                relList.Add(endpoint);
+            }
+        }
+    }
+
+    private static void InspectAndRegisterUrl(string keyPath, string url, string filePath, string normFile, string? projectName)
     {
         if (IsInboundOrNonServiceConfigKey(keyPath)) return;
         if (!Uri.TryCreate(url, UriKind.Absolute, out var uri)) return;
@@ -400,7 +519,7 @@ public static class ConfigurationIndex
             IsExternal: isExternal
         );
 
-        _discoveredUrls.Add(endpoint);
+        AddDiscoveredUrlForFile(normFile, filePath, endpoint);
 
         // If an internal gateway/localhost URL has a path (e.g. https://localhost:3001/spa-bff), check if path points to a downstream service
         if (!isExternal && uri.AbsolutePath.Length > 1)
@@ -425,7 +544,7 @@ public static class ConfigurationIndex
                     Port: uri.Port > 0 && uri.Port != 80 && uri.Port != 443 ? uri.Port : null,
                     IsExternal: isExternal
                 );
-                _discoveredUrls.Add(pathEndpoint);
+                AddDiscoveredUrlForFile(normFile, filePath, pathEndpoint);
             }
         }
     }

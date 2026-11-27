@@ -284,7 +284,17 @@ public partial class Layer3SyntacticParser
         var diags = syntaxTree.Document?.Diagnostics;
         if (diags == null || diags.Count == 0) return;
 
+        var alreadyRecorded = (fileNode.Flags & SymbolFlags.HasParseIssues) != 0 ||
+                              (syntaxTree.FileNode != null && (syntaxTree.FileNode.Flags & SymbolFlags.HasParseIssues) != 0);
         fileNode.Flags |= SymbolFlags.HasParseIssues;
+        if (syntaxTree.FileNode != null)
+        {
+            syntaxTree.FileNode.Flags |= SymbolFlags.HasParseIssues;
+        }
+        if (alreadyRecorded)
+        {
+            return;
+        }
 
         const string stageLayer3Syntactic = "Layer3_Syntactic";
         const string issueNameSyntaxError = "SyntaxError";

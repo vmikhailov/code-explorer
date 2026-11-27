@@ -24,45 +24,88 @@ internal static class Layer3ProjectFileStreamer
         Dictionary<string, FileNode> fileNodeByPath,
         List<Relationship> projectRels)
     {
-        var hasNonScriptProject = l2Result.Projects.Any(static pr => pr.EntityKind != ProjectEntityKind.ScriptProject);
-        var bestMatches = new List<ProjectNode>();
+        var hasNonScriptProject = false;
+        var projectsByDir = new Dictionary<string, List<ProjectNode>>(l2Result.Projects.Count, StringComparer.OrdinalIgnoreCase);
+        List<ProjectNode>? rootProjects = null;
+
+        for (var i = 0; i < l2Result.Projects.Count; i++)
+        {
+            var proj = l2Result.Projects[i];
+            if (proj.EntityKind != ProjectEntityKind.ScriptProject)
+            {
+                hasNonScriptProject = true;
+            }
+
+            if (string.IsNullOrEmpty(proj.Path))
+            {
+                rootProjects ??= [];
+                rootProjects.Add(proj);
+                continue;
+            }
+
+            var normProjPath = proj.Path.NormalizeSlashes().Trim(SlashChar);
+            if (normProjPath.Length == 0 || normProjPath == ".")
+            {
+                rootProjects ??= [];
+                rootProjects.Add(proj);
+                continue;
+            }
+
+            if (!projectsByDir.TryGetValue(normProjPath, out var dirList))
+            {
+                dirList = [];
+                projectsByDir[normProjPath] = dirList;
+            }
+            dirList.Add(proj);
+        }
+
+        var dirLookup = projectsByDir.GetAlternateLookup<ReadOnlySpan<char>>();
+        var bestMatches = new List<ProjectNode>(4);
 
         foreach (var file in l1Result.Files)
         {
-            if (!string.IsNullOrEmpty(file.Path))
+            var normFilePath = string.IsNullOrEmpty(file.Path)
+                ? string.Empty
+                : file.Path.NormalizeSlashes().Trim(SlashChar);
+            if (normFilePath.Length > 0)
             {
-                fileNodeByPath[file.Path.NormalizeSlashes().Trim(SlashChar)] = file;
+                fileNodeByPath[normFilePath] = file;
             }
 
             bestMatches.Clear();
-            var bestMatchLength = -1;
             var isManagedSourceExt = IsManagedSourceExtension(Path.GetExtension(file.Name));
 
-            foreach (var p in l2Result.Projects)
+            // 1. Exact single-file project match (matchLen = normProjPath.Length + 1)
+            if (normFilePath.Length > 0 && dirLookup.TryGetValue(normFilePath.AsSpan(), out var exactDirProjs))
             {
-                if (hasNonScriptProject && isManagedSourceExt && p.EntityKind == ProjectEntityKind.ScriptProject)
-                {
-                    continue;
-                }
+                AppendEligibleProjects(exactDirProjs, hasNonScriptProject, isManagedSourceExt, bestMatches);
+            }
 
-                var matchLen = ComputeProjectMatchLength(file.Path, p.Path);
-                if (matchLen < 0) continue;
+            // 2. Deepest enclosing directory walk (right-to-left along '/', zero allocations)
+            var probeSpan = normFilePath.AsSpan();
+            while (bestMatches.Count == 0 && probeSpan.Length > 0)
+            {
+                var lastSlash = probeSpan.LastIndexOf(SlashChar);
+                if (lastSlash <= 0)
+                {
+                    break;
+                }
+                probeSpan = probeSpan[..lastSlash];
+                if (dirLookup.TryGetValue(probeSpan, out var parentDirProjs))
+                {
+                    AppendEligibleProjects(parentDirProjs, hasNonScriptProject, isManagedSourceExt, bestMatches);
+                }
+            }
 
-                if (matchLen > bestMatchLength)
-                {
-                    bestMatchLength = matchLen;
-                    bestMatches.Clear();
-                    bestMatches.Add(p);
-                }
-                else if (matchLen == bestMatchLength)
-                {
-                    bestMatches.Add(p);
-                }
+            // 3. Workspace-root project fallback (matchLen = 0)
+            if (bestMatches.Count == 0 && rootProjects != null)
+            {
+                AppendEligibleProjects(rootProjects, hasNonScriptProject, isManagedSourceExt, bestMatches);
             }
 
             if (bestMatches.Count > 0)
             {
-                AssignFileToMatchedProjects(file, bestMatches, filesByProjectId, primaryOwnerByFilePath, projectRels);
+                AssignFileToMatchedProjects(file, normFilePath, bestMatches, filesByProjectId, primaryOwnerByFilePath, projectRels);
             }
             else
             {
@@ -71,27 +114,31 @@ internal static class Layer3ProjectFileStreamer
         }
     }
 
+    private static void AppendEligibleProjects(
+        List<ProjectNode> candidates,
+        bool hasNonScriptProject,
+        bool isManagedSourceExt,
+        List<ProjectNode> destination)
+    {
+        for (var i = 0; i < candidates.Count; i++)
+        {
+            var p = candidates[i];
+            if (hasNonScriptProject && isManagedSourceExt && p.EntityKind == ProjectEntityKind.ScriptProject)
+            {
+                continue;
+            }
+            destination.Add(p);
+        }
+    }
+
     private static bool IsManagedSourceExtension(string ext) =>
         ext.ToLowerInvariant() is
             ".ts" or ".tsx" or ".mts" or ".cts" or ".js" or ".jsx" or ".mjs" or ".cjs" or
             ".cs" or ".java" or ".kt" or ".go" or ".rs" or ".php" or ".phtml" or ".inc" or ".pm" or ".pl";
 
-    private static int ComputeProjectMatchLength(string filePath, string projectPath)
-    {
-        if (string.IsNullOrEmpty(projectPath)) return 0;
-
-        var normProjPath = projectPath.NormalizeSlashes().Trim(SlashChar);
-        if (filePath.Equals(normProjPath, StringComparison.OrdinalIgnoreCase))
-        {
-            return normProjPath.Length + 1;
-        }
-
-        var prefix = normProjPath + SlashChar;
-        return filePath.StartWithIC(prefix) ? prefix.Length : -1;
-    }
-
     private static void AssignFileToMatchedProjects(
         FileNode file,
+        string normFilePath,
         List<ProjectNode> bestMatches,
         Dictionary<string, List<FileNode>> filesByProjectId,
         Dictionary<string, ProjectNode> primaryOwnerByFilePath,
@@ -101,9 +148,9 @@ internal static class Layer3ProjectFileStreamer
         file.IsTest = primaryMatch.IsTest || WorkspaceConventions.IsTestFilePath(file.Path);
         file.ProjectKind = primaryMatch.EntityKind != ProjectEntityKind.Unknown ? primaryMatch.EntityKind : null;
         file.ProjectName = primaryMatch.Name;
-        if (!string.IsNullOrEmpty(file.Path))
+        if (normFilePath.Length > 0)
         {
-            primaryOwnerByFilePath[file.Path.NormalizeSlashes().Trim(SlashChar)] = primaryMatch;
+            primaryOwnerByFilePath[normFilePath] = primaryMatch;
         }
 
         if (!filesByProjectId.TryGetValue(primaryMatch.Id, out var primaryList))

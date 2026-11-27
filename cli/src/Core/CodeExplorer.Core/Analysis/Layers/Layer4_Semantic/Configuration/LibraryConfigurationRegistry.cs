@@ -10,6 +10,7 @@ namespace CodeExplorer.Core.Parser;
 public static class LibraryConfigurationRegistry
 {
     private static readonly List<ILibraryConfigurationDescriptor> _descriptors = [];
+    private static volatile ILibraryConfigurationDescriptor[] _snapshot = [];
 
     static LibraryConfigurationRegistry()
     {
@@ -26,6 +27,7 @@ public static class LibraryConfigurationRegistry
             {
                 _descriptors.Add(descriptor);
                 _descriptors.Sort((a, b) => a.Order.CompareTo(b.Order));
+                _snapshot = [.. _descriptors];
             }
         }
     }
@@ -40,12 +42,7 @@ public static class LibraryConfigurationRegistry
         List<Relationship> relationships,
         SemanticParseContext ctx)
     {
-        ILibraryConfigurationDescriptor[] snapshot;
-        lock (_descriptors)
-        {
-            snapshot = [.. _descriptors];
-        }
-
+        var snapshot = _snapshot;
         for (var i = 0; i < snapshot.Length; i++)
         {
             if (snapshot[i].TryHandle(key, value, relativePath, fileNodeId, workspaceId, containerNode, relationships, ctx))

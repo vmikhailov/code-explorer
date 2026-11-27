@@ -336,21 +336,14 @@ public partial class Layer4SemanticParser
         {
             var workloadNode = workloadNodeByProjectId[project.Id];
 
-            void ReportProgressIfNeeded(bool force = false)
+            void ReportProgressIfNeeded()
             {
-                var now = Environment.TickCount64;
-                if (force || projectsProcessed == 1 || projectsProcessed == totalProjects ||
-                    projectsProcessed % 10 == 0 || (now - lastLogTicks) >= 3000)
-                {
-                    var pct = totalProjects > 0 ? (double)projectsProcessed / totalProjects * 100.0 : 100.0;
-                    var pctInt = (int)Math.Round(pct);
-                    var globalPct = 52 + (int)(16.0 * projectsProcessed / Math.Max(1, totalProjects));
-                    const string layer4StageTitle = "Layer 4: Semantic";
-                    ctx.ReportProgress(globalPct, layer4StageTitle, $"Enriched {projectsProcessed}/{totalProjects} projects ({pctInt}%) - {project.Name}");
-                    ctx.Layer4Log.EnrichingProgress(projectsProcessed, totalProjects, pctInt, project.Name);
-                    lastLogTicks = now;
-                    ctx.TriggerProgressReport();
-                }
+                var globalPct = 52 + (int)(16.0 * projectsProcessed / Math.Max(1, totalProjects));
+                const string layer4StageTitle = "Layer 4: Semantic";
+                ctx.ReportProgress(globalPct, layer4StageTitle, $"Enriched project {projectsProcessed}/{totalProjects}: {project.Name}");
+                ctx.Layer4Log.EnrichingProgress(projectsProcessed, totalProjects, project.Name);
+                lastLogTicks = Environment.TickCount64;
+                ctx.TriggerProgressReport();
             }
 
             // Find project parser(s) — fast-path via in-memory ProjectType lookup before falling back to in-memory file list

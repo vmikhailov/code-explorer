@@ -92,8 +92,8 @@ public static partial class Layer3LogMessages
     [LoggerMessage(EventId = 3002, Level = LogLevel.Debug, Message = "[ConfigurationIndex] Registered {Count} service endpoints and configuration keys into ConstantRegistry.")]
     public static partial void RegisteredConfigurationUrls(ILogger logger, int count);
 
-    [LoggerMessage(EventId = 3003, Level = LogLevel.Information, Message = "[Layer 3    ] Scanning project {ProjectIndex}/{TotalProjects} ({Percentage}%): {ProjectName} ({FileCount} files)...")]
-    public static partial void ParsingProject(ILogger logger, int projectIndex, int totalProjects, int percentage, string projectName, int fileCount);
+    [LoggerMessage(EventId = 3003, Level = LogLevel.Information, Message = "[Layer 3    ] Scanning project {ProjectIndex}/{TotalProjects}: {ProjectName} ({FileCount} files)...")]
+    public static partial void ParsingProject(ILogger logger, int projectIndex, int totalProjects, string projectName, int fileCount);
 
     [LoggerMessage(EventId = 3004, Level = LogLevel.Debug, Message = "[Layer 3    ] Parsing syntax trees: {Completed}/{TotalFiles} files ({Percentage}%) [{ProjectName}]...")]
     public static partial void ParsingProgress(ILogger logger, int completed, int totalFiles, int percentage, string projectName);
@@ -124,7 +124,7 @@ public readonly struct Layer3Logger(ILogger logger)
 {
     public void ScanStarted() => Layer3LogMessages.StartingSyntacticScan(logger);
     public void ConfigurationIndexRegistered(int count) => Layer3LogMessages.RegisteredConfigurationUrls(logger, count);
-    public void ParsingProject(int projectIndex, int totalProjects, int percentage, string projectName, int fileCount) => Layer3LogMessages.ParsingProject(logger, projectIndex, totalProjects, percentage, projectName, fileCount);
+    public void ParsingProject(int projectIndex, int totalProjects, string projectName, int fileCount) => Layer3LogMessages.ParsingProject(logger, projectIndex, totalProjects, projectName, fileCount);
     public void ParsingProgress(int completed, int totalFiles, int percentage, string projectName) => Layer3LogMessages.ParsingProgress(logger, completed, totalFiles, percentage, projectName);
     public void StartingInMemoryVisitors(int totalFiles) => Layer3LogMessages.StartingInMemoryVisitors(logger, totalFiles);
     public void VisitorProgress(int completed, int totalFiles, int percentage, string projectName) => Layer3LogMessages.VisitorProgress(logger, completed, totalFiles, percentage, projectName);
@@ -155,8 +155,8 @@ public static partial class Layer4LogMessages
     [LoggerMessage(EventId = 4006, Level = LogLevel.Information, Message = "[Layer 4    ] Semantic enrichment pass complete in {ElapsedMs:N0}ms. Identified {SemanticNodeCount} semantic nodes.")]
     public static partial void SemanticPassComplete(ILogger logger, long elapsedMs, int semanticNodeCount);
 
-    [LoggerMessage(EventId = 4007, Level = LogLevel.Information, Message = "[Layer 4    ] Enriched {Processed}/{Total} projects ({Percentage}%) - {ProjectName}...")]
-    public static partial void EnrichedProjectProgress(ILogger logger, int processed, int total, int percentage, string projectName);
+    [LoggerMessage(EventId = 4007, Level = LogLevel.Information, Message = "[Layer 4    ] Enriched project {Processed}/{Total}: {ProjectName}...")]
+    public static partial void EnrichedProjectProgress(ILogger logger, int processed, int total, string projectName);
 
     [LoggerMessage(EventId = 4008, Level = LogLevel.Warning, Message = "[ConfigurationParser] Failed to parse config file '{RelativePath}': {ErrorMessage}")]
     public static partial void ConfigParseFailed(ILogger logger, string relativePath, string errorMessage, Exception? ex);
@@ -170,7 +170,7 @@ public readonly struct Layer4Logger(ILogger logger)
     public void UploadingSemanticRelationships(int relationshipCount) => Layer4LogMessages.UploadingSemanticRelationships(logger, relationshipCount);
     public void QueuingOntologyTree() => Layer4LogMessages.QueuingOntologyTree(logger);
     public void ScanCompleted(int semanticNodeCount, long elapsedMs = 0) => Layer4LogMessages.SemanticPassComplete(logger, elapsedMs, semanticNodeCount);
-    public void EnrichingProgress(int processed, int total, int percentage, string projectName) => Layer4LogMessages.EnrichedProjectProgress(logger, processed, total, percentage, projectName);
+    public void EnrichingProgress(int processed, int total, string projectName) => Layer4LogMessages.EnrichedProjectProgress(logger, processed, total, projectName);
     public void ConfigParseFailed(string relativePath, Exception ex) => Layer4LogMessages.ConfigParseFailed(logger, relativePath, ex.Message, ex);
 }
 

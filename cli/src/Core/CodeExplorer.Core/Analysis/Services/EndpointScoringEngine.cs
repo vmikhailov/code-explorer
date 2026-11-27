@@ -8,7 +8,13 @@ public record ProjectMatchCandidate(
     string ProjectName,
     string? Path = null,
     string? GitRepo = null,
-    bool IsLibrary = false);
+    bool IsLibrary = false)
+{
+    private (string Cand, string NormCand, string NormCandPluralTrimmed, string[] CandTokens)[]? _preparedVariants;
+
+    internal (string Cand, string NormCand, string NormCandPluralTrimmed, string[] CandTokens)[] GetPreparedVariants() =>
+        _preparedVariants ??= EndpointScoringEngine.BuildProjectVariants(ProjectName, Path, GitRepo);
+}
 
 public record EndpointMatchCandidate(
     string EndpointId,
@@ -201,6 +207,39 @@ public static partial class EndpointScoringEngine
         return score >= 50.0;
     }
 
+    private static readonly char[] HostTokenDelimiters = ['-', '_', '.'];
+    private static readonly char[] CandTokenDelimiters = ['-', '_', '.', '/', '\\'];
+
+    internal static (string Cand, string NormCand, string NormCandPluralTrimmed, string[] CandTokens)[] BuildProjectVariants(
+        string projectName,
+        string? path,
+        string? gitRepo)
+    {
+        var pName = projectName.Trim().ToLowerInvariant();
+        var pFolder = !string.IsNullOrEmpty(path)
+            ? Path.GetFileName(path.TrimEnd('/', '\\')).ToLowerInvariant()
+            : "";
+        var repo = !string.IsNullOrEmpty(gitRepo) ? gitRepo.Trim().ToLowerInvariant() : "";
+
+        var rawList = new List<string>(5) { pName, pFolder };
+        if (!string.IsNullOrEmpty(repo) && !rawList.Contains(repo)) rawList.Add(repo);
+
+        var strippedName = StripCommonAffixes(pName);
+        if (!string.IsNullOrEmpty(strippedName) && !rawList.Contains(strippedName)) rawList.Add(strippedName);
+        var strippedFolder = StripCommonAffixes(pFolder);
+        if (!string.IsNullOrEmpty(strippedFolder) && !rawList.Contains(strippedFolder)) rawList.Add(strippedFolder);
+
+        var variants = new List<(string Cand, string NormCand, string NormCandPluralTrimmed, string[] CandTokens)>(rawList.Count);
+        for (var i = 0; i < rawList.Count; i++)
+        {
+            var c = rawList[i];
+            if (string.IsNullOrEmpty(c)) continue;
+            var norm = NormalizeAlphanumeric(c);
+            variants.Add((c, norm, norm.TrimEnd('s'), c.Split(CandTokenDelimiters, StringSplitOptions.RemoveEmptyEntries)));
+        }
+        return [.. variants];
+    }
+
     /// <summary>
     /// Scores candidate project against target host string.
     /// </summary>
@@ -219,38 +258,18 @@ public static partial class EndpointScoringEngine
         // If target host ends with a public TLD (e.g. stripe.com, app.workers.dev)
         var isPublicTld = hostSegments.Length > 1 &&
             (PublicThirdPartyTlds.Contains(hostSegments[^1]) ||
-             PublicThirdPartyTlds.Any(tld => cleanHost.EndsWith("." + tld, StringComparison.OrdinalIgnoreCase)));
-
-        var pName = project.ProjectName.Trim().ToLowerInvariant();
-        var pFolder = !string.IsNullOrEmpty(project.Path)
-            ? Path.GetFileName(project.Path.TrimEnd('/', '\\')).ToLowerInvariant()
-            : "";
-        var gitRepo = !string.IsNullOrEmpty(project.GitRepo) ? project.GitRepo.Trim().ToLowerInvariant() : "";
+             EndsWithPublicThirdPartyTld(cleanHost));
 
         var normHost = NormalizeAlphanumeric(primaryHostToken);
         var normHostPluralTrimmed = normHost.TrimEnd('s');
+        string[]? lazyHostTokens = null;
 
-        var candidates = new List<string> { pName, pFolder };
-        if (!string.IsNullOrEmpty(gitRepo)) candidates.Add(gitRepo);
-
-        // Also add stripped prefix/suffix variants
-        foreach (var c in new[] { pName, pFolder })
-        {
-            var stripped = StripCommonAffixes(c);
-            if (!string.IsNullOrEmpty(stripped) && !candidates.Contains(stripped))
-            {
-                candidates.Add(stripped);
-            }
-        }
-
+        var variants = project.GetPreparedVariants();
         var maxScore = 0.0;
 
-        foreach (var cand in candidates)
+        for (var v = 0; v < variants.Length; v++)
         {
-            if (string.IsNullOrEmpty(cand)) continue;
-
-            var normCand = NormalizeAlphanumeric(cand);
-            var normCandPluralTrimmed = normCand.TrimEnd('s');
+            var (cand, normCand, normCandPluralTrimmed, candTokens) = variants[v];
 
             // 1. Exact match on raw string
             if (cand == primaryHostToken || cand == cleanHost)
@@ -268,27 +287,21 @@ public static partial class EndpointScoringEngine
 
             // 3. Substring containment with token boundary verification (e.g. "traffic-types" in "internal-service-traffic-types")
             // Short host tokens (< 4 chars) MUST NOT match via loose substring containment (e.g. "rtb", "app", "api", "cf")
-            if (normHost.Length >= 4 && (normCand.Contains(normHost) || (normCand.Length >= 4 && normHost.Contains(normCand))))
+            if (normHost.Length >= 4 && (normCand.Contains(normHost, StringComparison.Ordinal) || (normCand.Length >= 4 && normHost.Contains(normCand, StringComparison.Ordinal))))
             {
-                // Verify that the substring match aligns with a word boundary in the delimiter-separated original tokens
-                // e.g. "traffic-types" inside "internal-service-traffic-types" matches full tokens, but "cf-worker" inside "adhub-cf-worker" is an affix of another project
-                var hostTokens = primaryHostToken.Split(['-', '_', '.'], StringSplitOptions.RemoveEmptyEntries);
-                var candTokens = cand.ToLowerInvariant().Split(['-', '_', '.', '/', '\\'], StringSplitOptions.RemoveEmptyEntries);
-
                 var hasTokenMatch = false;
                 if (normHost.Length <= normCand.Length)
                 {
-                    // normHost is inside cand: cand should contain normHost or cand tokens should equal host tokens
-                    hasTokenMatch = candTokens.Contains(primaryHostToken) ||
-                                    candTokens.Any(t => NormalizeAlphanumeric(t) == normHost) ||
-                                    normCand.StartsWith(normHost) || normCand.EndsWith(normHost);
+                    hasTokenMatch = normCand.StartsWith(normHost, StringComparison.Ordinal) ||
+                                    normCand.EndsWith(normHost, StringComparison.Ordinal) ||
+                                    ContainsNormalizedToken(candTokens, primaryHostToken, normHost);
                 }
                 else
                 {
-                    // normCand is inside host: host tokens should contain cand or match candidate token boundary
-                    hasTokenMatch = hostTokens.Contains(cand.ToLowerInvariant()) ||
-                                    hostTokens.Any(t => NormalizeAlphanumeric(t) == normCand) ||
-                                    normHost.StartsWith(normCand) || normHost.EndsWith(normCand);
+                    lazyHostTokens ??= primaryHostToken.Split(HostTokenDelimiters, StringSplitOptions.RemoveEmptyEntries);
+                    hasTokenMatch = normHost.StartsWith(normCand, StringComparison.Ordinal) ||
+                                    normHost.EndsWith(normCand, StringComparison.Ordinal) ||
+                                    ContainsNormalizedToken(lazyHostTokens, cand, normCand);
                 }
 
                 if (hasTokenMatch)
@@ -303,14 +316,13 @@ public static partial class EndpointScoringEngine
                 }
             }
 
-            // 4. Normalized Levenshtein distance on clean tokens
-            // Disallow fuzzy Levenshtein for short tokens (< 4 chars)
+            // 4. Normalized Levenshtein distance on clean tokens (similarity >= 0.75 requires dist * 4 <= maxLen, and |lenA - lenB| <= dist)
             if (normHost.Length >= 4 && normCand.Length >= 4)
             {
-                var dist = LevenshteinDistance(normHost, normCand);
                 var maxLen = Math.Max(normHost.Length, normCand.Length);
-                if (maxLen > 0)
+                if (Math.Abs(normHost.Length - normCand.Length) * 4 <= maxLen)
                 {
+                    var dist = LevenshteinDistance(normHost, normCand);
                     var similarity = 1.0 - ((double)dist / maxLen);
                     if (similarity >= 0.75)
                     {
@@ -485,29 +497,62 @@ public static partial class EndpointScoringEngine
         return lower.Trim('-', '_');
     }
 
+    private static bool EndsWithPublicThirdPartyTld(string cleanHost) =>
+        cleanHost.EndsWith(".workers.dev", StringComparison.OrdinalIgnoreCase) ||
+        cleanHost.EndsWith(".pages.dev", StringComparison.OrdinalIgnoreCase);
+
+    private static bool ContainsNormalizedToken(string[] tokens, string exactToken, string normTarget)
+    {
+        for (var i = 0; i < tokens.Length; i++)
+        {
+            var t = tokens[i];
+            if (t == exactToken || NormalizeAlphanumeric(t) == normTarget)
+            {
+                return true;
+            }
+        }
+        return false;
+    }
+
     public static int LevenshteinDistance(string s, string t)
     {
         if (string.IsNullOrEmpty(s)) return t?.Length ?? 0;
         if (string.IsNullOrEmpty(t)) return s.Length;
+        if (s == t) return 0;
 
-        var n = s.Length;
-        var m = t.Length;
-        var d = new int[n + 1, m + 1];
-
-        for (var i = 0; i <= n; i++) d[i, 0] = i;
-        for (var j = 0; j <= m; j++) d[0, j] = j;
-
-        for (var i = 1; i <= n; i++)
+        if (s.Length > t.Length)
         {
-            for (var j = 1; j <= m; j++)
+            (s, t) = (t, s);
+        }
+
+        var m = s.Length;
+        var n = t.Length;
+        const int maxStackLen = 256;
+        Span<int> row = m + 1 <= maxStackLen ? stackalloc int[m + 1] : new int[m + 1];
+
+        for (var i = 0; i <= m; i++)
+        {
+            row[i] = i;
+        }
+
+        for (var j = 1; j <= n; j++)
+        {
+            var prevDiag = row[0];
+            row[0] = j;
+            var tj = t[j - 1];
+
+            for (var i = 1; i <= m; i++)
             {
-                var cost = (t[j - 1] == s[i - 1]) ? 0 : 1;
-                d[i, j] = Math.Min(
-                    Math.Min(d[i - 1, j] + 1, d[i, j - 1] + 1),
-                    d[i - 1, j - 1] + cost);
+                var old = row[i];
+                var cost = s[i - 1] == tj ? 0 : 1;
+                var del = row[i] + 1;
+                var ins = row[i - 1] + 1;
+                var sub = prevDiag + cost;
+                row[i] = Math.Min(Math.Min(del, ins), sub);
+                prevDiag = old;
             }
         }
 
-        return d[n, m];
+        return row[m];
     }
 }

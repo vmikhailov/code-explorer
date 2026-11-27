@@ -63,7 +63,7 @@ public static class ConfigurationParser
             }
 
             // Generic discovered config endpoints (Service calls & external APIs)
-            ParseDiscoveredConfigEndpoints(relativePath, fileNodeId, workspaceId, containerSemanticNode, relationships, ctx);
+            ParseDiscoveredConfigEndpoints(filePath, relativePath, fileNodeId, workspaceId, containerSemanticNode, relationships, ctx);
         }
         catch (Exception ex)
         {
@@ -549,18 +549,17 @@ public static class ConfigurationParser
         );
 
         var targetTreeContainer = ctx.SemanticStructure ?? containerNode;
-        if (!targetTreeContainer.Children.Any(c => c.Id == dbId))
+        var dbNode = new DatabaseNode(dbId, dbName, relativePath, dbType)
         {
-            var dbNode = new DatabaseNode(dbId, dbName, relativePath, dbType)
-            {
-                Engine = engine,
-                FromConfig = true,
-                ConfigKey = customName ?? "",
-                Schema = !string.IsNullOrWhiteSpace(catalog) ? catalog : null,
-                IsTest = isTestContainer ? true : null,
-                Role = isTestContainer ? "Test" : null
-            };
-            targetTreeContainer.Children.Add(dbNode);
+            Engine = engine,
+            FromConfig = true,
+            ConfigKey = customName ?? "",
+            Schema = !string.IsNullOrWhiteSpace(catalog) ? catalog : null,
+            IsTest = isTestContainer ? true : null,
+            Role = isTestContainer ? "Test" : null
+        };
+        if (ctx.TryAddChildOnce(targetTreeContainer, dbNode))
+        {
             ctx.AddGlobalSymbol(OntologyConstants.NodeLabels.Database, dbName, dbId);
         }
 
@@ -588,14 +587,12 @@ public static class ConfigurationParser
         if (CloudProviderHelper.TryResolve(connStr, engine) is { } dbCloudMatch)
         {
             var cloudId = CloudProviderHelper.BuildCloudNodeId(workspaceId, dbCloudMatch.ProviderId);
-            if (!targetTreeContainer.Children.Any(c => c.Id == cloudId))
+            var dbCloudNode = new CloudNode(cloudId, dbCloudMatch.DisplayName, relativePath)
             {
-                targetTreeContainer.Children.Add(new CloudNode(cloudId, dbCloudMatch.DisplayName, relativePath)
-                {
-                    Provider = dbCloudMatch.ProviderId,
-                    Category = dbCloudMatch.TierSlug
-                });
-            }
+                Provider = dbCloudMatch.ProviderId,
+                Category = dbCloudMatch.TierSlug
+            };
+            ctx.TryAddChildOnce(targetTreeContainer, dbCloudNode);
             var hostedRel = Relationship.FromRelationship(new HostedInRelationship(dbId, cloudId)
             {
                 FilePath = relativePath,
@@ -620,10 +617,9 @@ public static class ConfigurationParser
         var topicId = $"{workspaceId}:{OntologyConstants.IdPrefixes.Topic}:{brokerType}:{topicName}";
 
         var targetTreeContainer = ctx.SemanticStructure ?? containerNode;
-        if (!targetTreeContainer.Children.Any(c => c.Id == topicId))
+        var topicNode = new TopicNode(topicId, topicName, relativePath, brokerType);
+        if (ctx.TryAddChildOnce(targetTreeContainer, topicNode))
         {
-            var topicNode = new TopicNode(topicId, topicName, relativePath, brokerType);
-            targetTreeContainer.Children.Add(topicNode);
             ctx.AddGlobalSymbol(OntologyConstants.NodeLabels.Topic, topicName, topicId);
         }
 
@@ -676,26 +672,24 @@ public static class ConfigurationParser
         var cloudId = CloudProviderHelper.BuildCloudNodeId(workspaceId, cloudMatch.ProviderId);
 
         var targetTreeContainer = ctx.SemanticStructure ?? containerNode;
-        if (!targetTreeContainer.Children.Any(c => c.Id == extId))
+        const string httpsProtocol = "HTTPS";
+        var extNode = new ExternalServiceNode(extId, cloudName, httpsProtocol, cloudName, relativePath)
         {
-            const string httpsProtocol = "HTTPS";
-            var extNode = new ExternalServiceNode(extId, cloudName, httpsProtocol, cloudName, relativePath)
-            {
-                Provider = cloudMatch.DisplayName,
-                IsExternal = true
-            };
-            targetTreeContainer.Children.Add(extNode);
+            Provider = cloudMatch.DisplayName,
+            IsExternal = true
+        };
+        if (ctx.TryAddChildOnce(targetTreeContainer, extNode))
+        {
             ctx.AddGlobalSymbol(OntologyConstants.NodeLabels.ExternalService, cloudName, extId);
         }
 
-        if (!targetTreeContainer.Children.Any(c => c.Id == cloudId))
+        var cloudNode = new CloudNode(cloudId, cloudMatch.DisplayName, relativePath)
         {
-            var cloudNode = new CloudNode(cloudId, cloudMatch.DisplayName, relativePath)
-            {
-                Provider = cloudMatch.ProviderId,
-                Category = cloudMatch.TierSlug
-            };
-            targetTreeContainer.Children.Add(cloudNode);
+            Provider = cloudMatch.ProviderId,
+            Category = cloudMatch.TierSlug
+        };
+        if (ctx.TryAddChildOnce(targetTreeContainer, cloudNode))
+        {
             ctx.AddGlobalSymbol(OntologyConstants.NodeLabels.Cloud, cloudMatch.DisplayName, cloudId);
         }
 
@@ -761,14 +755,8 @@ public static class ConfigurationParser
 
         if (containerNode is ProjectNode pn)
         {
-            string? wlId = null;
-            if (ctx.SemanticStructure != null)
-            {
-                wlId = ctx.SemanticStructure.Children
-                    .FirstOrDefault(c => c is CompositeNode comp &&
-                                         string.Equals(comp.ProjectId, pn.Id, StringComparison.OrdinalIgnoreCase))?.Id;
-            }
-            wlId ??= $"{workspaceId}:{(pn.IsTest ? OntologyConstants.IdPrefixes.TestSuite : pn.IsLibrary ? OntologyConstants.IdPrefixes.Library : OntologyConstants.IdPrefixes.Service)}:{pn.Name}";
+            var wlId = ctx.ResolveWorkloadIdByProjectId(pn.Id)
+                ?? $"{workspaceId}:{(pn.IsTest ? OntologyConstants.IdPrefixes.TestSuite : pn.IsLibrary ? OntologyConstants.IdPrefixes.Library : OntologyConstants.IdPrefixes.Service)}:{pn.Name}";
             return (pn.Id, wlId, pn.Name);
         }
 
@@ -787,6 +775,7 @@ public static class ConfigurationParser
     }
 
     private static void ParseDiscoveredConfigEndpoints(
+        string filePath,
         string relativePath,
         string fileNodeId,
         string workspaceId,
@@ -794,49 +783,52 @@ public static class ConfigurationParser
         List<Relationship> relationships,
         SemanticParseContext ctx)
     {
-        var (_, workloadId, projName) = ResolveContainerIds(containerNode, workspaceId, ctx);
+        var discovered = ConfigurationIndex.GetDiscoveredUrlsForFile(filePath, relativePath);
+        if (discovered.Count == 0)
+        {
+            return;
+        }
 
-        var discovered = ConfigurationIndex.GetDiscoveredUrls(projName);
-        var normRelPath = relativePath.Replace('\\', '/');
+        var (_, workloadId, _) = ResolveContainerIds(containerNode, workspaceId, ctx);
+        HashSet<string>? seenInFile = discovered.Count > 1 ? new HashSet<string>(StringComparer.OrdinalIgnoreCase) : null;
 
         foreach (var ep in discovered)
         {
-            if (!string.IsNullOrEmpty(ep.SourceFilePath))
-            {
-                var normSource = ep.SourceFilePath.Replace('\\', '/');
-                if (!normSource.EndsWith(normRelPath, StringComparison.OrdinalIgnoreCase))
-                {
-                    continue;
-                }
-            }
-
             if (ep.IsExternal)
             {
                 var extId = $"{workspaceId}:{OntologyConstants.IdPrefixes.ExternalService}:{ep.Scheme}:{ep.Host}";
-                var extNode = new ExternalServiceNode(
-                    extId,
-                    ep.ServiceName,
-                    ep.Scheme,
-                    ep.Host,
-                    "/"
-                )
+                if (seenInFile != null && !seenInFile.Add(extId))
                 {
-                    FilePath = relativePath,
-                    BaseUrl = ep.Url,
-                    IsExternal = true,
-                    ConfigKey = ep.ConfigKey
-                };
-
-                if (containerNode is not ProjectNode && !containerNode.Children.Any(c => c.Id == extId))
-                {
-                    containerNode.Children.Add(extNode);
-                    ctx.AddGlobalSymbol(OntologyConstants.NodeLabels.ExternalService, ep.ServiceName, extId);
+                    continue;
                 }
 
-                if (ctx.SemanticStructure != null && !ctx.SemanticStructure.Children.Any(c => c.Id == extId))
+                var needContainerAdd = containerNode is not ProjectNode;
+                var needSemanticAdd = ctx.SemanticStructure != null;
+                if (needContainerAdd || needSemanticAdd)
                 {
-                    ctx.SemanticStructure.Children.Add(extNode);
-                    ctx.AddGlobalSymbol(OntologyConstants.NodeLabels.ExternalService, ep.ServiceName, extId);
+                    var extNode = new ExternalServiceNode(
+                        extId,
+                        ep.ServiceName,
+                        ep.Scheme,
+                        ep.Host,
+                        "/"
+                    )
+                    {
+                        FilePath = relativePath,
+                        BaseUrl = ep.Url,
+                        IsExternal = true,
+                        ConfigKey = ep.ConfigKey
+                    };
+
+                    if (needContainerAdd && ctx.TryAddChildOnce(containerNode, extNode))
+                    {
+                        ctx.AddGlobalSymbol(OntologyConstants.NodeLabels.ExternalService, ep.ServiceName, extId);
+                    }
+
+                    if (needSemanticAdd && ctx.TryAddChildOnce(ctx.SemanticStructure!, extNode))
+                    {
+                        ctx.AddGlobalSymbol(OntologyConstants.NodeLabels.ExternalService, ep.ServiceName, extId);
+                    }
                 }
 
                 var cfgRel = Relationship.FromRelationship(new DeclaredInRelationship(extId, fileNodeId)
@@ -847,7 +839,7 @@ public static class ConfigurationParser
                 });
                 relationships.Add(cfgRel);
 
-                if (!string.IsNullOrEmpty(workloadId))
+                if (!string.IsNullOrEmpty(workloadId) && ctx.TryRegisterConfigServiceCall(workloadId, extId))
                 {
                     var callRel = new Relationship(workloadId, extId, OntologyConstants.Relationships.ServiceCall)
                     {
@@ -870,6 +862,12 @@ public static class ConfigurationParser
                 if (string.IsNullOrEmpty(workloadId)) continue;
 
                 var targetId = $"{workspaceId}:service_target:{ep.ServiceName.ToLowerInvariant()}";
+                if ((seenInFile != null && !seenInFile.Add(targetId)) ||
+                    !ctx.TryRegisterConfigServiceCall(workloadId, targetId))
+                {
+                    continue;
+                }
+
                 var rel = new Relationship(workloadId, targetId, OntologyConstants.Relationships.ServiceCall)
                 {
                     ServiceKey = ep.ServiceName,

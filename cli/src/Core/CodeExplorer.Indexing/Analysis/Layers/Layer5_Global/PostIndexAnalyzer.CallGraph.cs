@@ -81,6 +81,7 @@ public partial class PostIndexAnalyzer
         }
 
         var projList = projects.ToList();
+        var (projByDir, projRootDirect, projRootSubtree) = Layer2ProjectParser.BuildProjectDirectoryIndex(projList);
         var fileToProject = prebuiltFileToProject != null
             ? (prebuiltFileToProject as Dictionary<string, ProjectNode> ?? new Dictionary<string, ProjectNode>(prebuiltFileToProject, StringComparer.OrdinalIgnoreCase))
             : Layer2ProjectParser.BuildFileToProjectMap(files, projList);
@@ -158,7 +159,7 @@ public partial class PostIndexAnalyzer
                 }
             }
 
-            var found = FindOwningProjectForId(nodeId, projList, fileToProject);
+            var found = FindOwningProjectForIdFast(nodeId, nodeToProject, fileToProject, projByDir, projRootDirect, projRootSubtree);
             resolvedProjectCache[nodeId] = found;
             return found;
         }
@@ -191,12 +192,13 @@ public partial class PostIndexAnalyzer
             }
         }
 
+        var serviceCatalog = PreparedServiceProjectCatalog.Build(projList, callableProjectIds);
         var matchingServiceCache = new Dictionary<string, ProjectNode?>(StringComparer.OrdinalIgnoreCase);
         ProjectNode? GetCachedMatchingServiceProject(string key)
         {
             if (string.IsNullOrWhiteSpace(key)) return null;
             if (matchingServiceCache.TryGetValue(key, out var cached)) return cached;
-            var matched = FindMatchingServiceProject(key, projList, callableProjectIds);
+            var matched = serviceCatalog.Match(key);
             matchingServiceCache[key] = matched;
             return matched;
         }
@@ -495,6 +497,149 @@ public partial class PostIndexAnalyzer
 
         MaterializeServiceCalledByEdges(allRelationships, materializedRels);
         return materializedRels;
+    }
+
+    internal static ProjectNode? FindOwningProjectForIdFast(
+        string nodeId,
+        IReadOnlyDictionary<string, ProjectNode> projectsById,
+        IReadOnlyDictionary<string, ProjectNode>? fileToProjectMap,
+        Dictionary<string, ProjectNode> projectsByDir,
+        ProjectNode? rootDirectOnly,
+        ProjectNode? rootSubtree)
+    {
+        if (string.IsNullOrEmpty(nodeId) || Urn.IsExternalOrPackageId(nodeId))
+        {
+            return null;
+        }
+
+        if (projectsById.TryGetValue(nodeId, out var directProj) ||
+            (nodeId.EndsWith(':') && projectsById.TryGetValue(nodeId.TrimEnd(':'), out directProj)))
+        {
+            return directProj;
+        }
+
+        if (fileToProjectMap != null && fileToProjectMap.TryGetValue(nodeId, out var fileProj))
+        {
+            return fileProj;
+        }
+
+        if (!TryExtractProjectRelativePathFromNodeId(nodeId, out var pathPart, out var isKnownFileOrSymbolUrn))
+        {
+            return null;
+        }
+
+        var cleanSpan = pathPart.Contains('\\')
+            ? pathPart.Replace('\\', '/').AsSpan().TrimEnd(':').Trim('/')
+            : pathPart.AsSpan().TrimEnd(':').Trim('/');
+
+        var colonAfterPath = cleanSpan.IndexOf(':');
+        var lookupSpan = colonAfterPath > 0 ? cleanSpan[..colonAfterPath] : cleanSpan;
+        var spanLookup = projectsByDir.GetAlternateLookup<ReadOnlySpan<char>>();
+
+        var candidate = lookupSpan;
+        while (!candidate.IsEmpty)
+        {
+            if (spanLookup.TryGetValue(candidate, out var matched))
+            {
+                return matched;
+            }
+
+            var lastSlash = candidate.LastIndexOf('/');
+            if (lastSlash <= 0)
+            {
+                break;
+            }
+
+            candidate = candidate[..lastSlash];
+        }
+
+        var rootProj = rootSubtree ?? rootDirectOnly;
+        if (rootProj != null && isKnownFileOrSymbolUrn && !cleanSpan.Contains(':'))
+        {
+            return rootProj;
+        }
+
+        return null;
+    }
+
+    private static bool TryExtractProjectRelativePathFromNodeId(
+        string nodeId,
+        out string pathPart,
+        out bool isKnownFileOrSymbolUrn)
+    {
+        pathPart = nodeId;
+        isKnownFileOrSymbolUrn = false;
+        const string colonFileLegacy = ":file:";
+        const string colonSymbolLegacy = ":symbol:";
+        const string colonProjectLegacy = ":project:";
+
+        if (Urn.TryParse(nodeId, out var urn) && !string.IsNullOrEmpty(urn.Path))
+        {
+            var domain = (urn.Domain ?? string.Empty).ToLowerInvariant();
+            isKnownFileOrSymbolUrn = domain is "file" or "f" or "folder" or "dir" or
+                                               "symbol" or "sym" or "type" or "function" or "fn" or "method" or "m" or
+                                               "endpoint" or "ep" or "entrypoint" or "entry" or
+                                               "project" or "p";
+            if (!isKnownFileOrSymbolUrn)
+            {
+                return false;
+            }
+            pathPart = urn.Path;
+            return true;
+        }
+
+        var filePrefix = $":{OntologyConstants.IdPrefixes.File}:";
+        var fileIdx = nodeId.IndexOf(filePrefix, StringComparison.OrdinalIgnoreCase);
+        if (fileIdx >= 0)
+        {
+            isKnownFileOrSymbolUrn = true;
+            pathPart = nodeId[(fileIdx + filePrefix.Length)..];
+            return true;
+        }
+
+        fileIdx = nodeId.IndexOf(colonFileLegacy, StringComparison.OrdinalIgnoreCase);
+        if (fileIdx >= 0)
+        {
+            isKnownFileOrSymbolUrn = true;
+            pathPart = nodeId[(fileIdx + colonFileLegacy.Length)..];
+            return true;
+        }
+
+        var symPrefix = $":{OntologyConstants.IdPrefixes.Symbol}:";
+        var symIdx = nodeId.IndexOf(symPrefix, StringComparison.OrdinalIgnoreCase);
+        if (symIdx >= 0)
+        {
+            isKnownFileOrSymbolUrn = true;
+            pathPart = nodeId[(symIdx + symPrefix.Length)..];
+            return true;
+        }
+
+        symIdx = nodeId.IndexOf(colonSymbolLegacy, StringComparison.OrdinalIgnoreCase);
+        if (symIdx >= 0)
+        {
+            isKnownFileOrSymbolUrn = true;
+            pathPart = nodeId[(symIdx + colonSymbolLegacy.Length)..];
+            return true;
+        }
+
+        var projPrefix = $":{OntologyConstants.IdPrefixes.Project}:";
+        var projIdx = nodeId.IndexOf(projPrefix, StringComparison.OrdinalIgnoreCase);
+        if (projIdx >= 0)
+        {
+            isKnownFileOrSymbolUrn = true;
+            pathPart = nodeId[(projIdx + projPrefix.Length)..];
+            return true;
+        }
+
+        projIdx = nodeId.IndexOf(colonProjectLegacy, StringComparison.OrdinalIgnoreCase);
+        if (projIdx >= 0)
+        {
+            isKnownFileOrSymbolUrn = true;
+            pathPart = nodeId[(projIdx + colonProjectLegacy.Length)..];
+            return true;
+        }
+
+        return true;
     }
 
     public static ProjectNode? FindOwningProjectForId(
