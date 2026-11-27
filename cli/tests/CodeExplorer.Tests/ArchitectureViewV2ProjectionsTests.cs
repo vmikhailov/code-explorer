@@ -38,9 +38,14 @@ public class ArchitectureViewV2ProjectionsTests
             full.Nodes.Should().HaveCount(4);
             full.Metadata!["cycle_count"].Should().Be("1");
 
+            var cliNode = full.Nodes.Single(n => n.Name == "Cli");
             var coreNode = full.Nodes.Single(n => n.Name == "Core");
             var infraNode = full.Nodes.Single(n => n.Name == "Infra");
             var apiNode = full.Nodes.Single(n => n.Name == "Api");
+            cliNode.Properties!["tier"].Should().Be("0");
+            apiNode.Properties!["tier"].Should().Be("1");
+            coreNode.Properties!["tier"].Should().Be("2");
+            infraNode.Properties!["tier"].Should().Be("3");
             coreNode.Properties!["in_cycle"].Should().Be("true");
             infraNode.Properties!["in_cycle"].Should().Be("true");
             apiNode.Properties!.ContainsKey("in_cycle").Should().BeFalse();

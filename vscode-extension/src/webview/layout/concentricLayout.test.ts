@@ -46,6 +46,33 @@ test('computeEchelonTiers: invariant echelon tiers across service graph', () => 
   assert.equal(tiers.get('db:postgres'), 4, 'Database should be Orbit 4');
 });
 
+test('computeEchelonTiers: when entry point (App/Ingress) exists, Orbit 1 strictly contains only direct 1-hop neighbors of entry point', () => {
+  const nodes = [
+    { id: 'app:fe', kind: 'App' },
+    { id: 'svc:ad-hub', kind: 'Service' },
+    { id: 'svc:allshares-rtb', kind: 'Service' },
+    { id: 'svc:hub', kind: 'Service' },
+  ];
+
+  // fe calls ad-hub directly (hop 1).
+  // allshares-rtb is NOT called by fe (0 inbound, 1 outbound to hub).
+  const edges = [
+    { source: 'app:fe', target: 'svc:ad-hub', category: 'service_call' },
+    { source: 'svc:allshares-rtb', target: 'svc:hub', category: 'service_call' },
+  ];
+
+  const tiers = computeEchelonTiers(nodes, edges);
+
+  assert.equal(tiers.get('app:fe'), 0, 'fe entry point must be Orbit 0');
+  assert.equal(tiers.get('svc:ad-hub'), 1, 'Direct callee of fe must be Orbit 1');
+  assert.equal(
+    tiers.get('svc:allshares-rtb'),
+    3,
+    'Service not directly connected to fe must NOT be placed on Orbit 1 even if it has 0 inbound and >0 outbound calls'
+  );
+  assert.equal(tiers.get('svc:hub'), 3, 'Downstream service must be Orbit 3');
+});
+
 test('relaxOrbitWithBadgeExclusion: strictly prevents node collisions at 12 o clock badge', () => {
   const nodeIds = ['n1', 'n2', 'n3', 'n4', 'n5', 'n6'];
   // All nodes have ideal angle pointing to 12 o'clock (-90 deg)

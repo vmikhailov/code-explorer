@@ -48,7 +48,7 @@ public partial class ArchitectureViewEngine
         "coalesce(p.is_test, false) AS is_test";
 
     private const string QueryProjectToProjectDeps =
-        "MATCH (src:Project)-[r:DEPENDS_ON]->(tgt:Project) " +
+        "MATCH (src:Project)-[r:DEPENDS_ON|SERVICE_CALL]->(tgt:Project) " +
         "WHERE src.id <> tgt.id " +
         "RETURN src.id AS srcId, tgt.id AS tgtId, type(r) AS relType";
 
@@ -120,7 +120,7 @@ public partial class ArchitectureViewEngine
                 Source = srcId,
                 Target = tgtId,
                 Kind = relKind,
-                Category = GraphEdgeCategory.Library,
+                Category = relKind == RelationshipKind.ServiceCall ? GraphEdgeCategory.ServiceCall : GraphEdgeCategory.Library,
                 Properties = new Dictionary<string, string>(StringComparer.Ordinal)
             });
         }
@@ -318,16 +318,89 @@ public partial class ArchitectureViewEngine
         return cycles;
     }
 
+    private const string ProjDepsTierLabel0 = "Entry Points & Applications";
+    private const string ProjDepsTierLabel1 = "First-Layer Dependencies";
+    private const string ProjDepsTierLabel2 = "Second-Layer Services & Modules";
+    private const string ProjDepsTierLabel3 = "Core, Foundation & Internal Projects";
+    private const string ProjDepsTierLabel4 = "Test & Verification Suites";
+    private const string ProjDepsTierReasonTest = "Test or benchmark project";
+    private const string ProjDepsViaRoot = "root";
+    private const string ProjDepsViaLayer = "parent layer";
+
+    private static bool IsProjectDependencyTestNode(GraphNodeDto n) =>
+        n.Kind == NodeKind.TestSuite ||
+        n.Properties?.GetValueOrDefault(ProjDepsPropIsTest) == ProjDepsBoolTrue ||
+        string.Equals(n.Properties?.GetValueOrDefault(ProjDepsPropEntityKind), EntityKindTest, StringComparison.OrdinalIgnoreCase);
+
+    private static List<string> SelectProjectDependencyEntryRoots(
+        List<GraphNodeDto> nonTestNodes,
+        Dictionary<string, int> prodIn,
+        Dictionary<string, int> prodOut)
+    {
+        var entryRoots = nonTestNodes
+            .Where(n => n.Kind is NodeKind.App or NodeKind.Ingress ||
+                        string.Equals(n.Properties?.GetValueOrDefault(ProjDepsPropEntityKind), EntityKindApp, StringComparison.OrdinalIgnoreCase))
+            .Select(n => n.Id)
+            .ToList();
+
+        if (entryRoots.Count == 0)
+        {
+            var workloadNodes = nonTestNodes
+                .Where(n => n.Kind is NodeKind.Service or NodeKind.CliTool or NodeKind.Worker)
+                .ToList();
+            entryRoots = workloadNodes
+                .Where(n => prodIn.GetValueOrDefault(n.Id) == 0 && prodOut.GetValueOrDefault(n.Id) > 0)
+                .Select(n => n.Id)
+                .ToList();
+            if (entryRoots.Count == 0)
+            {
+                entryRoots = workloadNodes
+                    .Where(n => prodIn.GetValueOrDefault(n.Id) == 0)
+                    .Select(n => n.Id)
+                    .ToList();
+            }
+            if (entryRoots.Count == 0 && workloadNodes.Count > 0)
+            {
+                entryRoots = workloadNodes.Select(n => n.Id).ToList();
+            }
+        }
+
+        if (entryRoots.Count == 0 && nonTestNodes.Count > 0)
+        {
+            entryRoots = nonTestNodes
+                .Where(n => prodIn.GetValueOrDefault(n.Id) == 0 && prodOut.GetValueOrDefault(n.Id) > 0)
+                .Select(n => n.Id)
+                .ToList();
+            if (entryRoots.Count == 0)
+            {
+                var minIn = nonTestNodes.Min(n => prodIn.GetValueOrDefault(n.Id));
+                entryRoots = nonTestNodes
+                    .Where(n => prodIn.GetValueOrDefault(n.Id) == minIn)
+                    .Select(n => n.Id)
+                    .ToList();
+            }
+        }
+
+        return entryRoots;
+    }
+
     private static void AssignProjectDependencyOrbitTiers(
         Dictionary<string, GraphNodeDto> nodesById,
         List<GraphEdgeDto> edges)
     {
         var fanIn = new Dictionary<string, int>(StringComparer.Ordinal);
         var fanOut = new Dictionary<string, int>(StringComparer.Ordinal);
+        var prodIn = new Dictionary<string, int>(StringComparer.Ordinal);
+        var prodOut = new Dictionary<string, int>(StringComparer.Ordinal);
+        var prodAdj = new Dictionary<string, List<string>>(StringComparer.Ordinal);
+
         foreach (var id in nodesById.Keys)
         {
             fanIn[id] = 0;
             fanOut[id] = 0;
+            prodIn[id] = 0;
+            prodOut[id] = 0;
+            prodAdj[id] = [];
         }
 
         foreach (var e in edges)
@@ -335,6 +408,43 @@ public partial class ArchitectureViewEngine
             if (e.Source == e.Target) continue;
             if (fanOut.ContainsKey(e.Source)) fanOut[e.Source]++;
             if (fanIn.ContainsKey(e.Target)) fanIn[e.Target]++;
+
+            if (nodesById.TryGetValue(e.Source, out var srcNode) &&
+                nodesById.TryGetValue(e.Target, out var tgtNode) &&
+                !IsProjectDependencyTestNode(srcNode) && !IsProjectDependencyTestNode(tgtNode))
+            {
+                prodOut[e.Source]++;
+                prodIn[e.Target]++;
+                prodAdj[e.Source].Add(e.Target);
+            }
+        }
+
+        var nonTestNodes = nodesById.Values.Where(n => !IsProjectDependencyTestNode(n)).ToList();
+        var entryRoots = SelectProjectDependencyEntryRoots(nonTestNodes, prodIn, prodOut);
+
+        var bfsDepth = new Dictionary<string, int>(StringComparer.Ordinal);
+        var viaParent = new Dictionary<string, string>(StringComparer.Ordinal);
+        var queue = new Queue<string>();
+
+        foreach (var rootId in entryRoots)
+        {
+            bfsDepth[rootId] = 0;
+            queue.Enqueue(rootId);
+        }
+
+        while (queue.Count > 0)
+        {
+            var curr = queue.Dequeue();
+            var nextDepth = bfsDepth[curr] + 1;
+            foreach (var nextId in prodAdj[curr])
+            {
+                if (!bfsDepth.ContainsKey(nextId))
+                {
+                    bfsDepth[nextId] = nextDepth;
+                    viaParent[nextId] = nodesById.TryGetValue(curr, out var pNode) ? pNode.Name : curr;
+                    queue.Enqueue(nextId);
+                }
+            }
         }
 
         foreach (var (id, node) in nodesById)
@@ -345,47 +455,40 @@ public partial class ArchitectureViewEngine
             props[ProjDepsPropFanIn] = inCount.ToString();
             props[ProjDepsPropFanOut] = outCount.ToString();
 
-            var isTest = props.GetValueOrDefault(ProjDepsPropIsTest) == ProjDepsBoolTrue || node.Kind == NodeKind.TestSuite;
-            var isWorkload = node.Kind is NodeKind.Service or NodeKind.App or NodeKind.Worker or NodeKind.CliTool;
-
-            int tier;
-            string tierLabel;
-            string tierReason;
-
-            if (isTest)
-            {
-                tier = 4;
-                tierLabel = "Test & Verification Suites";
-                tierReason = "Test or benchmark project";
-            }
-            else if (isWorkload)
-            {
-                tier = 3;
-                tierLabel = "Executable Services, Apps & CLI";
-                tierReason = $"Executable {node.Kind} workload (depends on {outCount} project(s))";
-            }
-            else if (outCount == 0 && inCount > 0)
-            {
-                tier = 0;
-                tierLabel = "Core & Foundation Kernel";
-                tierReason = $"Zero internal project dependencies, referenced by {inCount} project(s)";
-            }
-            else if (inCount >= outCount && inCount >= 2)
-            {
-                tier = 1;
-                tierLabel = "Shared Domain & Infrastructure";
-                tierReason = $"High-gravity shared library (fan-in {inCount} >= fan-out {outCount})";
-            }
-            else
-            {
-                tier = 2;
-                tierLabel = "Feature & Adapter Libraries";
-                tierReason = $"Adapter or feature module (fan-in {inCount}, fan-out {outCount})";
-            }
+            var (tier, tierLabel, tierReason) = ClassifyProjectDependencyNodeTier(
+                id, node, inCount, outCount, bfsDepth, viaParent);
 
             props[ProjDepsPropTier] = tier.ToString();
             props[ProjDepsPropTierLabel] = tierLabel;
             props[ProjDepsPropTierReason] = tierReason;
         }
+    }
+
+    private static (int Tier, string Label, string Reason) ClassifyProjectDependencyNodeTier(
+        string id,
+        GraphNodeDto node,
+        int inCount,
+        int outCount,
+        Dictionary<string, int> bfsDepth,
+        Dictionary<string, string> viaParent)
+    {
+        if (IsProjectDependencyTestNode(node))
+        {
+            return (4, ProjDepsTierLabel4, ProjDepsTierReasonTest);
+        }
+
+        if (!bfsDepth.TryGetValue(id, out var depth))
+        {
+            return (3, ProjDepsTierLabel3, $"Internal {node.Kind} with no direct path from entry point (fan-in {inCount}, fan-out {outCount})");
+        }
+
+        var parent = viaParent.GetValueOrDefault(id, ProjDepsViaLayer);
+        return depth switch
+        {
+            0 => (0, ProjDepsTierLabel0, $"Topological entry point ({node.Kind}, depends on {outCount} project(s))"),
+            1 => (1, ProjDepsTierLabel1, $"Direct 1-hop dependency of entry point {viaParent.GetValueOrDefault(id, ProjDepsViaRoot)}"),
+            2 => (2, ProjDepsTierLabel2, $"Topological depth 2 via {parent}"),
+            _ => (3, ProjDepsTierLabel3, $"Topological depth {depth} via {parent}")
+        };
     }
 }

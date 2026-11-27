@@ -71,6 +71,7 @@ export class ProcessManager implements vscode.Disposable {
 
   private cachedDotnetTool: DotnetToolInfo | null = null;
   private cachedExecutable: { command: string; args: string[] } | null = null;
+  private findExecutablePromise: Promise<{ command: string; args: string[] } | null> | null = null;
 
   public getCachedDotnetTool(): DotnetToolInfo | null {
     return this.cachedDotnetTool;
@@ -415,6 +416,29 @@ export class ProcessManager implements vscode.Disposable {
       return this.cachedExecutable;
     }
 
+    if (this.findExecutablePromise) {
+      return this.findExecutablePromise;
+    }
+
+    const promise = this.findExecutableCore(workspaceRoot, customPath);
+    this.findExecutablePromise = promise;
+    try {
+      return await promise;
+    } finally {
+      if (this.findExecutablePromise === promise) {
+        this.findExecutablePromise = null;
+      }
+    }
+  }
+
+  private async findExecutableCore(
+    workspaceRoot?: string,
+    customPath?: string
+  ): Promise<{ command: string; args: string[] } | null> {
+    if (this.cachedExecutable) {
+      return this.cachedExecutable;
+    }
+
     const setAndReturn = (res: { command: string; args: string[] } | null) => {
       if (res) {
         this.cachedExecutable = res;
@@ -540,6 +564,7 @@ export class ProcessManager implements vscode.Disposable {
       this._onDidServerStop.fire();
     }
     this.cachedExecutable = null;
+    this.findExecutablePromise = null;
   }
 
   async stopServerAsync(): Promise<void> {

@@ -1,6 +1,11 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import * as fs from 'node:fs';
+import * as os from 'node:os';
+import * as path from 'node:path';
 import {
+  BinaryManager,
+  withDirectoryDownloadLock,
   resolveTargetAsset,
   matchesEnginePattern,
   compareSemver,
@@ -404,6 +409,73 @@ test('ensureExecutablePermissions: executes safely on current host', () => {
     ensureExecutablePermissions('C:\\nonexistent\\ce.exe', 'win32');
   });
 });
+
+test('withDirectoryDownloadLock: serializes concurrent operations and cleans up lock file', async () => {
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ce-lock-test-'));
+  try {
+    const order: string[] = [];
+    let activeCount = 0;
+    let maxConcurrent = 0;
+
+    const task = async (id: string, delayMs: number) =>
+      withDirectoryDownloadLock(
+        tempDir,
+        async () => {
+          activeCount++;
+          maxConcurrent = Math.max(maxConcurrent, activeCount);
+          order.push(`start-${id}`);
+          await new Promise((r) => setTimeout(r, delayMs));
+          order.push(`end-${id}`);
+          activeCount--;
+          return id;
+        },
+        { pollIntervalMs: 15 }
+      );
+
+    const [r1, r2, r3] = await Promise.all([task('A', 40), task('B', 20), task('C', 10)]);
+    assert.equal(r1, 'A');
+    assert.equal(r2, 'B');
+    assert.equal(r3, 'C');
+    assert.equal(maxConcurrent, 1, 'Only one task may hold the directory download lock at a time');
+    assert.equal(fs.existsSync(path.join(tempDir, 'download.lock')), false, 'Lock file must be removed after completion');
+  } finally {
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  }
+});
+
+test('BinaryManager.ensureBinary: coalesces concurrent calls into a single in-flight resolution', async () => {
+  const logs: string[] = [];
+  const fakeChannel: any = {
+    appendLine: (line: string) => logs.push(line),
+  };
+  const manager = new BinaryManager(fakeChannel);
+  let coreInvocations = 0;
+
+  (manager as any).resolveOrUpdateEngineCore = async () => {
+    coreInvocations++;
+    await new Promise((r) => setTimeout(r, 40));
+    return {
+      command: '/mock/bin/ce',
+      args: [],
+      currentVersion: '1.107.1',
+      targetVersion: '1.107.1',
+      updated: true,
+      message: 'Ready',
+    };
+  };
+
+  const [res1, res2, res3] = await Promise.all([
+    manager.ensureBinary(false),
+    manager.ensureBinary(false),
+    manager.checkAndUpdate(false),
+  ]);
+
+  assert.equal(coreInvocations, 1, 'Concurrent ensureBinary/checkAndUpdate calls must execute core pipeline only once');
+  assert.equal(res1.command, '/mock/bin/ce');
+  assert.equal(res2.command, '/mock/bin/ce');
+  assert.equal(res3.command, '/mock/bin/ce');
+});
+
 
 
 

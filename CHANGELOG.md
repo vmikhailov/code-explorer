@@ -5,6 +5,12 @@ All notable changes to the CodeExplorer project (CLI, MCP Server, and VS Code Ex
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.107.2] - 2026-11-27
+
+### Fixed
+- **Strict Entry-Point Topological BFS Orbital Distribution (`concentricLayout.ts`, `ArchitectureViewEngine.ProjectDependencies.cs`, `ProjectDependenciesView.tsx`, `TopologyAndCycleAnalyzer.cs`)**: Restricted `Orbit 1` (`First Echelon` / `First-Layer Dependencies`) strictly to direct 1-hop neighbors of `Orbit 0` entry points (`App`, `FrontendApp`, `Ingress`) when entry points exist, using the `0 inbound && >0 outbound` root heuristic only as a fallback when no explicit entry points exist, and aligned `Project Dependencies` (`DEPENDS_ON` + `SERVICE_CALL`) and `Project Map` (`TopologyAndCycleAnalyzer`) to the same entry-point topological BFS layering.
+- **Single-Flight Binary Download Semaphore & Cross-Window Lock (`binaryManager.ts`, `processManager.ts`)**: Added an in-memory single-flight resolution promise in `BinaryManager.resolveCliBinary` and `ProcessManager.findExecutable` plus a cross-process filesystem lock (`download.lock`) around binary downloads so concurrent startup triggers (`startServer`, `registerMcpServer`, `checkForUpdates`) share a single download instead of downloading the CLI archive in parallel.
+
 ## [1.107.1] - 2026-11-27
 
 ### Fixed

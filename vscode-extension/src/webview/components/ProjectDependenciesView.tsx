@@ -18,10 +18,10 @@ export interface ProjectDependenciesViewProps {
 }
 
 const PROJECT_DEP_TIERS: TierDefinition[] = [
-  { tier: 0, title: 'Core & Foundation Kernel', color: '#38bdf8' },
-  { tier: 1, title: 'Shared Domain & Infrastructure', color: '#a78bfa' },
-  { tier: 2, title: 'Feature & Adapter Libraries', color: '#34d399' },
-  { tier: 3, title: 'Executable Services, Apps & CLI', color: '#fbbf24' },
+  { tier: 0, title: 'Entry Points & Applications', color: '#38bdf8' },
+  { tier: 1, title: 'First-Layer Dependencies', color: '#a78bfa' },
+  { tier: 2, title: 'Second-Layer Services & Modules', color: '#34d399' },
+  { tier: 3, title: 'Core, Foundation & Internal Projects', color: '#fbbf24' },
   { tier: 4, title: 'Test & Verification Suites', color: '#059669' },
   { tier: 5, title: 'External Packages', color: '#94a3b8' },
 ];
@@ -43,14 +43,78 @@ function assignFallbackProjectTiers(data: GraphData | null): GraphData | null {
 
   const fanIn = new Map<string, number>();
   const fanOut = new Map<string, number>();
+  const prodIn = new Map<string, number>();
+  const prodOut = new Map<string, number>();
+  const prodAdj = new Map<string, string[]>();
+  const nodeById = new Map<string, GraphNode>();
+
+  const isPkgNode = (n: GraphNode) =>
+    String(n.kind) === 'Package' || n.properties?.entity_kind === 'Package';
+  const isTestNode = (n: GraphNode) =>
+    n.properties?.is_test === 'true' || String(n.kind) === 'TestSuite' || n.properties?.entity_kind === 'Test';
+
   for (const n of data.nodes) {
+    nodeById.set(n.id, n);
     fanIn.set(n.id, 0);
     fanOut.set(n.id, 0);
+    prodIn.set(n.id, 0);
+    prodOut.set(n.id, 0);
+    prodAdj.set(n.id, []);
   }
   for (const e of data.edges ?? []) {
     if (e.source === e.target) continue;
     fanOut.set(e.source, (fanOut.get(e.source) ?? 0) + 1);
     fanIn.set(e.target, (fanIn.get(e.target) ?? 0) + 1);
+    const sNode = nodeById.get(e.source);
+    const tNode = nodeById.get(e.target);
+    if (sNode && tNode && !isTestNode(sNode) && !isTestNode(tNode) && !isPkgNode(sNode) && !isPkgNode(tNode)) {
+      prodOut.set(e.source, (prodOut.get(e.source) ?? 0) + 1);
+      prodIn.set(e.target, (prodIn.get(e.target) ?? 0) + 1);
+      prodAdj.get(e.source)!.push(e.target);
+    }
+  }
+
+  const nonTestProdNodes = data.nodes.filter((n) => !isTestNode(n) && !isPkgNode(n));
+  let entryRoots = nonTestProdNodes
+    .filter((n) => String(n.kind) === 'App' || String(n.kind) === 'Ingress' || n.properties?.entity_kind === 'App')
+    .map((n) => n.id);
+
+  if (entryRoots.length === 0) {
+    const workloads = nonTestProdNodes.filter(
+      (n) => String(n.kind) === 'Service' || String(n.kind) === 'CliTool' || String(n.kind) === 'Worker'
+    );
+    entryRoots = workloads
+      .filter((n) => (prodIn.get(n.id) ?? 0) === 0 && (prodOut.get(n.id) ?? 0) > 0)
+      .map((n) => n.id);
+    if (entryRoots.length === 0) {
+      entryRoots = workloads.filter((n) => (prodIn.get(n.id) ?? 0) === 0).map((n) => n.id);
+    }
+    if (entryRoots.length === 0 && workloads.length > 0) {
+      entryRoots = workloads.map((n) => n.id);
+    }
+  }
+
+  if (entryRoots.length === 0 && nonTestProdNodes.length > 0) {
+    entryRoots = nonTestProdNodes
+      .filter((n) => (prodIn.get(n.id) ?? 0) === 0 && (prodOut.get(n.id) ?? 0) > 0)
+      .map((n) => n.id);
+  }
+
+  const bfsDepth = new Map<string, number>();
+  const queue: string[] = [];
+  for (const rId of entryRoots) {
+    bfsDepth.set(rId, 0);
+    queue.push(rId);
+  }
+  while (queue.length > 0) {
+    const curr = queue.shift()!;
+    const nextDepth = (bfsDepth.get(curr) ?? 0) + 1;
+    for (const nextId of prodAdj.get(curr) ?? []) {
+      if (!bfsDepth.has(nextId)) {
+        bfsDepth.set(nextId, nextDepth);
+        queue.push(nextId);
+      }
+    }
   }
 
   const enrichedNodes: GraphNode[] = data.nodes.map((n) => {
@@ -61,21 +125,17 @@ function assignFallbackProjectTiers(data: GraphData | null): GraphData | null {
     p.fan_out = String(outCount);
 
     const rawKind = String(n.kind || 'Project');
-    const isPkg = rawKind === 'Package' || p.entity_kind === 'Package';
-    const isTest = p.is_test === 'true' || rawKind === 'TestSuite' || p.entity_kind === 'Test';
-    const isWorkload =
-      rawKind === 'Service' ||
-      rawKind === 'App' ||
-      rawKind === 'Worker' ||
-      rawKind === 'CliTool';
+    const isPkg = isPkgNode(n);
+    const isTest = isTestNode(n);
 
     if (p.tier === undefined || p.tier === '') {
-      let tier = 2;
+      let tier = 3;
       if (isPkg) tier = 5;
       else if (isTest) tier = 4;
-      else if (isWorkload) tier = 3;
-      else if (outCount === 0 && inCount > 0) tier = 0;
-      else if (inCount >= outCount && inCount >= 2) tier = 1;
+      else if (bfsDepth.has(n.id)) {
+        const d = bfsDepth.get(n.id)!;
+        tier = d === 0 ? 0 : d === 1 ? 1 : d === 2 ? 2 : 3;
+      }
 
       const tierDef = PROJECT_DEP_TIERS.find((t) => t.tier === tier);
       p.tier = String(tier);

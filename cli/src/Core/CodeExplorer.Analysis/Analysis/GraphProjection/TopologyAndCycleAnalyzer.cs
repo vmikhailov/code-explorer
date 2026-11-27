@@ -175,13 +175,25 @@ public static class TopologyAndCycleAnalyzer
         }
 
         // Identify Ingress roots among code nodes:
-        // Entrypoint kinds, or nodes with inDegree == 0 (excluding isolated nodes), or matching controller/endpoint naming
+        // First priority: explicit entrypoint kinds or controller/endpoint naming.
+        // Fallback: if no explicit ingress roots exist, use top-level orchestrators (inDegree == 0 && outDegree > 0).
         var ingressRoots = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         foreach (var n in codeNodes)
         {
-            if (IsIngressNode(n, inDegree.GetValueOrDefault(n.Id), outDegree.GetValueOrDefault(n.Id)))
+            if (IsExplicitIngressNode(n, inDegree.GetValueOrDefault(n.Id)))
             {
                 ingressRoots.Add(n.Id);
+            }
+        }
+
+        if (ingressRoots.Count == 0)
+        {
+            foreach (var n in codeNodes)
+            {
+                if (inDegree.GetValueOrDefault(n.Id) == 0 && outDegree.GetValueOrDefault(n.Id) > 0)
+                {
+                    ingressRoots.Add(n.Id);
+                }
             }
         }
 
@@ -258,7 +270,7 @@ public static class TopologyAndCycleAnalyzer
         };
     }
 
-    private static bool IsIngressNode(GraphNodeDto n, int inDeg, int outDeg)
+    private static bool IsExplicitIngressNode(GraphNodeDto n, int inDeg)
     {
         if (n.Kind is NodeKind.Endpoint or NodeKind.EntryPoint or NodeKind.App or NodeKind.CliTool)
             return true;
@@ -270,10 +282,6 @@ public static class TopologyAndCycleAnalyzer
 
         // Controllers, endpoints and commands only serve as Ingress roots if nothing calls them (inDeg == 0)
         if (inDeg == 0 && (name.EndsWith("controller") || name.EndsWith("endpoint") || name.EndsWith("command") || name.EndsWith("api")))
-            return true;
-
-        // If it has 0 incoming calls and at least 1 outgoing call, it's an ingress orchestrator
-        if (inDeg == 0 && outDeg > 0)
             return true;
 
         return false;

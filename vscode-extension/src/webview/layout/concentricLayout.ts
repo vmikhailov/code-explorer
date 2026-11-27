@@ -155,18 +155,22 @@ export function computeEchelonTiers(
   // 1. Applications and Ingress nodes (Tier 0)
   for (const n of allNodes) {
     if (n.kind === 'App' || n.kind === 'FrontendApp' || n.kind === 'Ingress') {
+      serviceTiers.set(n.id, 0);
       queue.push({ id: n.id, tier: 0 });
     }
   }
 
-  // 2. Top-level service orchestrators (0 in, >0 out)
-  for (const n of allNodes) {
-    if (n.kind === 'Service') {
-      const inCount = inboundServiceCalls.get(n.id) || 0;
-      const outCount = serviceAdj.get(n.id)?.size || 0;
-      if (inCount === 0 && outCount > 0) {
-        serviceTiers.set(n.id, 1);
-        queue.push({ id: n.id, tier: 1 });
+  // 2. Fallback when no Tier 0 entry point exists:
+  // seed top-level service orchestrators (0 in, >0 out) at Tier 1
+  if (queue.length === 0) {
+    for (const n of allNodes) {
+      if (n.kind === 'Service') {
+        const inCount = inboundServiceCalls.get(n.id) || 0;
+        const outCount = serviceAdj.get(n.id)?.size || 0;
+        if (inCount === 0 && outCount > 0) {
+          serviceTiers.set(n.id, 1);
+          queue.push({ id: n.id, tier: 1 });
+        }
       }
     }
   }
@@ -245,16 +249,19 @@ export function computeEchelonTierReasons(
 
   for (const n of allNodes) {
     if (n.kind === 'App' || n.kind === 'FrontendApp' || n.kind === 'Ingress') {
+      serviceTiers.set(n.id, 0);
       queue.push({ id: n.id, tier: 0 });
     }
   }
-  for (const n of allNodes) {
-    if (n.kind === 'Service') {
-      const inCount = inboundCallers.get(n.id)?.size || 0;
-      const outCount = serviceAdj.get(n.id)?.size || 0;
-      if (inCount === 0 && outCount > 0) {
-        serviceTiers.set(n.id, 1);
-        queue.push({ id: n.id, tier: 1 });
+  if (queue.length === 0) {
+    for (const n of allNodes) {
+      if (n.kind === 'Service') {
+        const inCount = inboundCallers.get(n.id)?.size || 0;
+        const outCount = serviceAdj.get(n.id)?.size || 0;
+        if (inCount === 0 && outCount > 0) {
+          serviceTiers.set(n.id, 1);
+          queue.push({ id: n.id, tier: 1 });
+        }
       }
     }
   }

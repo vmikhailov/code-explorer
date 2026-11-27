@@ -36,6 +36,100 @@ function getVsCode(): typeof vscodeTypes | undefined {
 }
 
 /**
+ *Result of resolving or updating the CodeExplorer engine.
+ */
+interface ResolvedEngineResult {
+  command: string;
+  args: string[];
+  currentVersion: string | null;
+  targetVersion: string;
+  updated: boolean;
+  message: string;
+}
+
+/**
+ * Acquires a cross-process filesystem lock (`download.lock`) inside `binDir` so multiple VS Code windows
+ * or processes never download/extract the same archive concurrently.
+ */
+export async function withDirectoryDownloadLock<T>(
+  binDir: string,
+  fn: () => Promise<T>,
+  options?: {
+    staleLockMs?: number;
+    pollIntervalMs?: number;
+    maxWaitMs?: number;
+    onWaiting?: () => void;
+  }
+): Promise<T> {
+  const staleLockMs = options?.staleLockMs ?? 10 * 60 * 1000;
+  const pollIntervalMs = options?.pollIntervalMs ?? 250;
+  const maxWaitMs = options?.maxWaitMs ?? 5 * 60 * 1000;
+  const lockPath = path.join(binDir, 'download.lock');
+  fs.mkdirSync(binDir, { recursive: true });
+
+  const startWait = Date.now();
+  let notifiedWaiting = false;
+  let acquired = false;
+
+  while (!acquired) {
+    try {
+      const exclusiveWriteFlag = 'wx';
+      const utf8Encoding: BufferEncoding = 'utf8';
+      const fd = fs.openSync(lockPath, exclusiveWriteFlag);
+      try {
+        fs.writeFileSync(fd, JSON.stringify({ pid: process.pid, startedAt: Date.now() }), utf8Encoding);
+      } finally {
+        fs.closeSync(fd);
+      }
+      acquired = true;
+    } catch (err: any) {
+      if (err?.code !== 'EEXIST') {
+        throw err;
+      }
+
+      // Check if the existing lock is stale
+      try {
+        const stat = fs.statSync(lockPath);
+        if (Date.now() - stat.mtimeMs > staleLockMs) {
+          fs.unlinkSync(lockPath);
+          continue;
+        }
+      } catch {
+        // Lock was just removed by the holder; retry immediately
+        continue;
+      }
+
+      if (Date.now() - startWait >= maxWaitMs) {
+        try {
+          fs.unlinkSync(lockPath);
+        } catch {
+          // Ignore
+        }
+        continue;
+      }
+
+      if (!notifiedWaiting) {
+        notifiedWaiting = true;
+        options?.onWaiting?.();
+      }
+      await new Promise((resolve) => setTimeout(resolve, pollIntervalMs));
+    }
+  }
+
+  try {
+    return await fn();
+  } finally {
+    try {
+      if (fs.existsSync(lockPath)) {
+        fs.unlinkSync(lockPath);
+      }
+    } catch {
+      // Ignore cleanup race
+    }
+  }
+}
+
+/**
  * Manages downloading, caching, and running the CodeExplorer CLI native engine.
  */
 export class BinaryManager {
@@ -46,6 +140,7 @@ export class BinaryManager {
     candidate: InstalledEngineCandidate | null;
     timestamp: number;
   } | null = null;
+  private inFlightResolution: Promise<ResolvedEngineResult> | null = null;
   private static readonly ENGINE_CACHE_TTL_MS = 30000;
 
   constructor(outputChannel: vscodeTypes.OutputChannel, context?: vscodeTypes.ExtensionContext) {
@@ -265,19 +360,37 @@ export class BinaryManager {
 
   /**
    * Unified, DRY engine resolution and update pipeline.
+   * Coalesces concurrent calls behind an in-memory single-flight semaphore so parallel callers
+   * (e.g. EngineSupervisor startup, MCP auto-registration, and CLI commands) share a single probe/download.
    */
   private async resolveOrUpdateEngine(options: {
     forceRemoteProbe: boolean;
     forceReinstall: boolean;
     workspaceRoot?: string;
-  }): Promise<{
-    command: string;
-    args: string[];
-    currentVersion: string | null;
-    targetVersion: string;
-    updated: boolean;
-    message: string;
-  }> {
+  }): Promise<ResolvedEngineResult> {
+    if (this.inFlightResolution && !options.forceReinstall) {
+      this.outputChannel.appendLine(
+        '[BinaryManager] Waiting for in-flight engine resolution/download to complete...'
+      );
+      return this.inFlightResolution;
+    }
+
+    const promise = this.resolveOrUpdateEngineCore(options);
+    this.inFlightResolution = promise;
+    try {
+      return await promise;
+    } finally {
+      if (this.inFlightResolution === promise) {
+        this.inFlightResolution = null;
+      }
+    }
+  }
+
+  private async resolveOrUpdateEngineCore(options: {
+    forceRemoteProbe: boolean;
+    forceReinstall: boolean;
+    workspaceRoot?: string;
+  }): Promise<ResolvedEngineResult> {
     const binDir = this.getBinDir();
     const binPath = this.getStoredBinaryPath();
 
@@ -288,7 +401,8 @@ export class BinaryManager {
     const target = resolveTargetAsset();
     const extVersion = this.getExtensionVersion();
     const vscode = getVsCode();
-    const config = vscode?.workspace?.getConfiguration('codeExplorer');
+    const configSection = 'codeExplorer';
+    const config = vscode?.workspace?.getConfiguration(configSection);
     const userSetting = config?.get<string>('engineVersion', '')?.trim() || undefined;
     const { pattern } = getEngineConfigFromExtensionVersion(extVersion, userSetting);
 
@@ -356,11 +470,37 @@ export class BinaryManager {
       }
     }
 
-    // 4. If platform has native binary, attempt download and extraction
+    // 4. If platform has native binary, attempt download and extraction under cross-process directory lock
     if (target.hasNativeBinary) {
       try {
         const toDownload = resolved || { version: targetVersion };
-        await this.downloadAndExtract(toDownload, target, binDir, binPath);
+        await withDirectoryDownloadLock(
+          binDir,
+          async () => {
+            // Re-check after acquiring cross-process lock in case another VS Code window finished downloading
+            if (!options.forceReinstall) {
+              const postLockVer = this.getCachedVersion() || this.getDownloadedEngine()?.version || null;
+              if (
+                postLockVer &&
+                (compareSemver(postLockVer, targetVersion) >= 0 || isBuildDifferenceOnly(postLockVer, targetVersion)) &&
+                fs.existsSync(binPath)
+              ) {
+                this.outputChannel.appendLine(
+                  `[BinaryManager] Another process completed installing CodeExplorer v${postLockVer}; reusing binary at ${binPath}.`
+                );
+                return;
+              }
+            }
+            await this.downloadAndExtract(toDownload, target, binDir, binPath);
+          },
+          {
+            onWaiting: () =>
+              this.outputChannel.appendLine(
+                `[BinaryManager] Another process is currently downloading CodeExplorer engine into ${binDir}; waiting for lock...`
+              ),
+          }
+        );
+        this.invalidateEngineCache();
 
         const msg = currentVersion
           ? `CodeExplorer engine updated from v${currentVersion} to v${targetVersion}.`
