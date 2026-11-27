@@ -412,7 +412,8 @@ public partial class Layer5AnalysisParser
         }
 
         var checkMethod = methodName ?? targetName;
-        if (checkMethod != null && MediatorDispatchMethodNames.Contains(checkMethod) && normCallerFile != null)
+        if (checkMethod != null && MediatorDispatchMethodNames.Contains(checkMethod) && normCallerFile != null &&
+            bindings.BindingsByFile.TryGetValue(normCallerFile, out var fileBindings))
         {
             if (AmbiguousExecutionMethodNames.Contains(checkMethod) &&
                 IsNonMediatorExecutionReceiver(refItem.ReceiverName, normCallerFile, bindings))
@@ -420,20 +421,16 @@ public partial class Layer5AnalysisParser
                 return;
             }
             var callerFnName = ExtractSymbolNameFromId(refItem.ScopeSymbolId);
-            foreach (var ((fp, _), bList) in bindings.BindingsLookup)
+            for (var i = 0; i < fileBindings.Count; i++)
             {
-                if (!string.Equals(fp, normCallerFile, StringComparison.OrdinalIgnoreCase)) continue;
-                for (var i = 0; i < bList.Count; i++)
+                var ib = fileBindings[i];
+                if (!string.IsNullOrEmpty(callerFnName) &&
+                    !string.IsNullOrEmpty(ib.ScopeId) &&
+                    !string.Equals(ib.ScopeId, callerFnName, StringComparison.Ordinal))
                 {
-                    var ib = bList[i];
-                    if (!string.IsNullOrEmpty(callerFnName) &&
-                        !string.IsNullOrEmpty(ib.ScopeId) &&
-                        !string.Equals(ib.ScopeId, callerFnName, StringComparison.Ordinal))
-                    {
-                        continue;
-                    }
-                    DispatchMessageType(ib.TypeName);
+                    continue;
                 }
+                DispatchMessageType(ib.TypeName);
             }
         }
     }

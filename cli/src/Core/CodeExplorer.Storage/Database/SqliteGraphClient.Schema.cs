@@ -269,7 +269,7 @@ public partial class SqliteGraphClient
         await _lock.WaitAsync();
         try
         {
-            await _conn.ExecuteAsync($"PRAGMA user_version = {version};");
+            await _conn.ExecuteAsync($"PRAGMA user_version = {version};", transaction: _bulkSession?.Transaction);
             SchemaVersion = version;
         }
         finally
@@ -285,7 +285,8 @@ public partial class SqliteGraphClient
         {
             return await _conn.QueryFirstOrDefaultAsync<string?>(
                 "SELECT value FROM metadata WHERE key = @Key LIMIT 1;",
-                new { Key = key });
+                new { Key = key },
+                transaction: _bulkSession?.Transaction);
         }
         finally
         {
@@ -300,7 +301,8 @@ public partial class SqliteGraphClient
         {
             await _conn.ExecuteAsync(
                 "INSERT INTO metadata (key, value) VALUES (@Key, @Value) ON CONFLICT(key) DO UPDATE SET value = excluded.value;",
-                new { Key = key, Value = value });
+                new { Key = key, Value = value },
+                transaction: _bulkSession?.Transaction);
         }
         finally
         {

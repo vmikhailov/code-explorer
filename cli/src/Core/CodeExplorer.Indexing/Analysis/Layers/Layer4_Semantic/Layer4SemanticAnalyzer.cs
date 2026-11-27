@@ -93,7 +93,7 @@ public partial class Layer4SemanticParser
 
         InitializeWorkloadsForProjects(
             allProjects,
-            allFiles,
+            filesByProjectId,
             ctx,
             semanticStructureNode,
             semanticNodes,
@@ -138,10 +138,10 @@ public partial class Layer4SemanticParser
             existingRelKeys,
             semanticRelationships);
 
-        LinkEntryPointsToModuleInit(
+        var moduleInits = ExtractModuleInitStubsFromTrees(l3Result.SyntaxTrees);
+        LinkEntryPointsToModuleInitFromStubs(
             l2Result,
-            l3Result,
-            allFiles,
+            moduleInits,
             allProjects,
             existingRelKeys,
             semanticRelationships);
@@ -181,18 +181,185 @@ public partial class Layer4SemanticParser
         return new Layer4Result(semanticStructureNode, semanticNodes, semanticRelationships);
     }
 
+    internal Layer4StreamingState InitializeStreamingState(
+        Layer4Context ctx,
+        Dictionary<string, List<FileNode>> l3FilesByProjectId,
+        List<FileNode> workspaceRootFiles)
+    {
+        var l1Result = ctx.Layer1;
+        var l2Result = ctx.Layer2;
+        const string semanticStructureLabel = "SemanticStructure";
+        var semanticNodeId = $"{ctx.WorkspaceId}:{OntologyConstants.IdPrefixes.SemanticStructure}";
+        var semanticStructureNode = new SemanticStructureNode(semanticNodeId, semanticStructureLabel, l1Result.Workspace.Path);
+        l1Result.Workspace.Children.Add(semanticStructureNode);
+        ctx.SemanticStructure = semanticStructureNode;
+
+        var semanticNodes = new List<IOntologyNode>();
+        var semanticRelationships = new List<Relationship>();
+
+        var filesByProjectId = new Dictionary<string, List<FileNode>>(l2Result.Projects.Count);
+        foreach (var project in l2Result.Projects)
+        {
+            filesByProjectId[project.Id] = l3FilesByProjectId.TryGetValue(project.Id, out var pFiles)
+                ? [.. pFiles]
+                : [];
+        }
+
+        foreach (var wfile in workspaceRootFiles)
+        {
+            if (ConfigurationParser.IsConfigurationFile(wfile.Name))
+            {
+                ConfigurationParser.ParseAndEnrich(wfile.FullPath, wfile.Path, ctx.WorkspaceId, semanticStructureNode, semanticRelationships, ctx.Semantic);
+            }
+        }
+
+        var existingRelKeys = new HashSet<(string From, string To, string Kind)>();
+        foreach (var r in semanticRelationships)
+        {
+            existingRelKeys.Add((r.From, r.To, r.Kind.ToCypherType()));
+        }
+
+        ctx.Layer4Log.MaterializingWorkloads(l2Result.Projects.Count);
+        var workloadByProjectId = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        var workloadNodeByProjectId = new Dictionary<string, IOntologyNode>(StringComparer.OrdinalIgnoreCase);
+        var semanticStructureChildIds = new HashSet<string>(semanticStructureNode.Children.Select(c => c.Id), StringComparer.Ordinal);
+        var workloadChildIdsByWorkload = new Dictionary<string, HashSet<string>>(StringComparer.Ordinal);
+
+        InitializeWorkloadsForProjects(
+            l2Result.Projects,
+            filesByProjectId,
+            ctx,
+            semanticStructureNode,
+            semanticNodes,
+            semanticRelationships,
+            semanticStructureChildIds,
+            workloadChildIdsByWorkload,
+            existingRelKeys,
+            workloadByProjectId,
+            workloadNodeByProjectId);
+
+        ResourceSemanticAnalyzer.ResetCache();
+        return new Layer4StreamingState(
+            semanticStructureNode,
+            filesByProjectId,
+            new Dictionary<string, List<SyntaxTree>>(StringComparer.Ordinal),
+            workloadByProjectId,
+            workloadNodeByProjectId,
+            semanticStructureChildIds,
+            workloadChildIdsByWorkload,
+            semanticNodes,
+            semanticRelationships,
+            existingRelKeys);
+    }
+
+    internal async Task<Layer4Result> FinalizeStreamingStateAsync(
+        Layer4StreamingState state,
+        IReadOnlyList<ModuleInitStub> moduleInits,
+        Layer4Context ctx,
+        HashSet<string> sharedVisitedNodeIds,
+        HashSet<(string From, string To, RelationshipKind Kind)> sharedVisitedRelKeys,
+        long elapsedBeforeFinalizeMs)
+    {
+        var finalizeSw = Stopwatch.StartNew();
+        var l1Result = ctx.Layer1;
+        var l2Result = ctx.Layer2;
+        var allProjects = l2Result.Projects;
+        var allFiles = l1Result.Files;
+
+        if (!ctx.LightweightAstScanMode && state.TerraformTreesByProjectId.Count > 0)
+        {
+            foreach (var tfTrees in state.TerraformTreesByProjectId.Values)
+            {
+                for (var i = 0; i < tfTrees.Count; i++)
+                {
+                    tfTrees[i].Dispose();
+                    tfTrees[i].RawImports.Clear();
+                    tfTrees[i].RawImports.TrimExcess();
+                }
+            }
+            state.TerraformTreesByProjectId.Clear();
+        }
+
+        SemanticTopologySynthesizer.Synthesize(
+            allProjects,
+            state.FilesByProjectId,
+            l2Result.ProjectDependencies,
+            l2Result.Packages,
+            state.WorkloadByProjectId,
+            allFiles,
+            state.SemanticStructure,
+            state.SemanticRelationships,
+            state.ExistingRelKeys,
+            ctx.Semantic,
+            ctx.CancellationToken);
+
+        MaterializeWorkloadDependencies(
+            l2Result,
+            state.WorkloadByProjectId,
+            state.SemanticStructure,
+            state.ExistingRelKeys,
+            state.SemanticRelationships);
+
+        LinkEntryPointsToModuleInitFromStubs(
+            l2Result,
+            moduleInits,
+            allProjects,
+            state.ExistingRelKeys,
+            state.SemanticRelationships);
+
+        var semanticNodes = state.SemanticNodes;
+        foreach (var project in allProjects)
+        {
+            CollectSemanticNodes(project, semanticNodes);
+        }
+        CollectSemanticNodes(state.SemanticStructure, semanticNodes);
+        semanticNodes = [.. semanticNodes.DistinctBy(n => n.Id)];
+
+        if (state.SemanticRelationships.Count > 0)
+        {
+            ctx.Layer4Log.UploadingSemanticRelationships(state.SemanticRelationships.Count);
+            await ctx.EnqueueUploadRelationshipsAsync(state.SemanticRelationships);
+            ctx.TotalRelsCount += state.SemanticRelationships.Count;
+        }
+
+        if (!ctx.LightweightAstScanMode && !ctx.IsSubtreeScan && ctx.IncrementalChangedFiles == null)
+        {
+            ctx.Symbols.HasWorkspaceSymbolFilter = true;
+            OntologyUploader.FilterWorkspaceReferences(ctx);
+        }
+
+        ctx.CancellationToken.ThrowIfCancellationRequested();
+        ctx.Layer4Log.QueuingOntologyTree();
+        await OntologyUploader.UploadRemainingWorkspaceSkeletonAsync(
+            l1Result.Workspace,
+            ctx,
+            sharedVisitedNodeIds,
+            sharedVisitedRelKeys);
+
+        ctx.Layer4Log.ScanCompleted(semanticNodes.Count, elapsedBeforeFinalizeMs + finalizeSw.ElapsedMilliseconds);
+        return new Layer4Result(state.SemanticStructure, semanticNodes, state.SemanticRelationships);
+    }
+
     private static bool IsEnclosedInProject(FileNode file, ProjectNode project, List<ProjectNode> projects) =>
         Layer2ProjectParser.IsEnclosedInProject(file, project, projects);
 
-    private static void CollectSemanticNodes(IOntologyNode node, List<IOntologyNode> semanticNodes)
+    private static void CollectSemanticNodes(IOntologyNode node, List<IOntologyNode> semanticNodes) =>
+        CollectSemanticNodesRecursive(node, semanticNodes, new HashSet<IOntologyNode>(ReferenceEqualityComparer.Instance));
+
+    private static void CollectSemanticNodesRecursive(
+        IOntologyNode node,
+        List<IOntologyNode> semanticNodes,
+        HashSet<IOntologyNode> visited)
     {
+        if (!visited.Add(node)) return;
+
         foreach (var child in node.Children)
         {
             if (child is ModuleNode or DatabaseNode or DbSchemaNode or EndpointNode or QueryNode or ExternalServiceNode or TopicNode or MessageNode or CacheNode or TransactionNode or PolicyNode or JobNode or CloudNode or CloudResourceNode or CloudServiceNode or ApiInUseNode or TableNode or DataSetNode)
             {
                 semanticNodes.Add(child);
             }
-            CollectSemanticNodes(child, semanticNodes);
+            CollectSemanticNodesRecursive(child, semanticNodes, visited);
         }
     }
 
@@ -284,45 +451,58 @@ public partial class Layer4SemanticParser
         }
     }
 
-    private static void LinkEntryPointsToModuleInit(
+    private static List<ModuleInitStub> ExtractModuleInitStubsFromTrees(IReadOnlyList<SyntaxTree> syntaxTrees)
+    {
+        const string moduleInitName = "<module_init>";
+        var stubs = new List<ModuleInitStub>();
+        for (var i = 0; i < syntaxTrees.Count; i++)
+        {
+            var fn = syntaxTrees[i].FileNode;
+            if (fn == null) continue;
+            var modInit = fn.Children.OfType<FunctionNode>().FirstOrDefault(f => f.Name == moduleInitName || f.IsModuleInit == true);
+            if (modInit == null) continue;
+            stubs.Add(new ModuleInitStub(fn.Id, fn.Path ?? string.Empty, fn.FullPath ?? string.Empty, modInit.Id));
+        }
+        return stubs;
+    }
+
+    private static void LinkEntryPointsToModuleInitFromStubs(
         Layer2Result l2Result,
-        Layer3Result l3Result,
-        List<FileNode> allFiles,
+        IReadOnlyList<ModuleInitStub> moduleInits,
         List<ProjectNode> allProjects,
         HashSet<(string From, string To, string Kind)> existingRelKeys,
         List<Relationship> semanticRelationships)
     {
-        var modInitByFileId = new Dictionary<string, FunctionNode>(StringComparer.Ordinal);
-        var modInitByFilePath = new Dictionary<string, FunctionNode>(StringComparer.OrdinalIgnoreCase);
+        if (moduleInits.Count == 0) return;
 
-        foreach (var st in l3Result.SyntaxTrees)
+        var modInitIdByFileId = new Dictionary<string, string>(StringComparer.Ordinal);
+        var modInitIdByFilePath = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+
+        for (var i = 0; i < moduleInits.Count; i++)
         {
-            var fn = st.FileNode;
-            if (fn == null) continue;
-            var modInit = fn.Children.OfType<FunctionNode>().FirstOrDefault(f => f.Name == "<module_init>" || f.IsModuleInit == true);
-            if (modInit == null) continue;
-            modInitByFileId[fn.Id] = modInit;
-            if (!string.IsNullOrEmpty(fn.Path))
+            var stub = moduleInits[i];
+            modInitIdByFileId[stub.FileId] = stub.FunctionId;
+            if (!string.IsNullOrEmpty(stub.FilePath))
             {
-                modInitByFilePath[fn.Path.Replace('\\', '/').Trim('/')] = modInit;
+                modInitIdByFilePath[stub.FilePath.Replace('\\', '/').Trim('/')] = stub.FunctionId;
             }
-            if (!string.IsNullOrEmpty(fn.FullPath))
+            if (!string.IsNullOrEmpty(stub.FullPath))
             {
-                modInitByFilePath[fn.FullPath.Replace('\\', '/').Trim('/')] = modInit;
+                modInitIdByFilePath[stub.FullPath.Replace('\\', '/').Trim('/')] = stub.FunctionId;
             }
         }
 
-        if (modInitByFileId.Count == 0) return;
+        if (modInitIdByFileId.Count == 0) return;
 
         foreach (var dep in l2Result.ProjectDependencies)
         {
             if (dep.Kind is RelationshipKind.Triggers or RelationshipKind.DeclaredIn &&
-                modInitByFileId.TryGetValue(dep.To, out var targetModInit) &&
+                modInitIdByFileId.TryGetValue(dep.To, out var targetModInitId) &&
                 dep.From.Contains($":{OntologyConstants.IdPrefixes.EntryPoint}:", StringComparison.Ordinal))
             {
-                if (existingRelKeys.Add((dep.From, targetModInit.Id, OntologyConstants.Relationships.Triggers)))
+                if (existingRelKeys.Add((dep.From, targetModInitId, OntologyConstants.Relationships.Triggers)))
                 {
-                    semanticRelationships.Add(new Relationship(dep.From, targetModInit.Id, OntologyConstants.Relationships.Triggers));
+                    semanticRelationships.Add(new Relationship(dep.From, targetModInitId, OntologyConstants.Relationships.Triggers));
                 }
             }
         }
@@ -333,11 +513,11 @@ public partial class Layer4SemanticParser
             {
                 if (string.IsNullOrWhiteSpace(ep.FilePath)) continue;
                 var normPath = ep.FilePath.Replace('\\', '/').Trim('/');
-                if (modInitByFilePath.TryGetValue(normPath, out var modInit))
+                if (modInitIdByFilePath.TryGetValue(normPath, out var modInitId))
                 {
-                    if (existingRelKeys.Add((ep.Id, modInit.Id, OntologyConstants.Relationships.Triggers)))
+                    if (existingRelKeys.Add((ep.Id, modInitId, OntologyConstants.Relationships.Triggers)))
                     {
-                        semanticRelationships.Add(new Relationship(ep.Id, modInit.Id, OntologyConstants.Relationships.Triggers));
+                        semanticRelationships.Add(new Relationship(ep.Id, modInitId, OntologyConstants.Relationships.Triggers));
                     }
                 }
             }

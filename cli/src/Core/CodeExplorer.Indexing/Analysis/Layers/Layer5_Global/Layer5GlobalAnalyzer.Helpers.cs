@@ -623,7 +623,7 @@ public partial class Layer5AnalysisParser
     internal static string? ExtractFilePathFromSymbolId(string scopeSymbolId) =>
         Urn.TryParse(scopeSymbolId, out var urn) ? urn.DeclaringFilePath : null;
 
-    private static string NormalizeRelativePath(string path)
+    internal static string NormalizeRelativePath(string path)
     {
         path = path.Replace('\\', '/');
         var parts = path.Split('/', StringSplitOptions.RemoveEmptyEntries);

@@ -9,8 +9,12 @@ public class CSharpFileParser : IFileParser
 {
     public string LanguageName => "c-sharp";
 
+    private const string DbContextToken = "DbContext";
+    private const string InternalsVisibleToToken = "InternalsVisibleTo";
+
     private static readonly Regex CSharpDbContextClassRegex = new(@"class\s+([A-Za-z0-9_]+)\s*:\s*(?:[A-Za-z0-9_.]+\.)?(?:Identity)?DbContext\b", RegexOptions.Compiled);
     private static readonly Regex CSharpBaseConnectionNameRegex = new(@":\s*base\s*\(\s*@?[""'](?:name\s*=\s*)?([A-Za-z0-9_.\-:]+)[""']\s*\)", RegexOptions.Compiled | RegexOptions.IgnoreCase);
+    private static readonly Regex AssemblyInternalsVisibleToRegex = new(@"\[\s*assembly\s*:\s*(?:System\.Runtime\.CompilerServices\.)?InternalsVisibleTo(?:Attribute)?\s*\(\s*@?[""']([^""',]+)", RegexOptions.Compiled);
 
     public void EnrichFileSignals(
         Core.Common.Nodes.Layer1_Physical.FileNode fileNode,
@@ -18,12 +22,33 @@ public class CSharpFileParser : IFileParser
         Core.Common.Nodes.Layer2_Boundaries.ProjectNode? project,
         string sourceText)
     {
-        if (sourceText.Contains("DbContext", StringComparison.Ordinal))
+        if (sourceText.Contains(DbContextToken, StringComparison.Ordinal))
         {
             EnrichDbContextSignals(fileNode, sourceText);
             if (!ReferenceEquals(fileNode, syntaxTree.FileNode))
             {
                 EnrichDbContextSignals(syntaxTree.FileNode, sourceText);
+            }
+        }
+
+        if (project != null && sourceText.Contains(InternalsVisibleToToken, StringComparison.Ordinal))
+        {
+            var matches = AssemblyInternalsVisibleToRegex.Matches(sourceText);
+            if (matches.Count > 0)
+            {
+                var signals = Core.Common.Nodes.AnalysisSignalStore.Signals(project);
+                lock (signals)
+                {
+                    signals.FriendAssemblies ??= new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                    foreach (Match match in matches)
+                    {
+                        var friendName = match.Groups[1].Value.Trim();
+                        if (!string.IsNullOrEmpty(friendName))
+                        {
+                            signals.FriendAssemblies.Add(friendName);
+                        }
+                    }
+                }
             }
         }
     }

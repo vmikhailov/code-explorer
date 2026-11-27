@@ -31,10 +31,11 @@ public partial class Layer5AnalysisParser
         string? targetTypeName = null;
         string? methodName = null;
         var isExternalStaticClass = false;
-        ctx.SymbolScopes.TryGetValue(refItem.ScopeSymbolId, out var scopeForFile);
-        var callerFile = ExtractFilePathFromSymbolId(refItem.ScopeSymbolId)
-                         ?? (!string.IsNullOrEmpty(scopeForFile.FilePath) ? scopeForFile.FilePath : null)
-                         ?? (!string.IsNullOrEmpty(refItem.ArgFlow) && (refItem.ArgFlow.Contains('/') || refItem.ArgFlow.Contains('\\')) ? refItem.ArgFlow.Replace('\\', '/') : null);
+        var hasCachedScope = ctx.SymbolScopes.TryGetValue(refItem.ScopeSymbolId, out var scopeForFile);
+        var callerFile = hasCachedScope && !string.IsNullOrEmpty(scopeForFile.FilePath)
+            ? scopeForFile.FilePath
+            : ExtractFilePathFromSymbolId(refItem.ScopeSymbolId)
+              ?? (!string.IsNullOrEmpty(refItem.ArgFlow) && (refItem.ArgFlow.Contains('/') || refItem.ArgFlow.Contains('\\')) ? refItem.ArgFlow.Replace('\\', '/') : null);
         var normCallerFile = Layer5SymbolVisibilityResolver.NormalizeWorkspaceRelativeFilePath(callerFile, ctx);
         var hasExplicitReceiver = refItem.HasExplicitReceiver;
 
@@ -94,13 +95,12 @@ public partial class Layer5AnalysisParser
                         firstKnownType = candidate.TypeName;
                     }
                     if (!string.IsNullOrEmpty(candidate.ScopeMarker) && !string.IsNullOrEmpty(candidate.ScopeId) &&
-                        (refItem.ScopeSymbolId.Contains(candidate.ScopeMarker, StringComparison.Ordinal) ||
-                         refItem.ScopeSymbolId.Contains($":{candidate.ScopeId}:", StringComparison.OrdinalIgnoreCase) ||
-                         refItem.ScopeSymbolId.EndsWith($":{candidate.ScopeId}", StringComparison.OrdinalIgnoreCase) ||
-                         refItem.ScopeSymbolId.Contains($"/{candidate.ScopeId}.", StringComparison.OrdinalIgnoreCase) ||
-                         refItem.ScopeSymbolId.Contains($"\\{candidate.ScopeId}.", StringComparison.OrdinalIgnoreCase) ||
-                         (normCallerFile != null && (normCallerFile.Contains($"/{candidate.ScopeId}.", StringComparison.OrdinalIgnoreCase) || normCallerFile.Contains($"\\{candidate.ScopeId}.", StringComparison.OrdinalIgnoreCase))) ||
-                         (scopeForFile.EnclosingTypeName != null && string.Equals(scopeForFile.EnclosingTypeName, candidate.ScopeId, StringComparison.OrdinalIgnoreCase))))
+                        Layer5SymbolCatalogHelper.MatchesScopeIdZeroAlloc(
+                            refItem.ScopeSymbolId,
+                            normCallerFile,
+                            scopeForFile.EnclosingTypeName,
+                            candidate.ScopeId,
+                            candidate.ScopeMarker))
                     {
                         if (isKnownType)
                         {
@@ -120,41 +120,57 @@ public partial class Layer5AnalysisParser
             }
             else if (bindings.GlobalBindingsLookup.TryGetValue(varName, out var globalCandidates))
             {
-                foreach (var candidate in globalCandidates)
+                IReadOnlyList<IndexedBinding>? candidatesToInspect = globalCandidates;
+                if (globalCandidates.Count > 32)
                 {
-                    if (!string.IsNullOrEmpty(candidate.ScopeMarker) && !string.IsNullOrEmpty(candidate.ScopeId) &&
-                        (refItem.ScopeSymbolId.Contains(candidate.ScopeMarker, StringComparison.Ordinal) ||
-                         refItem.ScopeSymbolId.Contains($":{candidate.ScopeId}:", StringComparison.OrdinalIgnoreCase) ||
-                         refItem.ScopeSymbolId.EndsWith($":{candidate.ScopeId}", StringComparison.OrdinalIgnoreCase) ||
-                         refItem.ScopeSymbolId.Contains($"/{candidate.ScopeId}.", StringComparison.OrdinalIgnoreCase) ||
-                         refItem.ScopeSymbolId.Contains($"\\{candidate.ScopeId}.", StringComparison.OrdinalIgnoreCase) ||
-                         (normCallerFile != null && (normCallerFile.Contains($"/{candidate.ScopeId}.", StringComparison.OrdinalIgnoreCase) || normCallerFile.Contains($"\\{candidate.ScopeId}.", StringComparison.OrdinalIgnoreCase))) ||
-                         (scopeForFile.EnclosingTypeName != null &&
-                          (string.Equals(scopeForFile.EnclosingTypeName, candidate.ScopeId, StringComparison.OrdinalIgnoreCase) ||
-                           Layer5SymbolVisibilityResolver.DoesTypeInheritFrom(scopeForFile.EnclosingTypeName, candidate.ScopeId, symbols)))))
+                    candidatesToInspect = bindings.ScopedBindingsByVar.TryGetValue(varName, out var byScope)
+                        ? Layer5SymbolCatalogHelper.CollectScopedGlobalBindingCandidates(
+                            byScope,
+                            refItem.ScopeSymbolId,
+                            normCallerFile,
+                            scopeForFile.EnclosingTypeName,
+                            symbols.BaseTypesByDerived)
+                        : null;
+                }
+
+                if (candidatesToInspect != null)
+                {
+                    for (var cIdx = 0; cIdx < candidatesToInspect.Count; cIdx++)
                     {
-                        var isKnownGlobalType = symbols.TypeSymbols.ContainsKey(candidate.TypeName);
-                        if (targetTypeName == null || isKnownGlobalType)
+                        var candidate = candidatesToInspect[cIdx];
+                        if (!string.IsNullOrEmpty(candidate.ScopeMarker) && !string.IsNullOrEmpty(candidate.ScopeId) &&
+                            (Layer5SymbolCatalogHelper.MatchesScopeIdZeroAlloc(
+                                 refItem.ScopeSymbolId,
+                                 normCallerFile,
+                                 scopeForFile.EnclosingTypeName,
+                                 candidate.ScopeId,
+                                 candidate.ScopeMarker) ||
+                             (scopeForFile.EnclosingTypeName != null &&
+                              Layer5SymbolVisibilityResolver.DoesTypeInheritFrom(scopeForFile.EnclosingTypeName, candidate.ScopeId, symbols))))
                         {
-                            targetTypeName = candidate.TypeName;
-                        }
-                        if (!string.IsNullOrEmpty(methodName) &&
-                            !string.Equals(scopeForFile.EnclosingTypeName, candidate.ScopeId, StringComparison.Ordinal) &&
-                            ((!string.IsNullOrEmpty(candidate.FilePath) && symbols.MembersByType.TryGetValue((candidate.FilePath, candidate.ScopeId, varName), out var inhMemberId)) ||
-                             symbols.MembersByType.TryGetValue(("", candidate.ScopeId, varName), out inhMemberId)))
-                        {
-                            var accessedRel = Relationship.FromRelationship(new AccessedByRelationship(inhMemberId, refItem.ScopeSymbolId)
+                            var isKnownGlobalType = symbols.TypeSymbols.ContainsKey(candidate.TypeName);
+                            if (targetTypeName == null || isKnownGlobalType)
                             {
-                                Operation = methodName,
-                                FilePath = normCallerFile
-                            });
-                            accessedRel.Line = refItem.Line;
-                            accessedRel.Column = refItem.Column;
-                            referenceRelationships.Add(accessedRel);
-                        }
-                        if (isKnownGlobalType)
-                        {
-                            break;
+                                targetTypeName = candidate.TypeName;
+                            }
+                            if (!string.IsNullOrEmpty(methodName) &&
+                                !string.Equals(scopeForFile.EnclosingTypeName, candidate.ScopeId, StringComparison.Ordinal) &&
+                                ((!string.IsNullOrEmpty(candidate.FilePath) && symbols.MembersByType.TryGetValue((candidate.FilePath, candidate.ScopeId, varName), out var inhMemberId)) ||
+                                 symbols.MembersByType.TryGetValue(("", candidate.ScopeId, varName), out inhMemberId)))
+                            {
+                                var accessedRel = Relationship.FromRelationship(new AccessedByRelationship(inhMemberId, refItem.ScopeSymbolId)
+                                {
+                                    Operation = methodName,
+                                    FilePath = normCallerFile
+                                });
+                                accessedRel.Line = refItem.Line;
+                                accessedRel.Column = refItem.Column;
+                                referenceRelationships.Add(accessedRel);
+                            }
+                            if (isKnownGlobalType)
+                            {
+                                break;
+                            }
                         }
                     }
                 }
@@ -219,7 +235,9 @@ public partial class Layer5AnalysisParser
         var callAdded = false;
         string? targetNodeId = null;
         var isCallbackArg = string.Equals(refItem.ArgFlow, "callback_arg", StringComparison.Ordinal);
-        var callerScope = Layer5SymbolVisibilityResolver.GetOrInferSymbolScope(refItem.ScopeSymbolId, normCallerFile, ctx);
+        var callerScope = hasCachedScope
+            ? scopeForFile
+            : Layer5SymbolVisibilityResolver.GetOrInferSymbolScope(refItem.ScopeSymbolId, normCallerFile, ctx);
 
         // 0. If unqualified call inside an enclosing type, prefer same-type method first
         if (!hasExplicitReceiver && !targetName.Contains('.') && !string.IsNullOrEmpty(callerScope.EnclosingTypeName))
@@ -906,16 +924,32 @@ public partial class Layer5AnalysisParser
 
 internal static partial class Layer5SymbolVisibilityResolver
 {
+    private const string SlashTrimChars = "/\\";
+
     internal static string? NormalizeWorkspaceRelativeFilePath(string? filePath, Layer5Context ctx)
     {
         if (string.IsNullOrEmpty(filePath)) return null;
-        var norm = filePath.Replace('\\', '/');
+        var norm = filePath.IndexOf('\\') >= 0 ? filePath.Replace('\\', '/') : filePath;
         if (!string.IsNullOrEmpty(ctx.AbsoluteWorkspacePath))
         {
-            var wsNorm = ctx.AbsoluteWorkspacePath.Replace('\\', '/').TrimEnd('/');
-            if (norm.StartsWith(wsNorm + "/", StringComparison.OrdinalIgnoreCase))
+            var wsSpan = ctx.AbsoluteWorkspacePath.AsSpan().TrimEnd(SlashTrimChars);
+            if (wsSpan.Length > 0 && norm.Length > wsSpan.Length && norm[wsSpan.Length] == '/')
             {
-                return norm[(wsNorm.Length + 1)..];
+                var matchesWs = true;
+                for (var i = 0; i < wsSpan.Length; i++)
+                {
+                    var a = norm[i];
+                    var b = wsSpan[i] == '\\' ? '/' : wsSpan[i];
+                    if (a != b && char.ToUpperInvariant(a) != char.ToUpperInvariant(b))
+                    {
+                        matchesWs = false;
+                        break;
+                    }
+                }
+                if (matchesWs)
+                {
+                    return norm[(wsSpan.Length + 1)..];
+                }
             }
         }
         return norm;
@@ -997,20 +1031,22 @@ internal static partial class Layer5SymbolVisibilityResolver
         }
         if (!string.IsNullOrEmpty(scope.FilePath))
         {
-            var normFile = scope.FilePath.Replace('\\', '/').TrimStart('/');
-            string? longestPrefixMatch = null;
-            foreach (var key in symbols.ProjectsInDepGraph)
+            var pathStr = scope.FilePath.IndexOf('\\') >= 0
+                ? scope.FilePath.Replace('\\', '/')
+                : scope.FilePath;
+            var span = pathStr.AsSpan().TrimStart('/');
+            var altLookup = symbols.ProjectsInDepGraph.GetAlternateLookup<ReadOnlySpan<char>>();
+            var searchEnd = span.Length;
+            while (searchEnd > 0)
             {
-                if (key.Contains('/') &&
-                    normFile.StartsWith(key + "/", StringComparison.OrdinalIgnoreCase) &&
-                    (longestPrefixMatch == null || key.Length > longestPrefixMatch.Length))
+                var slashIdx = span[..searchEnd].LastIndexOf('/');
+                if (slashIdx <= 0) break;
+                var dirPrefix = span[..slashIdx];
+                if (dirPrefix.IndexOf('/') >= 0 && altLookup.TryGetValue(dirPrefix, out var matchedKey))
                 {
-                    longestPrefixMatch = key;
+                    return matchedKey;
                 }
-            }
-            if (longestPrefixMatch != null)
-            {
-                return longestPrefixMatch;
+                searchEnd = slashIdx;
             }
 
             var ext = ConstantRegistry.ExtractProjectName(scope.FilePath);
@@ -1188,7 +1224,7 @@ internal static partial class Layer5SymbolVisibilityResolver
                 return sameFile;
 
             case SymbolVisibility.Internal:
-                if (!sameProject && !callerScope.IsTest)
+                if (!sameProject && !callerScope.IsTest && !IsFriendAssemblyVisible(callerScope, targetScope, symbols))
                 {
                     return false;
                 }
@@ -1197,6 +1233,27 @@ internal static partial class Layer5SymbolVisibilityResolver
             default:
                 return IsProjectReachable(callerScope, targetScope, symbols, ctx);
         }
+    }
+
+    private static bool IsFriendAssemblyVisible(
+        in SymbolScopeInfo callerScope,
+        in SymbolScopeInfo targetScope,
+        Layer5AnalysisParser.SymbolLookups symbols)
+    {
+        if (symbols.FriendAssembliesByProject.Count == 0) return false;
+
+        var targetProj = !string.IsNullOrEmpty(targetScope.ProjectName)
+            ? targetScope.ProjectName
+            : (!string.IsNullOrEmpty(targetScope.FilePath) ? ConstantRegistry.ExtractProjectName(targetScope.FilePath) : null);
+        if (string.IsNullOrEmpty(targetProj) || !symbols.FriendAssembliesByProject.TryGetValue(targetProj, out var friends))
+        {
+            return false;
+        }
+
+        var callerProj = !string.IsNullOrEmpty(callerScope.ProjectName)
+            ? callerScope.ProjectName
+            : (!string.IsNullOrEmpty(callerScope.FilePath) ? ConstantRegistry.ExtractProjectName(callerScope.FilePath) : null);
+        return !string.IsNullOrEmpty(callerProj) && friends.Contains(callerProj);
     }
 
     internal static string? SelectVisibleSymbolCandidate(

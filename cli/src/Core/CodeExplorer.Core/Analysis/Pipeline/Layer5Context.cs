@@ -56,6 +56,7 @@ public sealed class Layer5Context
     public List<RawImport> RawImports => Symbols.RawImports;
     public List<RawVariable> RawVariables => Symbols.RawVariables;
     public List<RawTypeBinding> RawTypeBindings => Symbols.RawTypeBindings;
+    public List<ProjectScanSummary> ProjectSummaries => Symbols.ProjectSummaries;
     public HashSet<string> KnownFunctionIds => Symbols.KnownFunctionIds;
 
     public Layer5Logger Layer5Log => Sink.Layer5Log;

@@ -60,6 +60,22 @@ internal static class Layer5GoSymbolHelper
         Layer5AnalysisParser.SymbolLookups symbols)
     {
         var cleanDir = dirPath.Trim(SlashChar);
+        if (symbols.GoFilesByDir.Count > 0)
+        {
+            if (symbols.GoFilesByDir.TryGetValue(cleanDir, out var dirGoFiles))
+            {
+                for (var i = 0; i < dirGoFiles.Count; i++)
+                {
+                    var known = dirGoFiles[i];
+                    if (!results.Contains(known))
+                    {
+                        results.Add(known);
+                    }
+                }
+            }
+            return;
+        }
+
         foreach (var known in symbols.KnownFiles)
         {
             if (!known.EndsWith(GoExt, StringComparison.OrdinalIgnoreCase) ||
@@ -296,6 +312,12 @@ internal static class Layer5GoSymbolHelper
                     symbols.InheritanceRels.Add((structTypeId, ifaceTypeId));
                 }
                 symbols.InheritedTypeNames.Add((structName, ifaceName));
+                if (!symbols.BaseTypesByDerived.TryGetValue(structName, out var baseList))
+                {
+                    baseList = [];
+                    symbols.BaseTypesByDerived[structName] = baseList;
+                }
+                if (!baseList.Contains(ifaceName)) baseList.Add(ifaceName);
                 if (!interfaceToImplementors.TryGetValue(ifaceName, out var implList))
                 {
                     implList = [];

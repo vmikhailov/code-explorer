@@ -13,15 +13,7 @@ namespace CodeExplorer.Parsers.Terraform;
 /// </summary>
 public static class TerraformSemanticEnricher
 {
-    private const string BlockTerraform = "terraform";
-    private const string BlockInclude = "include";
     private const string BlockResource = "resource";
-    private const string BlockDependency = "dependency";
-    private const string BlockLocals = "locals";
-    private const string AttrConfigPath = "config_path";
-    private const string AttrSource = "source";
-    private const string AttrPath = "path";
-    private const string AttrInputs = "inputs";
     private const string AttrEngine = "engine";
     private const string ViaInput = "input";
     private const string ViaOutput = "output";
@@ -52,11 +44,13 @@ public static class TerraformSemanticEnricher
 
     public static ProjectEnrichmentResult Enrich(ProjectEnrichmentContext context)
     {
-        var moduleStates = BuildInMemoryWorkspaceModules(context);
+        var workspaceCache = TerraformWorkspaceCache.GetOrBuild(context);
+        var moduleStates = workspaceCache.ModuleStates;
         var projectModuleDirs = CollectProjectModuleDirs(context);
 
-        var fileSet = BuildInMemoryFileSet(context);
-        var dirSet = BuildInMemoryDirSet(context, moduleStates.Keys);
+        var fileSet = workspaceCache.FileSet;
+        var dirSet = workspaceCache.DirSet;
+        var duplicateResourceShortNames = workspaceCache.DuplicateResourceShortNames;
 
         var semanticNodes = new List<IOntologyNode>();
         var semanticNodesById = new Dictionary<string, IOntologyNode>(StringComparer.Ordinal);
@@ -93,7 +87,7 @@ public static class TerraformSemanticEnricher
             EnrichIntraModuleDependencies(currentModule, AddRel);
             EnrichModuleInputsAndOutputs(currentModule, moduleStates, context.AbsoluteWorkspacePath, fileSet, dirSet, AddRel);
             EnrichTerragruntInputs(currentModule, moduleStates, context.AbsoluteWorkspacePath, fileSet, dirSet, AddRel);
-            EnrichCloudInfrastructure(context.WorkspaceId, currentModule, moduleStates, AddSemanticNode, AddRel);
+            EnrichCloudInfrastructure(context.WorkspaceId, currentModule, duplicateResourceShortNames, AddSemanticNode, AddRel);
         }
 
         return new ProjectEnrichmentResult(semanticNodes, semanticRels, globalRels);
@@ -106,7 +100,7 @@ public static class TerraformSemanticEnricher
 
         foreach (var tree in context.ProjectTrees)
         {
-            if (tree.FileNode == null || TryGetHclDocument(tree) == null) continue;
+            if (tree.FileNode == null || TerraformWorkspaceCache.TryGetHclDocument(tree) == null) continue;
             var relPath = tree.FileNode.Path.Replace(BackslashChar, SlashChar);
             var modDir = TerraformDeclarationMapper.GetModuleDir(relPath);
             if (seen.Add(modDir))
@@ -115,7 +109,7 @@ public static class TerraformSemanticEnricher
             }
         }
 
-        var fallbackDir = NormalizeRelativeDir(context.Project.Path);
+        var fallbackDir = TerraformWorkspaceCache.NormalizeRelativeDir(context.Project.Path);
         if (seen.Add(fallbackDir))
         {
             dirs.Add(fallbackDir);
@@ -124,131 +118,8 @@ public static class TerraformSemanticEnricher
         return dirs;
     }
 
-    private sealed class ModuleMemoryState
-    {
-        public required string ModuleDir { get; init; }
-        public Dictionary<string, TerraformSymbol> SymbolsByCanonical { get; } = new(StringComparer.Ordinal);
-        public List<TerraformSymbol> AllSymbols { get; } = [];
-        public List<HclFile> HclFiles { get; } = [];
-        public string? TerragruntFileNodeId { get; set; }
-        public int TerragruntInputsLine { get; set; }
-        public HclExpr? TerragruntSourceExpr { get; set; }
-        public List<HclExpr> TerragruntIncludePathExprs { get; } = [];
-        public Dictionary<string, IReadOnlyList<HclReference>> TerragruntInputs { get; } = new(StringComparer.Ordinal);
-        public Dictionary<string, HclExpr> DependencyConfigPathExprs { get; } = new(StringComparer.Ordinal);
-        public Dictionary<string, HclExpr> IncludePathExprsBySymbol { get; } = new(StringComparer.Ordinal);
-        public Dictionary<string, string> LocalStrings { get; } = new(StringComparer.Ordinal);
-    }
-
-    private static Dictionary<string, ModuleMemoryState> BuildInMemoryWorkspaceModules(ProjectEnrichmentContext context)
-    {
-        var modules = new Dictionary<string, ModuleMemoryState>(StringComparer.OrdinalIgnoreCase);
-
-        foreach (var (_, trees) in context.TreesByProjectId)
-        {
-            foreach (var tree in trees)
-            {
-                var hclDoc = TryGetHclDocument(tree);
-                if (hclDoc == null || tree.FileNode == null)
-                {
-                    continue;
-                }
-
-                var relPath = tree.FileNode.Path.Replace('\\', '/');
-                var moduleDir = TerraformDeclarationMapper.GetModuleDir(relPath);
-                if (!modules.TryGetValue(moduleDir, out var state))
-                {
-                    state = new ModuleMemoryState { ModuleDir = moduleDir };
-                    modules[moduleDir] = state;
-                }
-
-                state.HclFiles.Add(hclDoc.HclFile);
-                foreach (var sym in hclDoc.Declarations)
-                {
-                    state.AllSymbols.Add(sym);
-                    state.SymbolsByCanonical.TryAdd(sym.CanonicalName, sym);
-                }
-
-                ExtractTerragruntMetadata(hclDoc.HclFile, tree.FileNode.Id, state);
-            }
-        }
-
-        return modules;
-    }
-
-    private static HclDocumentSyntaxNode? TryGetHclDocument(SyntaxTree tree)
-    {
-        var root = tree.Document?.RootNode;
-        if (root == null) return null;
-        if (root is HclDocumentSyntaxNode direct) return direct;
-        return root.FirstChildOfType<HclDocumentSyntaxNode>();
-    }
-
-    private static void ExtractTerragruntMetadata(HclFile hclFile, string fileNodeId, ModuleMemoryState state)
-    {
-        if (hclFile.FilePath.EndsWith(".hcl", StringComparison.OrdinalIgnoreCase))
-        {
-            state.TerragruntFileNodeId ??= fileNodeId;
-        }
-
-        foreach (var block in hclFile.Blocks)
-        {
-            if (string.Equals(block.BlockHeader, BlockTerraform, StringComparison.Ordinal))
-            {
-                var srcAttr = block.FindAttribute(AttrSource);
-                if (srcAttr != null)
-                {
-                    state.TerragruntSourceExpr = srcAttr.Value;
-                    state.TerragruntFileNodeId ??= fileNodeId;
-                }
-            }
-            else if (string.Equals(block.BlockHeader, BlockInclude, StringComparison.Ordinal))
-            {
-                var pathAttr = block.FindAttribute(AttrPath);
-                if (pathAttr != null)
-                {
-                    state.TerragruntIncludePathExprs.Add(pathAttr.Value);
-                    var incLabel = block.Labels.Count >= 1 ? block.Labels[0] : "root";
-                    state.IncludePathExprsBySymbol[$"include.{incLabel}"] = pathAttr.Value;
-                }
-            }
-            else if (string.Equals(block.BlockHeader, BlockDependency, StringComparison.Ordinal) && block.Labels.Count >= 1)
-            {
-                var cfgAttr = block.FindAttribute(AttrConfigPath);
-                if (cfgAttr != null)
-                {
-                    state.DependencyConfigPathExprs[$"dependency.{block.Labels[0]}"] = cfgAttr.Value;
-                }
-            }
-            else if (string.Equals(block.BlockHeader, BlockLocals, StringComparison.Ordinal))
-            {
-                foreach (var attr in block.Attributes)
-                {
-                    if (attr.Value.TryGetStringLiteral() is { Length: > 0 } strLit)
-                    {
-                        state.LocalStrings[$"local.{attr.Name}"] = strLit;
-                    }
-                }
-            }
-        }
-
-        var inputsAttr = hclFile.FindAttribute(AttrInputs);
-        if (inputsAttr != null)
-        {
-            state.TerragruntFileNodeId = fileNodeId;
-            state.TerragruntInputsLine = inputsAttr.Line;
-            foreach (var entry in TerraformDeclarationMapper.EnumerateObjectEntries(inputsAttr.Value))
-            {
-                if (!string.IsNullOrEmpty(entry.Name))
-                {
-                    state.TerragruntInputs[entry.Name] = entry.Value.CollectReferences(entry.Name);
-                }
-            }
-        }
-    }
-
     private static void EnrichIntraModuleDependencies(
-        ModuleMemoryState module,
+        TerraformModuleMemoryState module,
         Action<OntologyRelationship> addRel)
     {
         foreach (var sym in module.AllSymbols)
@@ -303,8 +174,8 @@ public static class TerraformSemanticEnricher
     }
 
     private static void EnrichModuleInputsAndOutputs(
-        ModuleMemoryState module,
-        Dictionary<string, ModuleMemoryState> allModules,
+        TerraformModuleMemoryState module,
+        Dictionary<string, TerraformModuleMemoryState> allModules,
         string workspaceRoot,
         HashSet<string> fileSet,
         HashSet<string> dirSet,
@@ -376,8 +247,8 @@ public static class TerraformSemanticEnricher
 
     private static void WireModuleInputs(
         TerraformSymbol moduleSym,
-        ModuleMemoryState callerModule,
-        ModuleMemoryState targetModule,
+        TerraformModuleMemoryState callerModule,
+        TerraformModuleMemoryState targetModule,
         Action<OntologyRelationship> addRel)
     {
         if (moduleSym.ModuleInputs == null) return;
@@ -410,8 +281,8 @@ public static class TerraformSemanticEnricher
     }
 
     private static void EnrichTerragruntInputs(
-        ModuleMemoryState module,
-        Dictionary<string, ModuleMemoryState> allModules,
+        TerraformModuleMemoryState module,
+        Dictionary<string, TerraformModuleMemoryState> allModules,
         string workspaceRoot,
         HashSet<string> fileSet,
         HashSet<string> dirSet,
@@ -495,8 +366,8 @@ public static class TerraformSemanticEnricher
     }
 
     private static void EnrichTerragruntIncludes(
-        ModuleMemoryState module,
-        Dictionary<string, ModuleMemoryState> allModules,
+        TerraformModuleMemoryState module,
+        Dictionary<string, TerraformModuleMemoryState> allModules,
         string workspaceRoot,
         HashSet<string> fileSet,
         HashSet<string> dirSet,
@@ -571,8 +442,8 @@ public static class TerraformSemanticEnricher
     }
 
     private static void EnrichTerragruntDependencyOutputs(
-        ModuleMemoryState module,
-        Dictionary<string, ModuleMemoryState> allModules,
+        TerraformModuleMemoryState module,
+        Dictionary<string, TerraformModuleMemoryState> allModules,
         string workspaceRoot,
         HashSet<string> fileSet,
         HashSet<string> dirSet,
@@ -642,8 +513,8 @@ public static class TerraformSemanticEnricher
     }
 
     private static string? ResolveTerragruntTargetModuleDir(
-        ModuleMemoryState module,
-        Dictionary<string, ModuleMemoryState> allModules,
+        TerraformModuleMemoryState module,
+        Dictionary<string, TerraformModuleMemoryState> allModules,
         string workspaceRoot,
         HashSet<string> fileSet,
         HashSet<string> dirSet)
@@ -701,8 +572,8 @@ public static class TerraformSemanticEnricher
 
     private static void EnrichCloudInfrastructure(
         string workspaceId,
-        ModuleMemoryState module,
-        Dictionary<string, ModuleMemoryState> allModules,
+        TerraformModuleMemoryState module,
+        HashSet<string> duplicateResourceShortNames,
         Action<IOntologyNode> addSemanticNode,
         Action<OntologyRelationship> addRel)
     {
@@ -741,7 +612,7 @@ public static class TerraformSemanticEnricher
                 var dbId = $"{workspaceId}:{OntologyConstants.IdPrefixes.Database}:{TfSegment}:{sym.ModuleDir}:{sym.CanonicalName}";
                 var explicitEngine = FindResourceAttributeString(module, sym, AttrEngine);
                 var literalDbName = FindResourceFirstAttributeString(module, sym, DatabaseNameAttributes);
-                var dbNodeName = literalDbName ?? BuildQualifiedResourceName(module, allModules, sym);
+                var dbNodeName = literalDbName ?? BuildQualifiedResourceName(module, duplicateResourceShortNames, sym);
                 var dbNode = new DatabaseNode(dbId, dbNodeName, sym.RelativeFilePath, classification.DbSystem)
                 {
                     Engine = CloudResourceCatalog.InferDatabaseEngine(sym.BlockClass, explicitEngine),
@@ -773,7 +644,7 @@ public static class TerraformSemanticEnricher
             else if (classification.Category == InfraCategory.Topic && classification.BrokerEngine != null)
             {
                 var literalTopicName = FindResourceFirstAttributeString(module, sym, TopicNameAttributes);
-                var topicName = literalTopicName ?? BuildQualifiedResourceName(module, allModules, sym);
+                var topicName = literalTopicName ?? BuildQualifiedResourceName(module, duplicateResourceShortNames, sym);
                 var topicId = literalTopicName != null
                     ? $"{workspaceId}:{OntologyConstants.IdPrefixes.Topic}:{classification.BrokerEngine}:{literalTopicName}"
                     : $"{workspaceId}:{OntologyConstants.IdPrefixes.Topic}:{TfSegment}:{sym.ModuleDir}:{sym.CanonicalName}";
@@ -810,8 +681,8 @@ public static class TerraformSemanticEnricher
     }
 
     private static string BuildQualifiedResourceName(
-        ModuleMemoryState module,
-        Dictionary<string, ModuleMemoryState> allModules,
+        TerraformModuleMemoryState module,
+        HashSet<string> duplicateResourceShortNames,
         TerraformSymbol sym)
     {
         var duplicateInSameModule = false;
@@ -826,21 +697,7 @@ public static class TerraformSemanticEnricher
             }
         }
 
-        var duplicateAcrossModules = false;
-        foreach (var (_, modState) in allModules)
-        {
-            foreach (var other in modState.AllSymbols)
-            {
-                if (other.Kind == TerraformSymbolKind.Resource &&
-                    !ReferenceEquals(other, sym) &&
-                    string.Equals(other.ShortName, sym.ShortName, StringComparison.Ordinal))
-                {
-                    duplicateAcrossModules = true;
-                    break;
-                }
-            }
-            if (duplicateAcrossModules) break;
-        }
+        var duplicateAcrossModules = duplicateResourceShortNames.Contains(sym.ShortName);
 
         if (!GenericResourceLabels.Contains(sym.ShortName) && !duplicateAcrossModules && !duplicateInSameModule)
         {
@@ -858,7 +715,7 @@ public static class TerraformSemanticEnricher
     }
 
     private static string? FindResourceFirstAttributeString(
-        ModuleMemoryState module,
+        TerraformModuleMemoryState module,
         TerraformSymbol sym,
         IReadOnlyList<string> attrNames)
     {
@@ -873,7 +730,7 @@ public static class TerraformSemanticEnricher
         return null;
     }
 
-    private static string? FindResourceAttributeString(ModuleMemoryState module, TerraformSymbol sym, string attrName)
+    private static string? FindResourceAttributeString(TerraformModuleMemoryState module, TerraformSymbol sym, string attrName)
     {
         foreach (var hclFile in module.HclFiles)
         {
@@ -897,56 +754,8 @@ public static class TerraformSemanticEnricher
         return null;
     }
 
-    private static HashSet<string> BuildInMemoryFileSet(ProjectEnrichmentContext context)
-    {
-        var set = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        foreach (var file in context.AllFiles)
-        {
-            if (!string.IsNullOrEmpty(file.FullPath))
-            {
-                set.Add(TerraformPathResolver.NormalizeDirPath(file.FullPath));
-            }
-            if (!string.IsNullOrEmpty(file.Path))
-            {
-                var full = CombineWorkspacePath(context.AbsoluteWorkspacePath, file.Path);
-                set.Add(TerraformPathResolver.NormalizeDirPath(full));
-            }
-        }
-        return set;
-    }
-
-    private static HashSet<string> BuildInMemoryDirSet(ProjectEnrichmentContext context, IEnumerable<string> moduleDirs)
-    {
-        var set = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
-        {
-            TerraformPathResolver.NormalizeDirPath(context.AbsoluteWorkspacePath)
-        };
-
-        foreach (var proj in context.AllProjects)
-        {
-            set.Add(CombineWorkspacePath(context.AbsoluteWorkspacePath, proj.Path));
-        }
-
-        foreach (var modDir in moduleDirs)
-        {
-            set.Add(CombineWorkspacePath(context.AbsoluteWorkspacePath, modDir));
-        }
-
-        foreach (var file in context.AllFiles)
-        {
-            var relDir = TerraformDeclarationMapper.GetModuleDir(file.Path);
-            set.Add(CombineWorkspacePath(context.AbsoluteWorkspacePath, relDir));
-        }
-
-        return set;
-    }
-
-    private static string CombineWorkspacePath(string workspaceRoot, string relativePath)
-    {
-        var normRoot = TerraformPathResolver.NormalizeDirPath(workspaceRoot);
-        var normRel = NormalizeRelativeDir(relativePath);
-        return string.IsNullOrEmpty(normRel) ? normRoot : $"{normRoot}/{normRel}";
-    }
+    private static string CombineWorkspacePath(string workspaceRoot, string relativePath) =>
+        TerraformWorkspaceCache.CombineWorkspacePath(workspaceRoot, relativePath);
 
     private static string? ToRelativeModuleDir(string workspaceRoot, string? resolvedAbsDir)
     {
@@ -969,11 +778,5 @@ public static class TerraformSemanticEnricher
             return normTarget[prefix.Length..];
         }
         return null;
-    }
-
-    private static string NormalizeRelativeDir(string? path)
-    {
-        if (string.IsNullOrWhiteSpace(path) || path == ".") return string.Empty;
-        return path.Replace('\\', '/').Trim('/');
     }
 }

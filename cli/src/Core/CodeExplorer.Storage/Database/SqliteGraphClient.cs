@@ -24,6 +24,7 @@ public partial class SqliteGraphClient : IGraphClient, IDisposable
     private bool _bulkIsFreshDb;
     private bool _bulkDropIdentifierIndex;
     private bool _freshBulkLoadJustCommitted;
+    private StreamingBulkLoadSession? _bulkSession;
     private readonly Dictionary<string, Node> _bulkNodes = new(StringComparer.Ordinal);
     private readonly Dictionary<(string From, string To, RelationshipKind Kind), Relationship> _bulkRelationships = new();
     private readonly Dictionary<string, List<string>> _bulkProjectExternalApis = new(StringComparer.Ordinal);
@@ -132,6 +133,9 @@ public partial class SqliteGraphClient : IGraphClient, IDisposable
                 ResetTaxonomyInMemory();
                 DropGraphSecondaryIndices();
             }
+
+            var switchedToMemJournal = await ConfigureBulkLoadPragmasUnlockedAsync(_bulkIsFreshDb, cancellationToken);
+            _bulkSession = await StreamingBulkLoadSession.StartAsync(_conn, _bulkIsFreshDb, switchedToMemJournal, cancellationToken);
         }
         finally
         {
@@ -159,12 +163,15 @@ public partial class SqliteGraphClient : IGraphClient, IDisposable
     private void ResetBulkLoadStateUnlocked()
     {
         var wasFresh = _isBulkLoading && _bulkIsFreshDb;
+        var session = _bulkSession;
+        _bulkSession = null;
         _isBulkLoading = false;
         _bulkIsFreshDb = false;
         _bulkDropIdentifierIndex = false;
         _bulkNodes.Clear();
         _bulkRelationships.Clear();
         _bulkProjectExternalApis.Clear();
+        session?.Dispose();
         if (wasFresh)
         {
             CreateGraphSecondaryIndices();
@@ -179,123 +186,35 @@ public partial class SqliteGraphClient : IGraphClient, IDisposable
         _bulkIsFreshDb = false;
         var dropIdIdx = _bulkDropIdentifierIndex;
         _bulkDropIdentifierIndex = false;
+        var session = _bulkSession;
+        _bulkSession = null;
 
         var sw = Stopwatch.StartNew();
-        var nodesCount = _bulkNodes.Count;
-        var relsCount = _bulkRelationships.Count;
-        var switchedToMemoryJournal = false;
+        var totalNodesCount = (session?.StreamedNodeCount ?? 0) + _bulkNodes.Count;
+        var totalRelsCount = (session?.StreamedEdgeCount ?? 0) + _bulkRelationships.Count;
+        var switchedToMemoryJournal = session?.SwitchedToMemoryJournal ?? false;
 
         try
         {
-            if (nodesCount > 0 || relsCount > 0 || _bulkProjectExternalApis.Count > 0)
+            if (session != null)
             {
-                switchedToMemoryJournal = await ConfigureBulkLoadPragmasUnlockedAsync(isFresh, cancellationToken);
-
-                await using var tx = (SqliteTransaction)await _conn.BeginTransactionAsync(cancellationToken);
-
-                if (isFresh)
+                if (!isFresh && dropIdIdx)
                 {
-                    await using var delWsCmd = _conn.CreateCommand();
-                    delWsCmd.CommandTimeout = 0;
-                    delWsCmd.Transaction = tx;
-                    delWsCmd.CommandText = "DELETE FROM edges; DELETE FROM nodes;";
-                    await delWsCmd.ExecuteNonQueryAsync(cancellationToken);
-                }
-                else if (dropIdIdx)
-                {
-                    await using var delCmd = _conn.CreateCommand();
-                    delCmd.CommandTimeout = 0;
-                    delCmd.Transaction = tx;
-                    delCmd.CommandText = $"DELETE FROM edges WHERE kind IN ({GraphKindCodec.RelKindsInSql(RelationshipKind.TransitivelyCalls, RelationshipKind.AttributedTo)});";
-                    await delCmd.ExecuteNonQueryAsync(cancellationToken);
+                    await session.DeletePostIndexEdgesForNonFreshAsync(cancellationToken);
                 }
 
-                const string paramRowId = "@r";
-                const string paramI = "@i";
-                const string paramK = "@k";
-                const string paramP = "@p";
-                const string paramDomains = "@domains";
-                const string paramId = "@id";
-
-                var nodeRowIds = relsCount > 0
-                    ? new Dictionary<string, long>(Math.Max(nodesCount, 1024), StringComparer.Ordinal)
-                    : null;
-
-                if (nodesCount > 0)
+                foreach (var (_, node) in _bulkNodes)
                 {
-                    await using var nodeCmd = _conn.CreateCommand();
-                    nodeCmd.CommandTimeout = 0;
-                    nodeCmd.Transaction = tx;
-                    nodeCmd.CommandText = isFresh
-                        ? "INSERT INTO nodes (rowid, id, kind, properties) VALUES (@r, @i, @k, jsonb(@p));"
-                        : "INSERT INTO nodes (id, kind, properties) VALUES (@i, @k, jsonb(@p)) ON CONFLICT(id) DO UPDATE SET kind = excluded.kind, properties = excluded.properties;";
-                    var pRowId = isFresh ? nodeCmd.Parameters.Add(paramRowId, SqliteType.Integer) : null;
-                    var pId = nodeCmd.Parameters.Add(paramI, SqliteType.Text);
-                    var pKind = nodeCmd.Parameters.Add(paramK, SqliteType.Integer);
-                    var pProps = nodeCmd.Parameters.Add(paramP, SqliteType.Text);
-                    nodeCmd.Prepare();
-
-                    var nodeBufferWriter = new ArrayBufferWriter<byte>(1024);
-                    using var nodeJsonWriter = new Utf8JsonWriter(nodeBufferWriter);
-                    long nextRowId = 1;
-                    foreach (var (id, node) in _bulkNodes)
-                    {
-                        if (pRowId != null)
-                        {
-                            var rowId = nextRowId++;
-                            pRowId.Value = rowId;
-                            nodeRowIds?[id] = rowId;
-                        }
-                        nodeBufferWriter.Clear();
-                        nodeJsonWriter.Reset(nodeBufferWriter);
-                        NodeFactory.WriteJsonProperties(node, nodeJsonWriter);
-                        nodeJsonWriter.Flush();
-
-                        pId.Value = id;
-                        pKind.Value = (int)node.NodeKind;
-                        pProps.Value = Encoding.UTF8.GetString(nodeBufferWriter.WrittenSpan);
-                        nodeCmd.ExecuteNonQuery();
-                    }
+                    session.StreamOrUpdateNode(node);
                 }
 
-                if (_bulkProjectExternalApis.Count > 0)
-                {
-                    await using var updCmd = _conn.CreateCommand();
-                    updCmd.CommandTimeout = 0;
-                    updCmd.Transaction = tx;
-                    updCmd.CommandText =
-                        "UPDATE nodes SET properties = jsonb_set(properties, '$.external_apis', jsonb(@domains)) WHERE id = @id;";
-                    var pDomains = updCmd.Parameters.Add(paramDomains, SqliteType.Text);
-                    var pId = updCmd.Parameters.Add(paramId, SqliteType.Text);
-                    updCmd.Prepare();
-
-                    foreach (var (projId, domains) in _bulkProjectExternalApis)
-                    {
-                        pId.Value = projId;
-                        pDomains.Value = JsonSerializer.Serialize(domains);
-                        updCmd.ExecuteNonQuery();
-                    }
-                }
-
-                if (relsCount > 0 && nodeRowIds != null)
-                {
-                    if (!isFresh)
-                    {
-                        await using var mapCmd = _conn.CreateCommand();
-                        mapCmd.CommandTimeout = 0;
-                        mapCmd.Transaction = tx;
-                        mapCmd.CommandText = "SELECT id, rowid FROM nodes;";
-                        await using var mapReader = await mapCmd.ExecuteReaderAsync(cancellationToken);
-                        while (await mapReader.ReadAsync(cancellationToken))
-                        {
-                            nodeRowIds[mapReader.GetString(0)] = mapReader.GetInt64(1);
-                        }
-                    }
-
-                    BulkInsertRelationshipsUnlocked(tx, isFresh, nodeRowIds);
-                }
-
-                await tx.CommitAsync(cancellationToken);
+                session.ApplyProjectExternalApis(_bulkProjectExternalApis);
+                session.FlushDeferredRelationships(_bulkRelationships);
+                totalNodesCount = session.StreamedNodeCount;
+                totalRelsCount = session.StreamedEdgeCount;
+                await session.CommitAsync(cancellationToken);
+                await session.DisposeAsync();
+                session = null;
             }
 
             if (dropIdIdx)
@@ -315,6 +234,11 @@ public partial class SqliteGraphClient : IGraphClient, IDisposable
         }
         finally
         {
+            if (session != null)
+            {
+                await session.DisposeAsync();
+            }
+
             _bulkNodes.Clear();
             _bulkRelationships.Clear();
             _bulkProjectExternalApis.Clear();
@@ -329,10 +253,10 @@ public partial class SqliteGraphClient : IGraphClient, IDisposable
         }
 
         sw.Stop();
-        if (nodesCount > 0 || relsCount > 0)
+        if (totalNodesCount > 0 || totalRelsCount > 0)
         {
             _logger.LogInformation("[Database   ] Bulk-flushed {Nodes:N0} nodes and {Rels:N0} relationships (with index build) in {ElapsedMs:N0}ms.",
-                nodesCount, relsCount, sw.Elapsed.TotalMilliseconds);
+                totalNodesCount, totalRelsCount, sw.Elapsed.TotalMilliseconds);
             ParserRegistry.OnIndexCompletedHook?.Invoke();
         }
     }
@@ -358,6 +282,11 @@ public partial class SqliteGraphClient : IGraphClient, IDisposable
         }
     }
 
+    public Node? StagedWorkspaceNode =>
+        _isBulkLoading
+            ? _bulkNodes.Values.FirstOrDefault(static n => n.NodeKind == NodeKind.Workspace)
+            : null;
+
     public async Task SaveEmptyWorkspaceNodeAsync(string id, string path)
     {
         var normalized = path.Replace('\\', '/');
@@ -379,7 +308,8 @@ public partial class SqliteGraphClient : IGraphClient, IDisposable
                     {
                         existingName = await _conn.ExecuteScalarAsync<string?>(
                             "SELECT json_extract(properties, '$.name') FROM nodes WHERE id = @id LIMIT 1;",
-                            new { id });
+                            new { id },
+                            transaction: _bulkSession?.Transaction);
                     }
 
                     var wsProps = new Dictionary<string, object>(StringComparer.Ordinal)
@@ -425,7 +355,14 @@ public partial class SqliteGraphClient : IGraphClient, IDisposable
                 for (var i = 0; i < distinctNodes.Count; i++)
                 {
                     var node = distinctNodes[i];
-                    _bulkNodes[node.Id] = node;
+                    if (_bulkSession != null && !StreamingBulkLoadSession.IsPostIndexStagedNodeKind(node.NodeKind))
+                    {
+                        _bulkSession.StreamOrUpdateNode(node);
+                    }
+                    else
+                    {
+                        _bulkNodes[node.Id] = node;
+                    }
                 }
 
                 RecordNodesInTaxonomy(distinctNodes);
@@ -500,6 +437,11 @@ public partial class SqliteGraphClient : IGraphClient, IDisposable
                 for (var i = 0; i < distinctRels.Count; i++)
                 {
                     var rel = distinctRels[i];
+                    if (_bulkSession != null && _bulkSession.TryStreamImmediateEdge(rel))
+                    {
+                        continue;
+                    }
+
                     var key = (rel.From, rel.To, rel.Kind);
                     if (!_bulkRelationships.TryGetValue(key, out var existing))
                     {
@@ -696,7 +638,7 @@ public partial class SqliteGraphClient : IGraphClient, IDisposable
     }
 
     private bool HasPendingBulkMutations =>
-        _isBulkLoading && (_bulkNodes.Count > 1 || _bulkRelationships.Count > 0 || _bulkProjectExternalApis.Count > 0);
+        _isBulkLoading && ((_bulkSession?.StreamedNodeCount ?? 0) > 0 || _bulkNodes.Count > 1 || _bulkRelationships.Count > 0 || _bulkProjectExternalApis.Count > 0);
 
     public async Task<int> ExecuteCountAsync(CypherQuery query, IReadOnlyDictionary<string, object?>? parameters = null, CancellationToken ct = default)
     {

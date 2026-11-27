@@ -18,33 +18,127 @@ public static class OntologyUploader
     private const string ScanIssueMarker = ":scan_issue:";
     private const string MemberMarker = ":Member:";
 
-    public static async Task UploadNodeTreeAsync(IOntologyNode node, string? parentId, Layer4Context ctx)
+    public static Task UploadNodeTreeAsync(IOntologyNode node, string? parentId, Layer4Context ctx) =>
+        UploadNodeTreeCoreAsync(node, parentId, ctx, null, null, deferReferenceFiltering: false);
+
+    internal static async Task UploadProjectSubtreeAsync(
+        ProjectSyntaxNode projectSyntaxNode,
+        SyntaxStructureNode syntaxStructureNode,
+        IReadOnlyList<(IOntologyNode ParentNode, IOntologyNode FileNode)> parsedFiles,
+        Layer4Context ctx,
+        HashSet<string> sharedVisitedNodeIds,
+        HashSet<(string From, string To, RelationshipKind Kind)> sharedVisitedRelKeys)
     {
         var collectedNodes = new List<Node>();
         var collectedRelationships = new List<Relationship>();
-        var visitedNodeIds = new HashSet<string>();
-        var visitedRelKeys = new HashSet<(string From, string To, RelationshipKind Kind)>();
+        var nodesWithRefs = new List<IOntologyNode>();
+
+        for (var i = 0; i < parsedFiles.Count; i++)
+        {
+            var (parentNode, fileNode) = parsedFiles[i];
+            CollectTreeElements(
+                fileNode,
+                parentNode,
+                ctx,
+                collectedNodes,
+                collectedRelationships,
+                sharedVisitedNodeIds,
+                sharedVisitedRelKeys,
+                nodesWithRefs);
+        }
+
+        CollectTreeElements(
+            projectSyntaxNode,
+            syntaxStructureNode,
+            ctx,
+            collectedNodes,
+            collectedRelationships,
+            sharedVisitedNodeIds,
+            sharedVisitedRelKeys,
+            nodesWithRefs);
+
+        DrainNodeReferences(nodesWithRefs, ctx, deferReferenceFiltering: true);
+        await FlushCollectedBatchAsync(collectedNodes, collectedRelationships, ctx);
+    }
+
+    internal static Task UploadRemainingWorkspaceSkeletonAsync(
+        IOntologyNode workspaceNode,
+        Layer4Context ctx,
+        HashSet<string> sharedVisitedNodeIds,
+        HashSet<(string From, string To, RelationshipKind Kind)> sharedVisitedRelKeys) =>
+        UploadNodeTreeCoreAsync(workspaceNode, null, ctx, sharedVisitedNodeIds, sharedVisitedRelKeys, deferReferenceFiltering: false);
+
+    internal static void FilterWorkspaceReferences(Layer4Context ctx)
+    {
+        if (ctx.GlobalReferences.Count == 0) return;
+
+        ctx.GlobalReferences.RemoveAll(refItem =>
+            (refItem.Kind == RelationshipKind.Calls &&
+             !refItem.HasExplicitReceiver &&
+             !ctx.IsKnownWorkspaceCallable(refItem.TargetName)) ||
+            (refItem.Kind == RelationshipKind.UsesType &&
+             !ctx.IsKnownWorkspaceType(refItem.TargetName) &&
+             !ctx.NamedBeanTypes.ContainsKey(refItem.TargetName)));
+    }
+
+    private static async Task UploadNodeTreeCoreAsync(
+        IOntologyNode node,
+        string? parentId,
+        Layer4Context ctx,
+        HashSet<string>? sharedVisitedNodeIds,
+        HashSet<(string From, string To, RelationshipKind Kind)>? sharedVisitedRelKeys,
+        bool deferReferenceFiltering)
+    {
+        _ = parentId;
+        var collectedNodes = new List<Node>();
+        var collectedRelationships = new List<Relationship>();
+        var visitedNodeIds = sharedVisitedNodeIds ?? new HashSet<string>(StringComparer.Ordinal);
+        var visitedRelKeys = sharedVisitedRelKeys ?? new HashSet<(string From, string To, RelationshipKind Kind)>();
         var nodesWithRefs = new List<IOntologyNode>();
 
         CollectTreeElements(node, null, ctx, collectedNodes, collectedRelationships, visitedNodeIds, visitedRelKeys, nodesWithRefs);
+        DrainNodeReferences(nodesWithRefs, ctx, deferReferenceFiltering);
 
+        if (sharedVisitedNodeIds == null)
+        {
+            visitedNodeIds.Clear();
+            visitedNodeIds.TrimExcess();
+        }
+
+        if (sharedVisitedRelKeys == null)
+        {
+            visitedRelKeys.Clear();
+            visitedRelKeys.TrimExcess();
+        }
+
+        await FlushCollectedBatchAsync(collectedNodes, collectedRelationships, ctx);
+    }
+
+    private static void DrainNodeReferences(
+        List<IOntologyNode> nodesWithRefs,
+        Layer4Context ctx,
+        bool deferReferenceFiltering)
+    {
         for (var n = 0; n < nodesWithRefs.Count; n++)
         {
             var refList = nodesWithRefs[n].References;
             for (var r = 0; r < refList.Count; r++)
             {
                 var refItem = refList[r];
-                if (refItem.Kind == RelationshipKind.Calls &&
-                    !refItem.HasExplicitReceiver &&
-                    !ctx.IsKnownWorkspaceCallable(refItem.TargetName))
+                if (!deferReferenceFiltering)
                 {
-                    continue;
-                }
-                if (refItem.Kind == RelationshipKind.UsesType &&
-                    !ctx.IsKnownWorkspaceType(refItem.TargetName) &&
-                    !ctx.NamedBeanTypes.ContainsKey(refItem.TargetName))
-                {
-                    continue;
+                    if (refItem.Kind == RelationshipKind.Calls &&
+                        !refItem.HasExplicitReceiver &&
+                        !ctx.IsKnownWorkspaceCallable(refItem.TargetName))
+                    {
+                        continue;
+                    }
+                    if (refItem.Kind == RelationshipKind.UsesType &&
+                        !ctx.IsKnownWorkspaceType(refItem.TargetName) &&
+                        !ctx.NamedBeanTypes.ContainsKey(refItem.TargetName))
+                    {
+                        continue;
+                    }
                 }
                 ctx.GlobalReferences.Add(refItem);
             }
@@ -57,11 +151,13 @@ public static class OntologyUploader
         }
         nodesWithRefs.Clear();
         nodesWithRefs.TrimExcess();
-        visitedNodeIds.Clear();
-        visitedNodeIds.TrimExcess();
-        visitedRelKeys.Clear();
-        visitedRelKeys.TrimExcess();
+    }
 
+    private static async Task FlushCollectedBatchAsync(
+        List<Node> collectedNodes,
+        List<Relationship> collectedRelationships,
+        Layer4Context ctx)
+    {
         // Store only PostIndex/Layer5-relevant tree relationships in ctx to minimize retained heap memory
         for (var i = 0; i < collectedRelationships.Count; i++)
         {

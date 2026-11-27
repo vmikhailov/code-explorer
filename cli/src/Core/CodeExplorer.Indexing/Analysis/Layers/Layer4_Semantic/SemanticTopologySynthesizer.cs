@@ -84,6 +84,16 @@ internal static class SemanticTopologySynthesizer
             }
         }
 
+        var runtimeWorkloadIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        for (var i = 0; i < semanticStructureNode.Children.Count; i++)
+        {
+            var child = semanticStructureNode.Children[i];
+            if (child is ServiceNode or WorkerNode or AppNode)
+            {
+                runtimeWorkloadIds.Add(child.Id);
+            }
+        }
+
         foreach (var project in nonTestRustProjects)
         {
             cancellationToken.ThrowIfCancellationRequested();
@@ -98,9 +108,7 @@ internal static class SemanticTopologySynthesizer
             // Only long-running workloads inherit evidence from reachable dependency code; for CLIs the import-level
             // reachability is too coarse (importing a type pulls in its whole module) to attribute infrastructure.
             var isRuntimeWorkload = workloadByProjectId.TryGetValue(project.Id, out var workloadId) &&
-                                    semanticStructureNode.Children.Any(node =>
-                                        node.Id.Equals(workloadId, StringComparison.OrdinalIgnoreCase) &&
-                                        node is ServiceNode or WorkerNode or AppNode);
+                                    runtimeWorkloadIds.Contains(workloadId);
             var reachableFiles = isRuntimeWorkload
                 ? GetReachableDependencyFiles(project, ctx.AbsoluteWorkspacePath)
                 : [];

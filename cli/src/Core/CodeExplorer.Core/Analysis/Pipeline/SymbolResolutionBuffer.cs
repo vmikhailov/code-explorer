@@ -20,6 +20,7 @@ public sealed class SymbolResolutionBuffer
     public List<RawImport> RawImports { get; } = [];
     public List<RawVariable> RawVariables { get; } = [];
     public List<RawTypeBinding> RawTypeBindings { get; } = [];
+    public List<ProjectScanSummary> ProjectSummaries { get; } = [];
     public HashSet<string> KnownFunctionIds { get; } = new(StringComparer.Ordinal);
     public bool HasWorkspaceSymbolFilter { get; set; }
 
@@ -184,6 +185,8 @@ public sealed class SymbolResolutionBuffer
         KnownWorkspaceTypeNames.Clear();
         GlobalSymbolKeys.Clear();
         GlobalSymbolKeys.TrimExcess();
+        ProjectSummaries.Clear();
+        ProjectSummaries.TrimExcess();
     }
 
     public void EvictGlobalSymbolsAndFunctions(bool lightweightAstMode)

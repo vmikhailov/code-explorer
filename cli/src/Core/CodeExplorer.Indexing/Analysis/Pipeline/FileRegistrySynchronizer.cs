@@ -33,9 +33,54 @@ internal sealed class FileRegistrySynchronizer(IGraphClient dbClient, FileRegist
         return snapshots;
     }
 
-    public async Task SyncAsync(
+    public static void AppendProjectStructuralHashes(
+        IReadOnlyList<SyntaxTree> projectTrees,
+        Dictionary<string, string> structuralHashesByNormFullPath)
+    {
+        for (var i = 0; i < projectTrees.Count; i++)
+        {
+            var st = projectTrees[i];
+            if (st.FileNode == null) continue;
+            var normPath = st.FilePath.NormalizeSlashes();
+            if (structuralHashesByNormFullPath.ContainsKey(normPath)) continue;
+
+            var relPath = !string.IsNullOrEmpty(st.FileNode.Path) ? st.FileNode.Path : st.RelativePath;
+            var hash = st.FileNode.ContentHash ?? string.Empty;
+            var lastMod = st.FileNode.LastModifiedUtc ?? DateTime.MinValue;
+            var snapshot = FileSnapshotBuilder.BuildFromSyntaxTree(
+                st,
+                relPath,
+                hash,
+                lastMod,
+                includeSemanticFootprint: false);
+            structuralHashesByNormFullPath[normPath] = snapshot.ComputeStructuralHash();
+        }
+    }
+
+    public Task SyncWithHashesAsync(
+        List<FileNode> files,
+        Dictionary<string, string> precomputedStructuralHashes,
+        WorkspaceScope scope,
+        GraphWriteSink sink,
+        Layer1Result l1,
+        ConcurrentDictionary<string, (string FullPath, DateTime LastModifiedUtc, long SizeBytes)>? skippedFiles,
+        bool isIncremental) =>
+        SyncCoreAsync(files, precomputedSnapshots: null, precomputedStructuralHashes, scope, sink, l1, skippedFiles, isIncremental);
+
+    public Task SyncAsync(
         List<FileNode> files,
         Dictionary<string, FileGraphSnapshot> precomputedSnapshots,
+        WorkspaceScope scope,
+        GraphWriteSink sink,
+        Layer1Result l1,
+        ConcurrentDictionary<string, (string FullPath, DateTime LastModifiedUtc, long SizeBytes)>? skippedFiles,
+        bool isIncremental) =>
+        SyncCoreAsync(files, precomputedSnapshots, precomputedStructuralHashes: null, scope, sink, l1, skippedFiles, isIncremental);
+
+    private async Task SyncCoreAsync(
+        List<FileNode> files,
+        Dictionary<string, FileGraphSnapshot>? precomputedSnapshots,
+        Dictionary<string, string>? precomputedStructuralHashes,
         WorkspaceScope scope,
         GraphWriteSink sink,
         Layer1Result l1,
@@ -85,7 +130,14 @@ internal sealed class FileRegistrySynchronizer(IGraphClient dbClient, FileRegist
             FileGraphSnapshot? snapshot = null;
 
             var normalizedFullPath = file.FullPath.Replace('\\', '/');
-            if (precomputedSnapshots.TryGetValue(normalizedFullPath, out var precomputed))
+            if (precomputedStructuralHashes != null &&
+                precomputedStructuralHashes.TryGetValue(normalizedFullPath, out var precomputedHash))
+            {
+                snapshotJson = precomputedHash;
+                snapshot = FileGraphSnapshot.FromStructuralHash(file.Path, hash, lastMod, precomputedHash);
+            }
+            else if (precomputedSnapshots != null &&
+                     precomputedSnapshots.TryGetValue(normalizedFullPath, out var precomputed))
             {
                 snapshot = (precomputed.ContentHash == hash && precomputed.LastModifiedUtc == lastMod)
                     ? precomputed

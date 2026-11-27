@@ -1,0 +1,21 @@
+id: SIG-P-B-014
+category: Architectural
+platform: agnostic
+scope: Module
+dimension: Boundaries
+name: 'Per-Project AST & Scope Body Eviction Boundary'
+severity: Error
+description: 'Project syntax trees (SyntaxTree) and intra-function control-flow scopes (ScopeNode) must be streamed to storage and evicted upon completing each project. Layer 5 global resolution and post-indexing must consume flat ProjectScanSummary stubs and symbol headers without referencing SyntaxTree or ScopeNode.'
+remediation: 'Extract any required cross-project metadata into ProjectScanSummary, AddressableSymbolStub, or FunctionFlowSummary during the per-project pass instead of retaining SyntaxTree or ScopeNode into Layer 5.'
+message: "Layer 5 component '{src.name}' ({src.path}) illegally references per-project AST/body type '{tgt.name}'"
+thresholds:
+  warning: 1
+  error: 1
+query: |
+  MATCH (src)-[r:USES_TYPE|CALLS]->(tgt:Type)
+  WHERE (src.path CONTAINS 'Layer5_Global' OR src.file_path CONTAINS 'Layer5_Global')
+    AND NOT coalesce(src.is_test, false)
+    AND tgt.name IN ['SyntaxTree', 'ScopeNode', 'SyntaxDocument']
+  RETURN src, r, tgt
+ratchet:
+  enabled: false

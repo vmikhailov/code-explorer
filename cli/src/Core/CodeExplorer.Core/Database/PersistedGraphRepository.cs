@@ -21,6 +21,11 @@ public class PersistedGraphRepository(IGraphClient client) : IGraphRepository
             return await _directRepo.GetWorkspaceAsync(ct);
         }
 
+        if (_client.StagedWorkspaceNode is { } stagedWs)
+        {
+            return NodeFactory.ToWorkspaceNode(stagedWs);
+        }
+
         try
         {
             var wsEntity = await _client.Graph.Workspaces.FirstOrDefaultAsync(ct);

@@ -33,6 +33,67 @@ internal static class PipelineMemoryEvictor
         layer3.SyntaxTrees.TrimExcess();
     }
 
+    public static void EvictCompletedProjectSyntacticBodies(
+        ProjectSyntaxNode projectSyntaxNode,
+        List<SyntaxTree> projectTrees,
+        bool retainTerraformAst,
+        bool lightweightAstScanMode)
+    {
+        if (lightweightAstScanMode) return;
+
+        for (var i = 0; i < projectTrees.Count; i++)
+        {
+            var st = projectTrees[i];
+            if (st.FileNode != null)
+            {
+                PruneProjectInternalBodies(st.FileNode);
+            }
+
+            var isTerraformTree = string.Equals(st.FileParser.LanguageName, LangTerraform, StringComparison.OrdinalIgnoreCase);
+            if (!(retainTerraformAst && isTerraformTree))
+            {
+                st.Dispose();
+                st.RawImports.Clear();
+                st.RawImports.TrimExcess();
+            }
+        }
+
+        PruneProjectInternalBodies(projectSyntaxNode);
+        projectTrees.Clear();
+        projectTrees.TrimExcess();
+    }
+
+    private static void PruneProjectInternalBodies(IOntologyNode parent) =>
+        PruneProjectInternalBodiesRecursive(parent, new HashSet<IOntologyNode>(ReferenceEqualityComparer.Instance));
+
+    private static void PruneProjectInternalBodiesRecursive(IOntologyNode parent, HashSet<IOntologyNode> visited)
+    {
+        if (parent.Children.Count == 0 || !visited.Add(parent)) return;
+
+        if (parent is FunctionNode fn)
+        {
+            parent.Children.RemoveAll(c =>
+                c is ScopeNode or MemberNode ||
+                (c is CallLiteralNode lit && lit.ArgIndex != 0 && lit.Line > fn.StartLine + 1));
+        }
+        else if (parent is TypeNode)
+        {
+            parent.Children.RemoveAll(static c =>
+                c is ScopeNode or CallLiteralNode);
+        }
+        else
+        {
+            parent.Children.RemoveAll(static c =>
+                c is ScopeNode or CallLiteralNode ||
+                (c is MemberNode mn && mn.MemberKind is MemberKind.Variable or MemberKind.Parameter));
+        }
+
+        for (var i = 0; i < parent.Children.Count; i++)
+        {
+            PruneProjectInternalBodiesRecursive(parent.Children[i], visited);
+        }
+    }
+
     public static void TryReleaseDocumentEarlyInLayer3(SyntaxTree syntaxTree, bool lightweightAstScanMode)
     {
         if (lightweightAstScanMode) return;

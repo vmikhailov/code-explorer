@@ -396,7 +396,8 @@ public partial class CSharpProjectParser : IProjectParser
         {
             IsWebSdk = isWeb,
             IsWorkerSdk = isWorker,
-            IsExecutable = isExe
+            IsExecutable = isExe,
+            FriendAssemblies = doc != null ? ExtractInternalsVisibleToFromDoc(doc) : null
         };
 
         return new ParsedProjectDescriptor(
@@ -408,6 +409,50 @@ public partial class CSharpProjectParser : IProjectParser
             ProducedPackage: produced,
             Dependencies: deps,
             ManifestMetadata: mergedMeta);
+    }
+
+    private static IReadOnlyList<string>? ExtractInternalsVisibleToFromDoc(XDocument doc)
+    {
+        const string ivtElem = "InternalsVisibleTo";
+        const string asmAttrElem = "AssemblyAttribute";
+        const string ivtAttrName = "InternalsVisibleToAttribute";
+        const string param1Elem = "_Parameter1";
+        const string includeAttr = "Include";
+
+        List<string>? friends = null;
+        foreach (var elem in doc.Descendants())
+        {
+            var local = elem.Name.LocalName;
+            if (local.Equals(ivtElem, StringComparison.OrdinalIgnoreCase))
+            {
+                var raw = elem.Attribute(includeAttr)?.Value;
+                AddFriendAssembly(raw, ref friends);
+            }
+            else if (local.Equals(asmAttrElem, StringComparison.OrdinalIgnoreCase))
+            {
+                var attrType = elem.Attribute(includeAttr)?.Value;
+                if (attrType != null && attrType.Contains(ivtAttrName, StringComparison.OrdinalIgnoreCase))
+                {
+                    var p1 = elem.Elements().FirstOrDefault(e => e.Name.LocalName.Equals(param1Elem, StringComparison.OrdinalIgnoreCase))?.Value;
+                    AddFriendAssembly(p1, ref friends);
+                }
+            }
+        }
+
+        return friends;
+
+        static void AddFriendAssembly(string? raw, ref List<string>? list)
+        {
+            if (string.IsNullOrWhiteSpace(raw)) return;
+            var commaIdx = raw.IndexOf(',');
+            var clean = (commaIdx > 0 ? raw[..commaIdx] : raw).Trim();
+            if (clean.Length == 0 || clean.Contains("$(")) return;
+            list ??= [];
+            if (!list.Contains(clean, StringComparer.OrdinalIgnoreCase))
+            {
+                list.Add(clean);
+            }
+        }
     }
 
     private static ParsedProjectManifestMetadata? ExtractDirectoryLevelMetadata(string directoryPath, string[] filesInDirectory)

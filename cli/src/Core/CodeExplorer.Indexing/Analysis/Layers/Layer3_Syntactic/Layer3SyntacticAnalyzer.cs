@@ -19,21 +19,82 @@ public partial class Layer3SyntacticParser
 
     public async Task<Layer3Result> ParseAsync(Layer3Context ctx)
     {
-        var l1Result = ctx.Layer1;
-        var l2Result = ctx.Layer2;
         var sw = Stopwatch.StartNew();
         ctx.Layer3Log.ScanStarted();
 
+        var state = await InitializeStreamingStateAsync(ctx);
+        var syntaxTrees = new List<SyntaxTree>();
+
+        await foreach (var (_, projectSyntaxNode, parsedFiles) in StreamProjectBatchesAsync(
+                           ctx.Layer2,
+                           ctx,
+                           state.SyntaxStructure,
+                           state.FilesByProjectId,
+                           state.ParentByChildId,
+                           state.PrunedFileIds,
+                           ctx.CancellationToken))
+        {
+            for (var i = 0; i < parsedFiles.Count; i++)
+            {
+                var (file, syntaxTree, parentNode) = parsedFiles[i];
+                AttachParsedSyntaxTreeToHierarchy(projectSyntaxNode, file, syntaxTree, parentNode, ctx);
+                syntaxTrees.Add(syntaxTree);
+            }
+        }
+
+        await FinalizeStreamingStateAsync(ctx, state, applyWorkspaceSymbolFilter: true);
+
+        ctx.Layer3Log.ScanCompleted(syntaxTrees.Count, sw.ElapsedMilliseconds);
+        return new Layer3Result(
+            state.SyntaxStructure,
+            syntaxTrees,
+            ctx.RawImports,
+            ctx.RawVariables,
+            ctx.RawTypeBindings,
+            ctx.GlobalReferences,
+            ctx.GlobalSymbols,
+            ctx.DiscoveredContentSkippedFiles);
+    }
+
+    internal static void AttachParsedSyntaxTreeToHierarchy(
+        ProjectSyntaxNode projectSyntaxNode,
+        FileNode file,
+        SyntaxTree syntaxTree,
+        IOntologyNode parentNode,
+        Layer3Context ctx)
+    {
+        var idx = parentNode.Children.FindIndex(c => c.Id == file.Id);
+        if (idx >= 0)
+        {
+            parentNode.Children[idx] = syntaxTree.FileNode;
+        }
+
+        foreach (var child in syntaxTree.FileNode.Children)
+        {
+            if (child is TypeNode or FunctionNode or MemberNode)
+            {
+                projectSyntaxNode.Children.Add(child);
+            }
+        }
+
+        ctx.RawImports.AddRange(syntaxTree.RawImports);
+        ctx.RawVariables.AddRange(syntaxTree.RawVariables);
+        ctx.RawTypeBindings.AddRange(syntaxTree.RawTypeBindings);
+        PipelineMemoryEvictor.ReleaseSyntaxTreeBuffersAfterLayer3(syntaxTree, ctx.LightweightAstScanMode);
+    }
+
+    internal async Task<Layer3StreamingState> InitializeStreamingStateAsync(Layer3Context ctx)
+    {
+        var l1Result = ctx.Layer1;
+        var l2Result = ctx.Layer2;
         WorkspaceConventions.LoadFromWorkspace(l1Result.Workspace.Path);
 
+        const string syntaxStructureLabel = "SyntaxStructure";
         var syntaxNodeId = $"{ctx.WorkspaceId}:{OntologyConstants.IdPrefixes.SyntaxStructure}";
-        var syntaxStructureNode = new SyntaxStructureNode(syntaxNodeId, "SyntaxStructure", l1Result.Workspace.Path);
+        var syntaxStructureNode = new SyntaxStructureNode(syntaxNodeId, syntaxStructureLabel, l1Result.Workspace.Path);
         l1Result.Workspace.Children.Add(syntaxStructureNode);
         ctx.SyntaxStructure = syntaxStructureNode;
 
-        var syntaxTrees = new List<SyntaxTree>();
-
-        // O(1) parent index of Layer 1 tree (eliminates 160M recursive DFS traversals)
         var parentByChildId = new Dictionary<string, IOntologyNode>();
         void IndexPhysicalTree(IOntologyNode parent)
         {
@@ -46,7 +107,6 @@ public partial class Layer3SyntacticParser
         IndexPhysicalTree(l1Result.Workspace);
 
         var projectRels = new List<Relationship>();
-        // O(F * P) pre-grouping of files to enclosing projects (supports multiple sibling projects in the same directory)
         var filesByProjectId = new Dictionary<string, List<FileNode>>(l2Result.Projects.Count);
         var primaryOwnerByFilePath = new Dictionary<string, ProjectNode>(l1Result.Files.Count, StringComparer.OrdinalIgnoreCase);
         var fileNodeByPath = new Dictionary<string, FileNode>(l1Result.Files.Count, StringComparer.OrdinalIgnoreCase);
@@ -61,7 +121,6 @@ public partial class Layer3SyntacticParser
 
         var prunedFileIds = new ConcurrentDictionary<string, byte>(StringComparer.Ordinal);
 
-        // Phase 0: register configuration already parsed once by shared file parsers in Layer 2
         ConfigurationIndex.Clear();
         ConstantRegistry.Clear();
         RouteDictionaryRegistry.Clear();
@@ -73,8 +132,6 @@ public partial class Layer3SyntacticParser
             ConfigurationIndex.Register(enrichment, null);
         }
 
-
-
         foreach (var project in OrderProjectsTopologically(l2Result))
         {
             foreach (var enrichment in project.Enrichments.OfType<ConfigurationFileInformation>())
@@ -84,7 +141,6 @@ public partial class Layer3SyntacticParser
         }
         ctx.Layer3Log.ConfigurationIndexRegistered(ConfigurationIndex.GetDiscoveredUrls().Count);
 
-        // Phase 0b: RouteDictionaryRegistry and early constants pre-scanning across all candidate files
         if (!ctx.LightweightAstScanMode)
         {
             var allCandidateFiles = new List<(string FullPath, string? ProjectName)>();
@@ -93,20 +149,6 @@ public partial class Layer3SyntacticParser
                 if (IsRouteOrConfigCandidate(wfile.Path) && !SharedFileParserRegistry.CanParse(wfile.Name))
                 {
                     allCandidateFiles.Add((wfile.FullPath, null));
-                }
-            }
-
-            foreach (var project in OrderProjectsTopologically(l2Result))
-            {
-                if (filesByProjectId.TryGetValue(project.Id, out var pFiles) && false)
-                {
-                    foreach (var pfile in pFiles)
-                    {
-                        if (IsRouteOrConfigCandidate(pfile.Path) && !SharedFileParserRegistry.CanParse(pfile.Name))
-                        {
-                            allCandidateFiles.Add((pfile.FullPath, project.Name));
-                        }
-                    }
                 }
             }
 
@@ -141,78 +183,57 @@ public partial class Layer3SyntacticParser
             });
         }
 
-        await foreach (var (_, projectSyntaxNode, file, syntaxTree, parentNode) in StreamProjectSyntaxTreesAsync(
-                           l2Result,
-                           ctx,
-                           syntaxStructureNode,
-                           filesByProjectId,
-                           parentByChildId,
-                           prunedFileIds,
-                           ctx.CancellationToken))
-        {
-            // Replace the empty FileNode in physical tree with the parsed FileNode
-            var idx = parentNode.Children.FindIndex(c => c.Id == file.Id);
-            if (idx >= 0)
-            {
-                parentNode.Children[idx] = syntaxTree.FileNode;
-            }
-
-            // Add top-level symbols to project syntax node
-            foreach (var child in syntaxTree.FileNode.Children)
-            {
-                if (child is TypeNode || child is FunctionNode || child is MemberNode)
-                {
-                    projectSyntaxNode.Children.Add(child);
-                }
-            }
-
-            syntaxTrees.Add(syntaxTree);
-            ctx.RawImports.AddRange(syntaxTree.RawImports);
-            ctx.RawVariables.AddRange(syntaxTree.RawVariables);
-            ctx.RawTypeBindings.AddRange(syntaxTree.RawTypeBindings);
-            PipelineMemoryEvictor.ReleaseSyntaxTreeBuffersAfterLayer3(syntaxTree, ctx.LightweightAstScanMode);
-        }
-
-        Layer3ProjectFileStreamer.PruneSkippedFilesAndEnqueueContains(
-            l1Result,
+        return new Layer3StreamingState(
+            syntaxStructureNode,
             parentByChildId,
-            fileNodeByPath,
+            filesByProjectId,
             primaryOwnerByFilePath,
+            fileNodeByPath,
+            workspaceRootFiles,
             projectRels,
             prunedFileIds);
-        if (projectRels.Count > 0)
+    }
+
+    internal async Task FinalizeStreamingStateAsync(
+        Layer3Context ctx,
+        Layer3StreamingState state,
+        bool applyWorkspaceSymbolFilter)
+    {
+        Layer3ProjectFileStreamer.PruneSkippedFilesAndEnqueueContains(
+            ctx.Layer1,
+            state.ParentByChildId,
+            state.FileNodeByPath,
+            state.PrimaryOwnerByFilePath,
+            state.ProjectRelationships,
+            state.PrunedFileIds);
+        if (state.ProjectRelationships.Count > 0)
         {
-            ctx.TreeRelationships.AddRange(projectRels);
-            await ctx.EnqueueUploadRelationshipsAsync(projectRels);
-            ctx.AddRelsCount(projectRels.Count);
+            ctx.TreeRelationships.AddRange(state.ProjectRelationships);
+            await ctx.EnqueueUploadRelationshipsAsync(state.ProjectRelationships);
+            ctx.AddRelsCount(state.ProjectRelationships.Count);
         }
 
-        if (!ctx.LightweightAstScanMode && !ctx.IsSubtreeScan && ctx.IncrementalChangedFiles == null)
+        if (applyWorkspaceSymbolFilter &&
+            !ctx.LightweightAstScanMode &&
+            !ctx.IsSubtreeScan &&
+            ctx.IncrementalChangedFiles == null)
         {
             ctx.HasWorkspaceSymbolFilter = true;
         }
 
-        // Link shared files reused across projects via relative imports when no explicit Library project owns the target file
-        var sharedContainsRels = ResolveCrossProjectSharedFileContains(ctx.RawImports, primaryOwnerByFilePath, fileNodeByPath, projectRels);
+        var sharedContainsRels = ResolveCrossProjectSharedFileContains(
+            ctx.RawImports,
+            state.PrimaryOwnerByFilePath,
+            state.FileNodeByPath,
+            state.ProjectRelationships);
         if (sharedContainsRels.Count > 0)
         {
             await ctx.EnqueueUploadRelationshipsAsync(sharedContainsRels);
             ctx.AddRelsCount(sharedContainsRels.Count);
         }
-
-        ctx.Layer3Log.ScanCompleted(syntaxTrees.Count, sw.ElapsedMilliseconds);
-        return new Layer3Result(
-            syntaxStructureNode,
-            syntaxTrees,
-            ctx.RawImports,
-            ctx.RawVariables,
-            ctx.RawTypeBindings,
-            ctx.GlobalReferences,
-            ctx.GlobalSymbols,
-            ctx.DiscoveredContentSkippedFiles);
     }
 
-    private static async IAsyncEnumerable<(ProjectNode Project, ProjectSyntaxNode ProjectSyntaxNode, FileNode File, SyntaxTree SyntaxTree, IOntologyNode ParentNode)> StreamProjectSyntaxTreesAsync(
+    internal static async IAsyncEnumerable<(ProjectNode Project, ProjectSyntaxNode ProjectSyntaxNode, List<(FileNode File, SyntaxTree SyntaxTree, IOntologyNode ParentNode)> ParsedFiles)> StreamProjectBatchesAsync(
         Layer2Result l2Result,
         Layer3Context ctx,
         SyntaxStructureNode syntaxStructureNode,
@@ -451,13 +472,17 @@ public partial class Layer3SyntacticParser
                 return ValueTask.CompletedTask;
             });
 
+            var batch = new List<(FileNode File, SyntaxTree SyntaxTree, IOntologyNode ParentNode)>(projectFileCount);
             for (var i = 0; i < projectFileCount; i++)
             {
                 var item = parsedResults[i];
                 if (item == null) continue;
+                batch.Add(item.Value);
+            }
 
-                var (file, syntaxTree, parentNode) = item.Value;
-                yield return (project, projectSyntaxNode, file, syntaxTree, parentNode);
+            if (batch.Count > 0)
+            {
+                yield return (project, projectSyntaxNode, batch);
             }
         }
     }

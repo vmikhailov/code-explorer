@@ -106,23 +106,45 @@ internal static class InMemoryWorkspaceScanner
                 l2Ms = sw.ElapsedMilliseconds;
             }
 
-            if (options.MaxLayer >= AnalysisLayer.Layer3_Syntactic && l2Result != null)
+            if (options.MaxLayer >= AnalysisLayer.Layer5_Global && !options.LightweightAstMode && l2Result != null)
             {
-                sw.Restart();
-                var l3Ctx = new Layer3Context(scope, sink, l1Result, l2Result, dirIndex, symbols, semanticCtx, treeRels)
-                {
-                    CustomProjectFileFilter = options.ProjectFileFilter
-                };
-                l3Result = await new Layer3SyntacticParser().ParseAsync(l3Ctx);
-                l3Ms = sw.ElapsedMilliseconds;
+                var streamed = await ProjectStreamingPipeline.RunFusedLayers3And4Async(
+                    scope,
+                    sink,
+                    git,
+                    dirIndex,
+                    l1Result,
+                    l2Result,
+                    symbols,
+                    semanticCtx,
+                    globalProjectDeps,
+                    treeRels,
+                    customProjectFileFilter: options.ProjectFileFilter);
+                l3Result = streamed.Layer3;
+                l4Result = streamed.Layer4;
+                l3Ms = streamed.Layer3ElapsedMs;
+                l4Ms = streamed.Layer4ElapsedMs;
             }
-
-            if (options.MaxLayer >= AnalysisLayer.Layer4_Semantic && l2Result != null && l3Result != null)
+            else
             {
-                sw.Restart();
-                var l4Ctx = new Layer4Context(scope, sink, git, l1Result, l2Result, l3Result, symbols, semanticCtx, globalProjectDeps, treeRels);
-                l4Result = await new Layer4SemanticParser().ParseAsync(l4Ctx);
-                l4Ms = sw.ElapsedMilliseconds;
+                if (options.MaxLayer >= AnalysisLayer.Layer3_Syntactic && l2Result != null)
+                {
+                    sw.Restart();
+                    var l3Ctx = new Layer3Context(scope, sink, l1Result, l2Result, dirIndex, symbols, semanticCtx, treeRels)
+                    {
+                        CustomProjectFileFilter = options.ProjectFileFilter
+                    };
+                    l3Result = await new Layer3SyntacticParser().ParseAsync(l3Ctx);
+                    l3Ms = sw.ElapsedMilliseconds;
+                }
+
+                if (options.MaxLayer >= AnalysisLayer.Layer4_Semantic && l2Result != null && l3Result != null)
+                {
+                    sw.Restart();
+                    var l4Ctx = new Layer4Context(scope, sink, git, l1Result, l2Result, l3Result, symbols, semanticCtx, globalProjectDeps, treeRels);
+                    l4Result = await new Layer4SemanticParser().ParseAsync(l4Ctx);
+                    l4Ms = sw.ElapsedMilliseconds;
+                }
             }
 
             if (options.MaxLayer >= AnalysisLayer.Layer5_Global && l2Result != null && l3Result != null && l4Result != null)

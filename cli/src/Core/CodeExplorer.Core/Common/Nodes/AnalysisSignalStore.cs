@@ -86,6 +86,7 @@ public sealed class ProjectAnalysisSignals
     public string? CargoManifestDir { get; set; }
     public Dictionary<string, string>? ManifestHints { get; set; }
     public ParsedProjectManifestMetadata? ManifestMetadata { get; set; }
+    public HashSet<string>? FriendAssemblies { get; set; }
 
     /// <summary>
     /// Comma-separated schema names extracted from schema-qualified SQL table references across

@@ -195,6 +195,17 @@ public static class ProjectNodeFactory
             project.ActivationEvents = meta.ActivationEvents;
             hints["activation_events"] = meta.ActivationEvents;
         }
+        if (meta.FriendAssemblies is { Count: > 0 })
+        {
+            var friends = project.Signals().FriendAssemblies ??= new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            for (var i = 0; i < meta.FriendAssemblies.Count; i++)
+            {
+                if (!string.IsNullOrWhiteSpace(meta.FriendAssemblies[i]))
+                {
+                    friends.Add(meta.FriendAssemblies[i]);
+                }
+            }
+        }
     }
 
     public static string? NormalizeRoleName(string? r) => r switch

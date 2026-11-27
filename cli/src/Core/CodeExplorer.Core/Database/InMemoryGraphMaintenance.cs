@@ -516,30 +516,32 @@ public static class InMemoryGraphMaintenance
         foreach (var rel in relationships.Values)
         {
             if (rel.Kind != RelationshipKind.Contains) continue;
-            if (!nodes.TryGetValue(rel.From, out var fromNode) || !nodes.TryGetValue(rel.To, out var toNode)) continue;
+            var fromKind = nodes.TryGetValue(rel.From, out var fromNode) ? fromNode.NodeKind : InferStreamedFileKind(rel.From);
+            var toKind = nodes.TryGetValue(rel.To, out var toNode) ? toNode.NodeKind : InferStreamedFileKind(rel.To);
+            if (fromKind == default || toKind == default) continue;
 
-            if (fromNode.NodeKind is NodeKind.Database or NodeKind.DbSchema or NodeKind.DataSet &&
-                toNode.NodeKind == NodeKind.Table)
+            if (fromKind is NodeKind.Database or NodeKind.DbSchema or NodeKind.DataSet &&
+                toKind == NodeKind.Table)
             {
-                containedTableIds.Add(toNode.Id);
+                containedTableIds.Add(rel.To);
             }
-            else if (fromNode.NodeKind == NodeKind.Project && toNode.NodeKind == NodeKind.File)
+            else if (fromKind == NodeKind.Project && toKind == NodeKind.File)
             {
-                if (!fileToProject.TryGetValue(toNode.Id, out var pList))
+                if (!fileToProject.TryGetValue(rel.To, out var pList))
                 {
                     pList = [];
-                    fileToProject[toNode.Id] = pList;
+                    fileToProject[rel.To] = pList;
                 }
-                pList.Add(fromNode.Id);
+                pList.Add(rel.From);
             }
-            else if (fromNode.NodeKind == NodeKind.File && toNode.NodeKind == NodeKind.Table)
+            else if (fromKind == NodeKind.File && toKind == NodeKind.Table)
             {
-                if (!fileToTables.TryGetValue(fromNode.Id, out var tList))
+                if (!fileToTables.TryGetValue(rel.From, out var tList))
                 {
                     tList = [];
-                    fileToTables[fromNode.Id] = tList;
+                    fileToTables[rel.From] = tList;
                 }
-                tList.Add(toNode.Id);
+                tList.Add(rel.To);
             }
         }
 
@@ -672,6 +674,14 @@ public static class InMemoryGraphMaintenance
             }
         }
     }
+
+    private const string FilePrefixLower = ":file:";
+    private const string FilePrefixUpper = ":File:";
+
+    private static NodeKind InferStreamedFileKind(string id) =>
+        id.Contains(FilePrefixLower, StringComparison.Ordinal) || id.Contains(FilePrefixUpper, StringComparison.Ordinal)
+            ? NodeKind.File
+            : default;
 
     private static bool IsProjectOrWorkloadId(string id) =>
         id.Contains(ProjectPrefixShort, StringComparison.OrdinalIgnoreCase) ||

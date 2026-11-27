@@ -219,7 +219,8 @@ public class WorkspaceIndexer
         };
 
         Layer1Result l1;
-        Dictionary<string, FileGraphSnapshot> precomputedSnapshots;
+        Dictionary<string, FileGraphSnapshot>? precomputedSnapshots = null;
+        Dictionary<string, string>? precomputedStructuralHashes = null;
         ConcurrentDictionary<string, (string FullPath, DateTime LastModifiedUtc, long SizeBytes)>? skippedFiles;
         int parsedTreeCount;
 
@@ -252,23 +253,46 @@ public class WorkspaceIndexer
                     semanticCtx.ProjectsStructure = l2.ProjectsStructure;
                     sink.ReportProgress(14, Layer3SyntacticProgressTitle, $"Discovered {l2.Projects.Count} projects. Starting syntax parsing...", 0, l1.Files.Count);
 
-                    var l3Ctx = new Layer3Context(scope, sink, l1, l2, dirIndex, symbols, semanticCtx, treeRels)
+                    if (!scope.LightweightAstScanMode)
                     {
-                        IncrementalChangedFiles = plan.IncrementalChangedFiles
-                    };
-                    var l3 = await new Layer3SyntacticParser().ParseAsync(l3Ctx);
-                    syntaxStructure = l3.SyntaxStructure;
-                    parsedTreeCount = l3.SyntaxTrees.Count;
-                    skippedFiles = l3.DiscoveredContentSkippedFiles;
-                    precomputedSnapshots = FileRegistrySynchronizer.PrecomputeSnapshots(l3.SyntaxTrees);
-                    sink.ReportProgress(52, Layer4SemanticProgressTitle, $"Parsed {parsedTreeCount} syntax trees. Analyzing semantics...", parsedTreeCount, l1.Files.Count);
+                        var streamed = await ProjectStreamingPipeline.RunFusedLayers3And4Async(
+                            scope,
+                            sink,
+                            git,
+                            dirIndex,
+                            l1,
+                            l2,
+                            symbols,
+                            semanticCtx,
+                            globalProjectDeps,
+                            treeRels,
+                            plan.IncrementalChangedFiles);
+                        syntaxStructure = streamed.SyntaxStructure;
+                        l4 = streamed.Layer4;
+                        parsedTreeCount = streamed.ParsedTreeCount;
+                        skippedFiles = streamed.SkippedFiles;
+                        precomputedStructuralHashes = streamed.PrecomputedStructuralHashes;
+                    }
+                    else
+                    {
+                        var l3Ctx = new Layer3Context(scope, sink, l1, l2, dirIndex, symbols, semanticCtx, treeRels)
+                        {
+                            IncrementalChangedFiles = plan.IncrementalChangedFiles
+                        };
+                        var l3 = await new Layer3SyntacticParser().ParseAsync(l3Ctx);
+                        syntaxStructure = l3.SyntaxStructure;
+                        parsedTreeCount = l3.SyntaxTrees.Count;
+                        skippedFiles = l3.DiscoveredContentSkippedFiles;
+                        precomputedSnapshots = FileRegistrySynchronizer.PrecomputeSnapshots(l3.SyntaxTrees);
+                        sink.ReportProgress(52, Layer4SemanticProgressTitle, $"Parsed {parsedTreeCount} syntax trees. Analyzing semantics...", parsedTreeCount, l1.Files.Count);
 
-                    var l4Ctx = new Layer4Context(scope, sink, git, l1, l2, l3, symbols, semanticCtx, globalProjectDeps, treeRels)
-                    {
-                        IncrementalChangedFiles = plan.IncrementalChangedFiles
-                    };
-                    l4 = await new Layer4SemanticParser().ParseAsync(l4Ctx);
-                    PipelineMemoryEvictor.ReleaseSyntaxTreesAfterLayer4(l3, scope.LightweightAstScanMode);
+                        var l4Ctx = new Layer4Context(scope, sink, git, l1, l2, l3, symbols, semanticCtx, globalProjectDeps, treeRels)
+                        {
+                            IncrementalChangedFiles = plan.IncrementalChangedFiles
+                        };
+                        l4 = await new Layer4SemanticParser().ParseAsync(l4Ctx);
+                        PipelineMemoryEvictor.ReleaseSyntaxTreesAfterLayer4(l3, scope.LightweightAstScanMode);
+                    }
                 }
 
                 sink.ReportProgress(68, Layer5GlobalProgressTitle, Layer5GlobalProgressMessage, parsedTreeCount, l1.Files.Count);
@@ -305,8 +329,16 @@ public class WorkspaceIndexer
 
         sink.PipelineLog.PersistenceSummary(sink.TotalNodesPersisted, sink.TotalRelsPersisted);
         sink.ReportProgress(88, FinalizingProgressTitle, $"Synchronizing file registry for {l1.Files.Count} files...", parsedTreeCount, l1.Files.Count);
-        await _registrySync.SyncAsync(l1.Files, precomputedSnapshots, scope, sink, l1, skippedFiles, isIncremental);
-        precomputedSnapshots.Clear();
+        if (precomputedStructuralHashes != null)
+        {
+            await _registrySync.SyncWithHashesAsync(l1.Files, precomputedStructuralHashes, scope, sink, l1, skippedFiles, isIncremental);
+            precomputedStructuralHashes.Clear();
+        }
+        else
+        {
+            await _registrySync.SyncAsync(l1.Files, precomputedSnapshots ?? new Dictionary<string, FileGraphSnapshot>(StringComparer.OrdinalIgnoreCase), scope, sink, l1, skippedFiles, isIncremental);
+            precomputedSnapshots?.Clear();
+        }
         sink.ReportProgress(94, FinalizingProgressTitle, RebuildingIndicesProgressMessage, parsedTreeCount, l1.Files.Count);
         await _dbClient.SetSchemaVersionAsync(IGraphClient.CurrentSchemaVersion);
         await _dbClient.CreateIndicesAsync();

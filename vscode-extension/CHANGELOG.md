@@ -5,6 +5,15 @@ All notable changes to the CodeExplorer project (CLI, MCP Server, and VS Code Ex
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.107.3] - 2026-11-27
+
+### Changed
+- **Fused Per-Project `L3 + L4 + UploadSubtree + Evict` Streaming Pipeline & Streaming SQLite Bulk Writer (`ProjectStreamingPipeline`, `StreamingBulkLoadSession`, `ProjectSummaryBuilder`, `OntologyUploader`, `PipelineMemoryEvictor`, `SIG-P-B-014`)**: Fused Layer 3 AST parsing, Layer 4 semantic enrichment, subtree persistence, and per-project AST/scope-body eviction into a single streaming loop backed by `StreamingBulkLoadSession` (prepared row-ID `INSERT`/`UPDATE` statements with deferred telemetry/forward edges) and flat `ProjectScanSummary` exports (preserving C# `<InternalsVisibleTo>` and `[assembly: InternalsVisibleTo(...)]` friend assembly visibility), cutting peak scan RAM while retaining full `ScopeNode` and `CallLiteral` fidelity in `graph.db`.
+
+### Fixed
+- **Eliminated $O(P_{\text{tf}} \times F_{\text{all}})$ Layer 4 Hang on Large Terraform/Terragrunt Workspaces (`TerraformSemanticEnricher`, `TerraformWorkspaceCache`, `Layer4SemanticAnalyzer`)**: Cached workspace-wide HCL module states, normalized file/directory sets, and duplicate resource short-name indices once per scan in `TerraformWorkspaceCache` (`SharedEnrichmentCache`) instead of rebuilding `AllFiles`/`AllProjects` hash sets and reparsing HCL modules on every Terraform project (~41s/project -> <1ms/project), and replaced linear `IsEnclosedInProject`, `tableIdRemap`, and `SemanticStructure.Children` scans in Layer 4 with $O(1)$ lookups.
+- **Eliminated 12-Minute $O(R \times N)$ Layer 5 Global Cross-Reference Bottlenecks (`Layer5GlobalAnalyzer`, `Layer5SymbolCatalogHelper`, `Layer5ImportCandidateResolver`, `Layer3IncludePathResolver`, `Layer5GoSymbolHelper`)**: Indexed bindings by file (`BindingsByFile`) for `TryResolveMediatorMessageDispatch` (replacing full-workspace `BindingsLookup` scans on `.execute`/`.query`/`.send`/`.publish` calls), replaced linear `ProjectsInDepGraph` prefix scans in `FindDepGraphProjectKey` with zero-allocation `ReadOnlySpan<char>` parent-directory probes, indexed global bindings by `(VariableName, ScopeId)` + `BaseTypesByDerived`, and replaced full-workspace `KnownFiles` / `FileScopedSymbols` scans with `FilesByFileName`, `GoFilesByDir`, and `SymbolsByFile` dictionaries.
+
 ## [1.107.2] - 2026-11-27
 
 ### Fixed

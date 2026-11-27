@@ -61,7 +61,8 @@ public sealed record ParsedProjectManifestMetadata(
     IReadOnlyList<ManifestHookEntry>? LifecycleHooks = null,
     IReadOnlyList<string>? ExportTargets = null,
     string? DatabaseDriverEngine = null,
-    string? DatabaseDriverFamily = null);
+    string? DatabaseDriverFamily = null,
+    IReadOnlyList<string>? FriendAssemblies = null);
 
 /// <summary>
 /// Context passed to <see cref="IProjectParser.TryParse"/> for directory-level project boundary evaluation.
@@ -172,7 +173,8 @@ public sealed record ProjectEnrichmentContext(
     IReadOnlyList<SyntaxTree> ProjectTrees,
     IReadOnlyList<Common.Nodes.Layer2_Boundaries.ProjectNode> AllProjects,
     IReadOnlyDictionary<string, List<SyntaxTree>> TreesByProjectId,
-    IReadOnlyList<Common.Nodes.Layer1_Physical.FileNode> AllFiles);
+    IReadOnlyList<Common.Nodes.Layer1_Physical.FileNode> AllFiles,
+    IDictionary<string, object>? SharedEnrichmentCache = null);
 
 public sealed record ProjectEnrichmentResult(
     IReadOnlyList<Common.Nodes.IOntologyNode> SemanticNodes,

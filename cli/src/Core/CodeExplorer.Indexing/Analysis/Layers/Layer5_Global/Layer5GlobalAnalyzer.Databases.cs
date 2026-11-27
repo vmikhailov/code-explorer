@@ -141,7 +141,12 @@ public partial class Layer5AnalysisParser
         HashSet<(string From, string To)>? InheritanceRels = null,
         Dictionary<(string FilePath, string TypeName, string MemberName), string>? MembersByType = null,
         List<(string MemberId, string TypeId, string DataType)>? MemberTypeCandidates = null,
-        HashSet<(string DerivedName, string BaseName)>? InheritedTypeNames = null)
+        HashSet<(string DerivedName, string BaseName)>? InheritedTypeNames = null,
+        Dictionary<string, IReadOnlySet<string>>? FriendAssembliesByProject = null,
+        Dictionary<string, List<string>>? FilesByFileName = null,
+        Dictionary<string, List<string>>? GoFilesByDir = null,
+        Dictionary<string, List<(string Kind, string Name, string Id)>>? SymbolsByFile = null,
+        Dictionary<string, List<string>>? BaseTypesByDerived = null)
     {
         public Dictionary<string, Dictionary<string, List<string>>> FunctionsByProject { get; init; } = FunctionsByProject ?? new(StringComparer.OrdinalIgnoreCase);
         public List<string> ProjectsSortedByLengthDesc { get; init; } = ProjectsSortedByLengthDesc ?? [];
@@ -152,6 +157,11 @@ public partial class Layer5AnalysisParser
         public Dictionary<(string FilePath, string TypeName, string MemberName), string> MembersByType { get; init; } = MembersByType ?? [];
         public List<(string MemberId, string TypeId, string DataType)> MemberTypeCandidates { get; init; } = MemberTypeCandidates ?? [];
         public HashSet<(string DerivedName, string BaseName)> InheritedTypeNames { get; init; } = InheritedTypeNames ?? [];
+        public Dictionary<string, IReadOnlySet<string>> FriendAssembliesByProject { get; init; } = FriendAssembliesByProject ?? new(StringComparer.OrdinalIgnoreCase);
+        public Dictionary<string, List<string>> FilesByFileName { get; init; } = FilesByFileName ?? new(StringComparer.OrdinalIgnoreCase);
+        public Dictionary<string, List<string>> GoFilesByDir { get; init; } = GoFilesByDir ?? new(StringComparer.OrdinalIgnoreCase);
+        public Dictionary<string, List<(string Kind, string Name, string Id)>> SymbolsByFile { get; init; } = SymbolsByFile ?? new(StringComparer.OrdinalIgnoreCase);
+        public Dictionary<string, List<string>> BaseTypesByDerived { get; init; } = BaseTypesByDerived ?? new(StringComparer.OrdinalIgnoreCase);
     }
 
     internal record ImportedSymbolEntry(
@@ -180,9 +190,13 @@ public partial class Layer5AnalysisParser
         Dictionary<(string FilePath, string VarName), List<IndexedBinding>> BindingsLookup,
         Dictionary<string, List<IndexedBinding>> GlobalBindingsLookup,
         Dictionary<string, string> ConstantLookup,
-        Dictionary<string, List<string>>? MessageHandlersByType = null)
+        Dictionary<string, List<string>>? MessageHandlersByType = null,
+        Dictionary<string, List<IndexedBinding>>? BindingsByFile = null,
+        Dictionary<string, Dictionary<string, List<IndexedBinding>>>? ScopedBindingsByVar = null)
     {
         public Dictionary<string, List<string>> MessageHandlersByType { get; init; } = MessageHandlersByType ?? new(StringComparer.Ordinal);
+        public Dictionary<string, List<IndexedBinding>> BindingsByFile { get; init; } = BindingsByFile ?? new(StringComparer.OrdinalIgnoreCase);
+        public Dictionary<string, Dictionary<string, List<IndexedBinding>>> ScopedBindingsByVar { get; init; } = ScopedBindingsByVar ?? new(StringComparer.Ordinal);
     }
 
     private static SymbolLookups BuildSymbolLookups(Layer5Context ctx, Layer4Result? l4Result = null)
@@ -192,6 +206,7 @@ public partial class Layer5AnalysisParser
         var functionSymbols = new Dictionary<string, string>(StringComparer.Ordinal);
         var functionSymbolsByFile = new Dictionary<(string FilePath, string FuncName), string>();
         var functionsInFile = new Dictionary<string, List<(string FuncName, string FuncId)>>(StringComparer.OrdinalIgnoreCase);
+        var symbolsByFile = new Dictionary<string, List<(string Kind, string Name, string Id)>>(StringComparer.OrdinalIgnoreCase);
         var functionsByName = new Dictionary<string, List<string>>(StringComparer.Ordinal);
         var functionsByProject = new Dictionary<string, Dictionary<string, List<string>>>(StringComparer.OrdinalIgnoreCase);
         var knownFiles = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
@@ -209,7 +224,7 @@ public partial class Layer5AnalysisParser
                 pFiles = [];
                 filesByProject[projKey] = pFiles;
             }
-            if (!pFiles.Contains(normFile)) pFiles.Add(normFile);
+            pFiles.Add(normFile);
         }
 
         void RegisterFunctionInFile(string normFile, string fnName, string fnId)
@@ -236,16 +251,19 @@ public partial class Layer5AnalysisParser
                 pfnList = [];
                 projFns[fnName] = pfnList;
             }
-            if (!pfnList.Contains(fnId))
-            {
-                pfnList.Add(fnId);
-            }
+            pfnList.Add(fnId);
         }
 
         foreach (var ((filePath, kind, name), id) in ctx.FileScopedSymbols)
         {
-            var normFuncFile = filePath.Replace('\\', '/');
+            var normFuncFile = filePath.IndexOf('\\') >= 0 ? filePath.Replace('\\', '/') : filePath;
             knownFiles.Add(normFuncFile);
+            if (!symbolsByFile.TryGetValue(normFuncFile, out var fSymList))
+            {
+                fSymList = [];
+                symbolsByFile[normFuncFile] = fSymList;
+            }
+            fSymList.Add((kind, name, id));
 
             var proj = ConstantRegistry.ExtractProjectName(normFuncFile);
             RegisterFileInProject(proj, normFuncFile);
@@ -266,7 +284,7 @@ public partial class Layer5AnalysisParser
                     tList = [];
                     typesByName[name] = tList;
                 }
-                if (!tList.Contains(id)) tList.Add(id);
+                tList.Add(id);
             }
             else if (kind == OntologyConstants.NodeLabels.Function)
             {
@@ -281,17 +299,14 @@ public partial class Layer5AnalysisParser
                         fnList = [];
                         functionsByName[name] = fnList;
                     }
-                    if (!fnList.Contains(id))
-                    {
-                        fnList.Add(id);
-                    }
+                    fnList.Add(id);
                 }
             }
         }
 
         foreach (var (filePath, kind, name, id) in ctx.OverloadedFileScopedSymbols)
         {
-            var normFuncFile = filePath.Replace('\\', '/');
+            var normFuncFile = filePath.IndexOf('\\') >= 0 ? filePath.Replace('\\', '/') : filePath;
             var proj = ConstantRegistry.ExtractProjectName(normFuncFile);
             string? scopeProj = null;
             if (ctx.SymbolScopes.TryGetValue(id, out var scopeInfo) &&
@@ -308,7 +323,7 @@ public partial class Layer5AnalysisParser
                     tList = [];
                     typesByName[name] = tList;
                 }
-                if (!tList.Contains(id)) tList.Add(id);
+                tList.Add(id);
             }
             else if (kind == OntologyConstants.NodeLabels.Function && !string.Equals(name, "<module_init>", StringComparison.Ordinal))
             {
@@ -319,7 +334,7 @@ public partial class Layer5AnalysisParser
                     fnList = [];
                     functionsByName[name] = fnList;
                 }
-                if (!fnList.Contains(id)) fnList.Add(id);
+                fnList.Add(id);
             }
         }
 
@@ -334,7 +349,7 @@ public partial class Layer5AnalysisParser
                         tList = [];
                         typesByName[key.Name] = tList;
                     }
-                    if (!tList.Contains(id)) tList.Add(id);
+                    tList.Add(id);
                     break;
                 case OntologyConstants.NodeLabels.Function:
                     if (!string.Equals(key.Name, "<module_init>", StringComparison.Ordinal))
@@ -345,16 +360,13 @@ public partial class Layer5AnalysisParser
                             fnList = [];
                             functionsByName[key.Name] = fnList;
                         }
-                        if (!fnList.Contains(id))
-                        {
-                            fnList.Add(id);
-                        }
+                        fnList.Add(id);
                     }
 
                     var funcFile = ExtractFilePathFromSymbolId(id);
                     if (funcFile != null)
                     {
-                        var normFuncFile = funcFile.Replace('\\', '/');
+                        var normFuncFile = funcFile.IndexOf('\\') >= 0 ? funcFile.Replace('\\', '/') : funcFile;
                         RegisterFunctionInFile(normFuncFile, key.Name, id);
                         knownFiles.Add(normFuncFile);
 
@@ -405,25 +417,55 @@ public partial class Layer5AnalysisParser
 
         if (l4Result != null)
         {
-            CollectTableAndProcedureSymbols(l4Result.SemanticStructure, tableSymbols, procedureSymbols);
+            Layer5SymbolCatalogHelper.CollectTableAndProcedureSymbols(l4Result.SemanticStructure, tableSymbols, procedureSymbols);
             if (ctx.FilesStructure != null)
             {
-                CollectTableAndProcedureSymbols(ctx.FilesStructure, tableSymbols, procedureSymbols);
+                Layer5SymbolCatalogHelper.CollectTableAndProcedureSymbols(ctx.FilesStructure, tableSymbols, procedureSymbols);
             }
         }
 
         var membersByType = new Dictionary<(string FilePath, string TypeName, string MemberName), string>();
         var memberTypeCandidates = new List<(string MemberId, string TypeId, string DataType)>();
-        var syntaxStruct = ctx.SyntaxStructure;
-        if (syntaxStruct != null)
+        var friendAssembliesByProject = new Dictionary<string, IReadOnlySet<string>>(StringComparer.OrdinalIgnoreCase);
+
+        if (ctx.Projects != null)
         {
-            CollectMemberSymbols(syntaxStruct, null, membersByType, memberTypeCandidates);
+            for (var p = 0; p < ctx.Projects.Count; p++)
+            {
+                var proj = ctx.Projects[p];
+                if (proj.TryGetSignals()?.FriendAssemblies is { Count: > 0 } friends && !string.IsNullOrEmpty(proj.Name))
+                {
+                    friendAssembliesByProject[proj.Name] = friends;
+                }
+            }
+        }
+
+        if (ctx.ProjectSummaries.Count > 0)
+        {
+            Layer5SymbolCatalogHelper.PopulateMembersAndFriendsFromSummaries(
+                ctx.ProjectSummaries,
+                membersByType,
+                memberTypeCandidates,
+                friendAssembliesByProject);
+        }
+        else if (ctx.SyntaxStructure != null)
+        {
+            Layer5SymbolCatalogHelper.CollectMemberSymbols(ctx.SyntaxStructure, null, membersByType, memberTypeCandidates);
+        }
+
+        Layer5SymbolCatalogHelper.DeduplicateStringLists(filesByProject, StringComparer.OrdinalIgnoreCase);
+        Layer5SymbolCatalogHelper.DeduplicateStringLists(typesByName, StringComparer.Ordinal);
+        Layer5SymbolCatalogHelper.DeduplicateStringLists(functionsByName, StringComparer.Ordinal);
+        foreach (var projFnDict in functionsByProject.Values)
+        {
+            Layer5SymbolCatalogHelper.DeduplicateStringLists(projFnDict, StringComparer.Ordinal);
         }
 
         Layer5SymbolVisibilityResolver.UnifyPartialTypeDeclarations(typesByName, typeSymbols, functionSymbolsByFile, functionsInFile, ctx);
 
         var (reachableProjects, projectsInDepGraph) = Layer5SymbolVisibilityResolver.BuildProjectReachabilityMatrix(ctx, l4Result);
         var projectsSortedByLengthDesc = filesByProject.Keys.OrderByDescending(k => k.Length).ToList();
+        var (filesByFileName, goFilesByDir) = Layer5SymbolCatalogHelper.BuildFileLookupIndices(knownFiles);
 
         return new SymbolLookups(
             typeSymbols,
@@ -443,61 +485,12 @@ public partial class Layer5AnalysisParser
             projectsInDepGraph,
             null,
             membersByType,
-            memberTypeCandidates);
-    }
-
-    private static void CollectMemberSymbols(
-        IOntologyNode node,
-        Common.Nodes.Layer3_Syntactic.TypeNode? enclosingType,
-        Dictionary<(string FilePath, string TypeName, string MemberName), string> membersByType,
-        List<(string MemberId, string TypeId, string DataType)> memberTypeCandidates)
-    {
-        if (node is Common.Nodes.Layer3_Syntactic.TypeNode tn)
-        {
-            enclosingType = tn;
-        }
-        else if (node is Common.Nodes.Layer3_Syntactic.MemberNode mn && enclosingType != null)
-        {
-            var normFile = (enclosingType.FilePath ?? "").Replace('\\', '/');
-            membersByType.TryAdd((normFile, enclosingType.Name, mn.Name), mn.Id);
-            membersByType.TryAdd(("", enclosingType.Name, mn.Name), mn.Id);
-            if (!string.IsNullOrWhiteSpace(mn.DataType))
-            {
-                memberTypeCandidates.Add((mn.Id, enclosingType.Id, mn.DataType));
-            }
-        }
-
-        foreach (var child in node.Children)
-        {
-            CollectMemberSymbols(child, enclosingType, membersByType, memberTypeCandidates);
-        }
-    }
-
-    private static void CollectTableAndProcedureSymbols(
-        IOntologyNode node,
-        Dictionary<string, string> tableSymbols,
-        Dictionary<string, string> procedureSymbols)
-    {
-        if (node is TableNode tbl && !string.IsNullOrEmpty(tbl.Name))
-        {
-            tableSymbols.TryAdd(tbl.Name, tbl.Id);
-            if (!string.IsNullOrEmpty(tbl.Schema))
-            {
-                tableSymbols.TryAdd($"{tbl.Schema}.{tbl.Name}", tbl.Id);
-            }
-        }
-        else if (node is ProcedureNode proc && !string.IsNullOrEmpty(proc.Name))
-        {
-            procedureSymbols.TryAdd(proc.Name, proc.Id);
-            if (!string.IsNullOrEmpty(proc.Schema))
-            {
-                procedureSymbols.TryAdd($"{proc.Schema}.{proc.Name}", proc.Id);
-            }
-        }
-        foreach (var child in node.Children)
-        {
-            CollectTableAndProcedureSymbols(child, tableSymbols, procedureSymbols);
-        }
+            memberTypeCandidates,
+            null,
+            friendAssembliesByProject,
+            filesByFileName,
+            goFilesByDir,
+            symbolsByFile);
     }
 
     private static void ResolveInheritanceReferences(
@@ -571,15 +564,18 @@ public partial class Layer5AnalysisParser
                     if (!string.IsNullOrEmpty(className))
                     {
                         symbols.InheritedTypeNames.Add((className, refItem.TargetName));
+                        if (!symbols.BaseTypesByDerived.TryGetValue(className, out var baseList))
+                        {
+                            baseList = [];
+                            symbols.BaseTypesByDerived[className] = baseList;
+                        }
+                        baseList.Add(refItem.TargetName);
                         if (!interfaceToImplementors.TryGetValue(refItem.TargetName, out var implList))
                         {
                             implList = [];
                             interfaceToImplementors[refItem.TargetName] = implList;
                         }
-                        if (!implList.Contains(className))
-                        {
-                            implList.Add(className);
-                        }
+                        implList.Add(className);
                     }
                 }
             }
@@ -591,6 +587,8 @@ public partial class Layer5AnalysisParser
 
         PropagateTransitiveImplements(directInherits, directImplements, referenceRelationships, inheritanceRels, symbols, interfaceToImplementors);
         Layer5GoSymbolHelper.ResolveImplicitGoInterfaces(ctx, symbols, referenceRelationships, inheritanceRels, interfaceToImplementors);
+        Layer5SymbolCatalogHelper.DeduplicateStringLists(interfaceToImplementors, StringComparer.Ordinal);
+        Layer5SymbolCatalogHelper.DeduplicateStringLists(symbols.BaseTypesByDerived, StringComparer.OrdinalIgnoreCase);
     }
 
     private static void PropagateTransitiveImplements(
@@ -629,6 +627,12 @@ public partial class Layer5AnalysisParser
                     if (!string.IsNullOrEmpty(currBaseName))
                     {
                         symbols.InheritedTypeNames.Add((derivedClassName, currBaseName));
+                        if (!symbols.BaseTypesByDerived.TryGetValue(derivedClassName, out var bList))
+                        {
+                            bList = [];
+                            symbols.BaseTypesByDerived[derivedClassName] = bList;
+                        }
+                        bList.Add(currBaseName);
                     }
                 }
                 if (directImplements.TryGetValue(currBaseId, out var implementedIfaces))
@@ -644,15 +648,18 @@ public partial class Layer5AnalysisParser
                         if (!string.IsNullOrEmpty(derivedClassName))
                         {
                             symbols.InheritedTypeNames.Add((derivedClassName, ifaceName));
+                            if (!symbols.BaseTypesByDerived.TryGetValue(derivedClassName, out var bList))
+                            {
+                                bList = [];
+                                symbols.BaseTypesByDerived[derivedClassName] = bList;
+                            }
+                            bList.Add(ifaceName);
                             if (!interfaceToImplementors.TryGetValue(ifaceName, out var implList))
                             {
                                 implList = [];
                                 interfaceToImplementors[ifaceName] = implList;
                             }
-                            if (!implList.Contains(derivedClassName))
-                            {
-                                implList.Add(derivedClassName);
-                            }
+                            implList.Add(derivedClassName);
                         }
                     }
                 }
@@ -672,7 +679,9 @@ public partial class Layer5AnalysisParser
     private static BindingLookups BuildBindingLookups(Layer5Context ctx, SymbolLookups? symbols = null)
     {
         var bindingsLookup = new Dictionary<(string FilePath, string VarName), List<IndexedBinding>>(ctx.RawTypeBindings.Count);
+        var bindingsByFile = new Dictionary<string, List<IndexedBinding>>(StringComparer.OrdinalIgnoreCase);
         var globalBindingsLookup = new Dictionary<string, List<IndexedBinding>>(StringComparer.Ordinal);
+        var scopedBindingsByVar = new Dictionary<string, Dictionary<string, List<IndexedBinding>>>(StringComparer.Ordinal);
         var messageHandlersByType = new Dictionary<string, List<string>>(StringComparer.Ordinal);
 
         static bool IsLikelyMessageTypeName(string typeName) =>
@@ -765,7 +774,7 @@ public partial class Layer5AnalysisParser
             {
                 continue;
             }
-            var normPath = b.FilePath.Replace('\\', '/');
+            var normPath = b.FilePath.IndexOf('\\') >= 0 ? b.FilePath.Replace('\\', '/') : b.FilePath;
             var key = (normPath, b.VariableName);
             if (!bindingsLookup.TryGetValue(key, out var list))
             {
@@ -775,12 +784,37 @@ public partial class Layer5AnalysisParser
             var ib = new IndexedBinding(b.TypeName, b.ScopeId, normPath);
             list.Add(ib);
 
+            if (!string.IsNullOrEmpty(normPath))
+            {
+                if (!bindingsByFile.TryGetValue(normPath, out var fileList))
+                {
+                    fileList = new List<IndexedBinding>(4);
+                    bindingsByFile[normPath] = fileList;
+                }
+                fileList.Add(ib);
+            }
+
             if (!globalBindingsLookup.TryGetValue(b.VariableName, out var gList))
             {
                 gList = new List<IndexedBinding>(1);
                 globalBindingsLookup[b.VariableName] = gList;
             }
             gList.Add(ib);
+
+            if (!string.IsNullOrEmpty(ib.ScopeId))
+            {
+                if (!scopedBindingsByVar.TryGetValue(b.VariableName, out var byScope))
+                {
+                    byScope = new Dictionary<string, List<IndexedBinding>>(StringComparer.OrdinalIgnoreCase);
+                    scopedBindingsByVar[b.VariableName] = byScope;
+                }
+                if (!byScope.TryGetValue(ib.ScopeId, out var scopeList))
+                {
+                    scopeList = new List<IndexedBinding>(1);
+                    byScope[ib.ScopeId] = scopeList;
+                }
+                scopeList.Add(ib);
+            }
 
             if (symbols != null &&
                 !string.IsNullOrEmpty(normPath) &&
@@ -834,7 +868,8 @@ public partial class Layer5AnalysisParser
             }
         }
 
-        return new BindingLookups(bindingsLookup, globalBindingsLookup, constantLookup, messageHandlersByType);
+        Layer5SymbolCatalogHelper.DeduplicateStringLists(messageHandlersByType, StringComparer.Ordinal);
+        return new BindingLookups(bindingsLookup, globalBindingsLookup, constantLookup, messageHandlersByType, bindingsByFile, scopedBindingsByVar);
     }
 
     private static List<string> ResolveImportCandidateFiles(
@@ -844,156 +879,8 @@ public partial class Layer5AnalysisParser
         Layer5Context ctx,
         SymbolLookups symbols)
     {
-        if (imports.CandidateCache != null && imports.CandidateCache.TryGetValue((callerFile, importPath), out var cached))
-        {
-            return cached;
-        }
-
-        var results = new List<string>();
-
-        // Case A: Relative import (./ or ../ or /)
-        if (importPath.StartsWith('.') || importPath.StartsWith('/'))
-        {
-            var callerDir = Path.GetDirectoryName(callerFile)?.NormalizeSlashes() ?? string.Empty;
-            var combined = NormalizeRelativePath(string.IsNullOrEmpty(callerDir)
-                ? importPath.TrimStart('.', '/')
-                : $"{callerDir}/{importPath}");
-
-            AddFileCandidates(combined, results, symbols);
-            imports.CandidateCache?[(callerFile, importPath)] = results;
-            return results;
-        }
-
-        // Case B: tsconfig paths alias (e.g. @/* or exact)
-        foreach (var (pattern, target) in imports.TsConfigPaths)
-        {
-            if (pattern.EndsWith("/*") && target.EndsWith("/*"))
-            {
-                var prefix = pattern[..^2];
-                if (importPath.StartWithIC(prefix))
-                {
-                    var remainder = importPath[prefix.Length..];
-                    var mapped = target[..^2] + remainder;
-                    AddFileCandidates(NormalizeRelativePath(mapped), results, symbols);
-                }
-            }
-            else if (string.Equals(pattern, importPath, StringComparison.OrdinalIgnoreCase))
-            {
-                AddFileCandidates(NormalizeRelativePath(target), results, symbols);
-            }
-        }
-
-        if (results.Count > 0)
-        {
-            imports.CandidateCache?[(callerFile, importPath)] = results;
-            return results;
-        }
-
-        // Case C: Workspace packages (monorepos & Go modules)
-        if (imports.WorkspacePackages.TryGetValue(importPath, out var pkgInfo))
-        {
-            AddPackageEntryCandidates(pkgInfo, results, symbols);
-            Layer5GoSymbolHelper.AddGoPackageDirectoryCandidates(NormalizeRelativePath(pkgInfo.ProjectPath), results, symbols);
-            imports.CandidateCache?[(callerFile, importPath)] = results;
-            return results;
-        }
-
-        var (matchedPkgKey, matchedPkgInfo) = Layer5GoSymbolHelper.FindLongestWorkspaceModuleMatch(importPath, imports.WorkspacePackages);
-        if (matchedPkgKey != null && matchedPkgInfo != null)
-        {
-            var subPath = importPath[(matchedPkgKey.Length + 1)..];
-            var subCombined = NormalizeRelativePath($"{matchedPkgInfo.ProjectPath}/{subPath}");
-            AddFileCandidates(subCombined, results, symbols);
-            Layer5GoSymbolHelper.AddGoPackageDirectoryCandidates(subCombined, results, symbols);
-            AddFileCandidates(NormalizeRelativePath($"{matchedPkgInfo.ProjectPath}/src/{subPath}"), results, symbols);
-            imports.CandidateCache?[(callerFile, importPath)] = results;
-            return results;
-        }
-
-        // Check package prefix (subpath import: @repro/text/sub)
-        var slashIdx = importPath.IndexOf('/');
-        if (slashIdx > 0)
-        {
-            var firstSlash = slashIdx;
-            if (importPath.StartsWith('@'))
-            {
-                var secondSlash = importPath.IndexOf('/', firstSlash + 1);
-                if (secondSlash > 0) firstSlash = secondSlash;
-            }
-
-            var pkgName = importPath[..firstSlash];
-            var subPath = importPath[(firstSlash + 1)..];
-
-            if (imports.WorkspacePackages.TryGetValue(pkgName, out var subPkgInfo))
-            {
-                var subCombined = NormalizeRelativePath($"{subPkgInfo.ProjectPath}/{subPath}");
-                AddFileCandidates(subCombined, results, symbols);
-                Layer5GoSymbolHelper.AddGoPackageDirectoryCandidates(subCombined, results, symbols);
-                AddFileCandidates(NormalizeRelativePath($"{subPkgInfo.ProjectPath}/src/{subPath}"), results, symbols);
-                imports.CandidateCache?[(callerFile, importPath)] = results;
-                return results;
-            }
-        }
-
-        if (results.Count == 0)
-        {
-            Layer3IncludePathResolver.AppendIncludePathCandidates(
-                callerFile,
-                importPath,
-                symbols.KnownFiles,
-                results,
-                rawCand => AddFileCandidates(NormalizeRelativePath(rawCand), results, symbols));
-        }
-
-        imports.CandidateCache?[(callerFile, importPath)] = results;
-        return results;
-    }
-
-    private static void AddPackageEntryCandidates(PackageTargetInfo pkgInfo, List<string> results, SymbolLookups symbols)
-    {
-        if (!string.IsNullOrEmpty(pkgInfo.MainFile))
-        {
-            AddFileCandidates(NormalizeRelativePath($"{pkgInfo.ProjectPath}/{pkgInfo.MainFile}"), results, symbols);
-        }
-
-        AddFileCandidates(NormalizeRelativePath($"{pkgInfo.ProjectPath}/src/index"), results, symbols);
-        AddFileCandidates(NormalizeRelativePath($"{pkgInfo.ProjectPath}/index"), results, symbols);
-    }
-
-    private static void AddFileCandidates(string basePath, List<string> results, SymbolLookups symbols)
-    {
-        var candidates = new List<string>
-        {
-            basePath,
-            basePath + ".ts",
-            basePath + ".tsx",
-            basePath + ".js",
-            basePath + ".jsx",
-            basePath + ".mjs",
-            basePath + ".cjs",
-            basePath + ".php",
-            basePath + ".phtml",
-            basePath + ".inc",
-            basePath + "/index.ts",
-            basePath + "/index.tsx",
-            basePath + "/index.js",
-            basePath + "/index.jsx"
-        };
-
-        if (basePath.EndsWith(".js", StringComparison.OrdinalIgnoreCase))
-        {
-            var noExt = basePath[..^3];
-            candidates.Add(noExt + ".ts");
-            candidates.Add(noExt + ".tsx");
-        }
-
-        foreach (var cand in candidates)
-        {
-            if (symbols.KnownFiles.Contains(cand) && !results.Contains(cand))
-            {
-                results.Add(cand);
-            }
-        }
+        _ = ctx;
+        return Layer5ImportCandidateResolver.ResolveImportCandidateFiles(callerFile, importPath, imports, symbols);
     }
 }
 

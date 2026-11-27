@@ -74,14 +74,15 @@ public partial class Layer5AnalysisParser
         var hostId = refItem.ScopeSymbolId;
         if (callerFile != null)
         {
-            var normCaller = callerFile.Replace('\\', '/');
-            foreach (var ((filePath, kind, name), symId) in ctx.FileScopedSymbols)
+            var normCaller = callerFile.IndexOf('\\') >= 0 ? callerFile.Replace('\\', '/') : callerFile;
+            if (symbols.SymbolsByFile.TryGetValue(normCaller, out var callerSyms))
             {
-                var norm = filePath.Replace('\\', '/');
-                if (norm.Equals(normCaller, StringComparison.OrdinalIgnoreCase) && kind == "Class")
+                for (var i = 0; i < callerSyms.Count; i++)
                 {
-                    if (refItem.ScopeSymbolId.Contains(name, StringComparison.OrdinalIgnoreCase) ||
-                        refItem.ScopeSymbolId.StartsWith(symId, StringComparison.OrdinalIgnoreCase))
+                    var (kind, name, symId) = callerSyms[i];
+                    if (kind == "Class" &&
+                        (refItem.ScopeSymbolId.Contains(name, StringComparison.OrdinalIgnoreCase) ||
+                         refItem.ScopeSymbolId.StartsWith(symId, StringComparison.OrdinalIgnoreCase)))
                     {
                         hostId = symId;
                         break;
@@ -95,10 +96,11 @@ public partial class Layer5AnalysisParser
         // 1. Look for EntryPoint nodes in the candidate files
         foreach (var file in sortedFiles)
         {
-            foreach (var ((filePath, kind, name), symId) in ctx.FileScopedSymbols)
+            if (!symbols.SymbolsByFile.TryGetValue(file, out var fileSyms)) continue;
+            for (var i = 0; i < fileSyms.Count; i++)
             {
-                var norm = filePath.Replace('\\', '/');
-                if (norm.Equals(file, StringComparison.OrdinalIgnoreCase) && kind == OntologyConstants.NodeLabels.EntryPoint)
+                var (kind, _, symId) = fileSyms[i];
+                if (kind == OntologyConstants.NodeLabels.EntryPoint)
                 {
                     targetNodeIds.Add(symId);
                 }
@@ -108,11 +110,11 @@ public partial class Layer5AnalysisParser
         // 2. Look for Class / Component / Function nodes in the candidate files
         foreach (var file in sortedFiles)
         {
-            foreach (var ((filePath, kind, name), symId) in ctx.FileScopedSymbols)
+            if (!symbols.SymbolsByFile.TryGetValue(file, out var fileSyms)) continue;
+            for (var i = 0; i < fileSyms.Count; i++)
             {
-                var norm = filePath.Replace('\\', '/');
-                if (norm.Equals(file, StringComparison.OrdinalIgnoreCase) &&
-                    (kind is "Class" or "Component" || kind == OntologyConstants.NodeLabels.Function))
+                var (kind, _, symId) = fileSyms[i];
+                if (kind is "Class" or "Component" || kind == OntologyConstants.NodeLabels.Function)
                 {
                     targetNodeIds.Add(symId);
                     if (targetNodeIds.Count >= 2) break;
@@ -122,7 +124,7 @@ public partial class Layer5AnalysisParser
         }
 
         // 3. Fallback to FunctionSymbolsByFile
-        if (targetNodeIds.Count == 0)
+        if (targetNodeIds.Count == 0 && symbols.SymbolsByFile.Count == 0)
         {
             foreach (var file in sortedFiles)
             {

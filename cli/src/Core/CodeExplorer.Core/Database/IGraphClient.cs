@@ -17,6 +17,7 @@ public interface IGraphClient : IAsyncDisposable, ICypherQueryExecutor
     Task<bool> ClearWorkspaceAsync(string workspacePath) => Task.FromResult(true);
     Task<string> GetOrCreateWorkspaceIdAsync(string workspacePath);
     Task SaveEmptyWorkspaceNodeAsync(string id, string path);
+    Node? StagedWorkspaceNode => null;
     Task UploadNodesAsync(List<Node> nodes);
     Task UploadRelationshipsAsync(List<Relationship> rels);
     Task ExecuteWriteAsync(string query, object? parameters = null, CancellationToken cancellationToken = default) => Task.CompletedTask;

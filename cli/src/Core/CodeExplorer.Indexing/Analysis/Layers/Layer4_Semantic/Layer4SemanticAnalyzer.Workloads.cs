@@ -10,7 +10,7 @@ public partial class Layer4SemanticParser
 {
     private static void InitializeWorkloadsForProjects(
         List<ProjectNode> allProjects,
-        List<FileNode> allFiles,
+        IReadOnlyDictionary<string, List<FileNode>> filesByProjectId,
         Layer4Context ctx,
         SemanticStructureNode semanticStructureNode,
         List<IOntologyNode> semanticNodes,
@@ -62,7 +62,7 @@ public partial class Layer4SemanticParser
                 canonicalPrimaryRole != "Service" &&
                 canonicalPrimaryRole != "App")
             {
-                var projectFiles = allFiles.Where(f => Layer2ProjectParser.IsEnclosedInProject(f, project, allProjects)).ToList();
+                var projectFiles = filesByProjectId.GetValueOrDefault(project.Id) ?? [];
                 if (projectFiles.Any(f => f.Name.EndsWith(".html", StringComparison.OrdinalIgnoreCase) ||
                                           f.Name.EndsWith(".vue", StringComparison.OrdinalIgnoreCase) ||
                                           f.Name.EndsWith(".svelte", StringComparison.OrdinalIgnoreCase) ||
@@ -79,8 +79,8 @@ public partial class Layer4SemanticParser
 
             secRolesList.Remove(canonicalPrimaryRole);
 
-            var secRolesJson = System.Text.Json.JsonSerializer.Serialize(secRolesList);
-            var allRolesJson = System.Text.Json.JsonSerializer.Serialize(new[] { canonicalPrimaryRole }.Concat(secRolesList).Distinct().ToList());
+            var secRolesJson = JsonSerializer.Serialize(secRolesList);
+            var allRolesJson = JsonSerializer.Serialize(new[] { canonicalPrimaryRole }.Concat(secRolesList).Distinct().ToList());
 
             project.PrimaryRole = canonicalPrimaryRole;
             project.SecondaryRoles = secRolesJson;
@@ -248,6 +248,7 @@ public partial class Layer4SemanticParser
         Layer4Context ctx)
     {
         ResourceSemanticAnalyzer.ResetCache();
+        var sharedEnrichmentCache = new Dictionary<string, object>(StringComparer.Ordinal);
         var lastLogTicks = Environment.TickCount64;
         var projectsProcessed = 0;
         var totalProjects = allProjects.Count;
@@ -256,6 +257,83 @@ public partial class Layer4SemanticParser
         {
             ctx.CancellationToken.ThrowIfCancellationRequested();
             projectsProcessed++;
+            var projectFiles = filesByProjectId.GetValueOrDefault(project.Id) ?? [];
+            var projectTrees = treesByProjectId.GetValueOrDefault(project.Id) ?? [];
+            (lastLogTicks, _) = await EnrichSingleProjectCoreAsync(
+                project,
+                projectsProcessed,
+                totalProjects,
+                lastLogTicks,
+                projectFiles,
+                projectTrees,
+                allProjects,
+                allFiles,
+                treesByProjectId,
+                sharedEnrichmentCache,
+                workloadNodeByProjectId,
+                workloadChildIdsByWorkload,
+                semanticStructureNode,
+                semanticStructureChildIds,
+                semanticNodes,
+                semanticRelationships,
+                existingRelKeys,
+                ctx,
+                disposeTreesImmediately: true);
+        }
+    }
+
+    internal Task<(long LastLogTicks, List<IOntologyNode> ProjectSemanticNodes)> EnrichSingleProjectStreamingAsync(
+        ProjectNode project,
+        int projectsProcessed,
+        int totalProjects,
+        long lastLogTicks,
+        List<FileNode> projectFiles,
+        List<SyntaxTree> projectTrees,
+        Layer4StreamingState state,
+        Layer4Context ctx) =>
+        EnrichSingleProjectCoreAsync(
+            project,
+            projectsProcessed,
+            totalProjects,
+            lastLogTicks,
+            projectFiles,
+            projectTrees,
+            ctx.Layer2.Projects,
+            ctx.Layer1.Files,
+            state.TerraformTreesByProjectId,
+            state.SharedEnrichmentCache,
+            state.WorkloadNodeByProjectId,
+            state.WorkloadChildIdsByWorkload,
+            state.SemanticStructure,
+            state.SemanticStructureChildIds,
+            state.SemanticNodes,
+            state.SemanticRelationships,
+            state.ExistingRelKeys,
+            ctx,
+            disposeTreesImmediately: false);
+
+    private async Task<(long LastLogTicks, List<IOntologyNode> ProjectSemanticNodes)> EnrichSingleProjectCoreAsync(
+        ProjectNode project,
+        int projectsProcessed,
+        int totalProjects,
+        long lastLogTicks,
+        List<FileNode> projectFiles,
+        List<SyntaxTree> projectTrees,
+        List<ProjectNode> allProjects,
+        List<FileNode> allFiles,
+        Dictionary<string, List<SyntaxTree>> treesByProjectId,
+        Dictionary<string, object> sharedEnrichmentCache,
+        Dictionary<string, IOntologyNode> workloadNodeByProjectId,
+        Dictionary<string, HashSet<string>> workloadChildIdsByWorkload,
+        SemanticStructureNode semanticStructureNode,
+        HashSet<string> semanticStructureChildIds,
+        List<IOntologyNode> semanticNodes,
+        List<Relationship> semanticRelationships,
+        HashSet<(string From, string To, string Kind)> existingRelKeys,
+        Layer4Context ctx,
+        bool disposeTreesImmediately)
+    {
+        {
             var workloadNode = workloadNodeByProjectId[project.Id];
 
             void ReportProgressIfNeeded(bool force = false)
@@ -267,14 +345,13 @@ public partial class Layer4SemanticParser
                     var pct = totalProjects > 0 ? (double)projectsProcessed / totalProjects * 100.0 : 100.0;
                     var pctInt = (int)Math.Round(pct);
                     var globalPct = 52 + (int)(16.0 * projectsProcessed / Math.Max(1, totalProjects));
-                    ctx.ReportProgress(globalPct, "Layer 4: Semantic", $"Enriched {projectsProcessed}/{totalProjects} projects ({pctInt}%) - {project.Name}");
+                    const string layer4StageTitle = "Layer 4: Semantic";
+                    ctx.ReportProgress(globalPct, layer4StageTitle, $"Enriched {projectsProcessed}/{totalProjects} projects ({pctInt}%) - {project.Name}");
                     ctx.Layer4Log.EnrichingProgress(projectsProcessed, totalProjects, pctInt, project.Name);
                     lastLogTicks = now;
                     ctx.TriggerProgressReport();
                 }
             }
-
-            var projectFiles = filesByProjectId.GetValueOrDefault(project.Id) ?? [];
 
             // Find project parser(s) — fast-path via in-memory ProjectType lookup before falling back to in-memory file list
             var directParser = WorkspaceIndexer.GetProjectParser(project.ProjectType.ToCanonicalString());
@@ -299,11 +376,12 @@ public partial class Layer4SemanticParser
             if (projectParser == null)
             {
                 ReportProgressIfNeeded();
-                continue;
+                return (lastLogTicks, []);
             }
 
             // 2. Parse project-level configuration files before syntax enrichment so resources are available in registry
             var initialRelCount = semanticRelationships.Count;
+            var initialGlobalDepCount = ctx.GlobalProjectDependencies.Count;
             foreach (var pfile in projectFiles)
             {
                 if (ConfigurationParser.IsConfigurationFile(pfile.Name))
@@ -321,8 +399,6 @@ public partial class Layer4SemanticParser
             }
 
             // 3. Get syntax trees belonging to this project and run semantic enrichers
-            var projectTrees = treesByProjectId.GetValueOrDefault(project.Id) ?? [];
-
             foreach (var syntaxTree in projectTrees)
             {
                 ctx.CancellationToken.ThrowIfCancellationRequested();
@@ -344,7 +420,8 @@ public partial class Layer4SemanticParser
                 projectTrees,
                 allProjects,
                 treesByProjectId,
-                allFiles);
+                allFiles,
+                sharedEnrichmentCache);
 
             foreach (var syntaxTree in projectTrees)
             {
@@ -355,8 +432,15 @@ public partial class Layer4SemanticParser
                 }
             }
 
+            const string terraformParserType = "terraform";
             foreach (var enrichParser in matchingParsers)
             {
+                if (!disposeTreesImmediately &&
+                    string.Equals(enrichParser.ProjectType, terraformParserType, StringComparison.OrdinalIgnoreCase))
+                {
+                    continue;
+                }
+
                 var enrichResult = await enrichParser.EnrichProjectAsync(enrichContext);
 
                 foreach (var semNode in enrichResult.SemanticNodes)
@@ -390,7 +474,8 @@ public partial class Layer4SemanticParser
                 {
                     CollectSemanticNodes(syntaxTree.FileNode, projectSemanticNodes);
                 }
-                if (!ctx.LightweightAstScanMode &&
+                if (disposeTreesImmediately &&
+                    !ctx.LightweightAstScanMode &&
                     (syntaxTree.FileParser.UsesTreeSitter ||
                      syntaxTree.FileParser.LanguageName.ToLowerInvariant() is not "terraform"))
                 {
@@ -487,18 +572,20 @@ public partial class Layer4SemanticParser
                         syntaxTree.FileNode?.Children.RemoveAll(c => tableIdRemap.ContainsKey(c.Id));
                     }
 
-                    for (var i = 0; i < semanticRelationships.Count; i++)
+                    for (var i = initialRelCount; i < semanticRelationships.Count; i++)
                     {
                         var r = semanticRelationships[i];
                         var newFrom = tableIdRemap.GetValueOrDefault(r.From, r.From);
                         var newTo = tableIdRemap.GetValueOrDefault(r.To, r.To);
                         if (!ReferenceEquals(newFrom, r.From) || !ReferenceEquals(newTo, r.To))
                         {
-                            semanticRelationships[i] = r with { From = newFrom, To = newTo };
+                            var updatedRel = r with { From = newFrom, To = newTo };
+                            semanticRelationships[i] = updatedRel;
+                            existingRelKeys.Add((updatedRel.From, updatedRel.To, updatedRel.Kind.ToCypherType()));
                         }
                     }
 
-                    for (var i = 0; i < ctx.GlobalProjectDependencies.Count; i++)
+                    for (var i = initialGlobalDepCount; i < ctx.GlobalProjectDependencies.Count; i++)
                     {
                         var dep = ctx.GlobalProjectDependencies[i];
                         var newFrom = tableIdRemap.GetValueOrDefault(dep.From, dep.From);
@@ -550,9 +637,10 @@ public partial class Layer4SemanticParser
                         _ = ex.Message;
                     }
                 }
-                if (!secRolesList.Contains("Service"))
+                const string serviceRoleName = "Service";
+                if (!secRolesList.Contains(serviceRoleName))
                 {
-                    secRolesList.Add("Service");
+                    secRolesList.Add(serviceRoleName);
                     var newSecJson = System.Text.Json.JsonSerializer.Serialize(secRolesList);
                     var newAllJson = System.Text.Json.JsonSerializer.Serialize(new[] { primRole }.Concat(secRolesList).Distinct().ToList());
                     project.SecondaryRoles = newSecJson;
@@ -643,6 +731,57 @@ public partial class Layer4SemanticParser
             GroupEntryPoints(workloadNode, project, projectTrees, semanticRelationships, existingRelKeys, ctx);
 
             ReportProgressIfNeeded();
+            return (lastLogTicks, projectSemanticNodes);
+        }
+    }
+
+    internal async Task EnrichDeferredTerraformProjectsAsync(
+        IReadOnlyList<(ProjectNode Project, List<SyntaxTree> TerraformTrees)> deferredProjects,
+        Layer4StreamingState state,
+        Layer4Context ctx)
+    {
+        if (deferredProjects.Count == 0) return;
+
+        const string terraformParserType = "terraform";
+        var tfParser = WorkspaceIndexer.GetProjectParser(terraformParserType);
+        if (tfParser == null) return;
+
+        for (var i = 0; i < deferredProjects.Count; i++)
+        {
+            ctx.CancellationToken.ThrowIfCancellationRequested();
+            var (project, tfTrees) = deferredProjects[i];
+            var enrichContext = new ProjectEnrichmentContext(
+                ctx.WorkspaceId,
+                ctx.AbsoluteWorkspacePath,
+                project,
+                tfTrees,
+                ctx.Layer2.Projects,
+                state.TerraformTreesByProjectId,
+                ctx.Layer1.Files,
+                state.SharedEnrichmentCache);
+
+            var enrichResult = await tfParser.EnrichProjectAsync(enrichContext);
+            foreach (var semNode in enrichResult.SemanticNodes)
+            {
+                if (state.SemanticStructureChildIds.Add(semNode.Id))
+                {
+                    state.SemanticStructure.Children.Add(semNode);
+                    state.SemanticNodes.Add(semNode);
+                }
+            }
+
+            foreach (var rel in enrichResult.SemanticRelationships)
+            {
+                if (state.ExistingRelKeys.Add((rel.From, rel.To, rel.Kind.ToCypherType())))
+                {
+                    state.SemanticRelationships.Add(rel);
+                }
+            }
+
+            foreach (var globalRel in enrichResult.GlobalRelationships)
+            {
+                ctx.AddGlobalProjectDependency(globalRel);
+            }
         }
     }
 
@@ -708,6 +847,19 @@ public partial class Layer4SemanticParser
         HashSet<(string From, string To, string Kind)> existingRelKeys,
         List<Relationship> semanticRelationships)
     {
+        var workloadById = new Dictionary<string, IOntologyNode>(semanticStructureNode.Children.Count, StringComparer.Ordinal);
+        for (var i = 0; i < semanticStructureNode.Children.Count; i++)
+        {
+            var child = semanticStructureNode.Children[i];
+            workloadById.TryAdd(child.Id, child);
+        }
+
+        var packageIds = new HashSet<string>(l2Result.Packages.Count, StringComparer.Ordinal);
+        for (var i = 0; i < l2Result.Packages.Count; i++)
+        {
+            packageIds.Add(l2Result.Packages[i].Id);
+        }
+
         foreach (var dep in l2Result.ProjectDependencies)
         {
             if (dep.Kind == RelationshipKind.DependsOn &&
@@ -716,8 +868,8 @@ public partial class Layer4SemanticParser
                 if (workloadByProjectId.TryGetValue(dep.To, out var targetWorkloadId) &&
                     sourceWorkloadId != targetWorkloadId)
                 {
-                    var sourceWorkload = semanticStructureNode.Children.FirstOrDefault(c => c.Id == sourceWorkloadId);
-                    var targetWorkload = semanticStructureNode.Children.FirstOrDefault(c => c.Id == targetWorkloadId);
+                    workloadById.TryGetValue(sourceWorkloadId, out var sourceWorkload);
+                    workloadById.TryGetValue(targetWorkloadId, out var targetWorkload);
 
                     if (sourceWorkload is TestSuiteNode)
                     {
@@ -751,8 +903,8 @@ public partial class Layer4SemanticParser
                         }
                     }
                 }
-                else if (dep.To.Contains($":{OntologyConstants.IdPrefixes.Package}:") ||
-                         l2Result.Packages.Any(p => p.Id == dep.To))
+                else if (dep.To.Contains($":{OntologyConstants.IdPrefixes.Package}:", StringComparison.Ordinal) ||
+                         packageIds.Contains(dep.To))
                 {
                     if (existingRelKeys.Add((sourceWorkloadId, dep.To, OntologyConstants.Relationships.DependsOn)))
                     {
