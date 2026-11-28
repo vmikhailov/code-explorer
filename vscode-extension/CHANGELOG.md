@@ -5,6 +5,14 @@ All notable changes to the CodeExplorer project (CLI, MCP Server, and VS Code Ex
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.108.3] - 2026-11-28
+
+### Fixed
+- **Nested Git Repo Project Discovery & Language Fallback (`Layer2BoundariesAnalyzer`)**: Moved manifestless nested git repository fallback from top-down Pass 1 into Pass 1.5 (running only when Pass 1 found no manifest-backed projects inside the repo) so multi-project container repositories no longer swallow child Terraform modules or script projects. Updated `ResolveConfiguredProjectParser` to use full `SubtreeLanguageCounts` across all supported languages and return `null` when no source files exist instead of defaulting empty/YAML-only repos to `php`.
+- **YAML Sequence Mapping Key Tokenization (`YamlConfigurationFileParser`)**: Stripped the YAML sequence item indicator (`"- "`) and advanced effective indentation before parsing `key: value` entries inside sequences (e.g., `- instanceEndPoint: https://...`), eliminating leading-dash/leading-space config keys and `ExternalService` names.
+- **Dataflow-Backed Shared-Table Edges (`WorkspaceCoarsener`)**: Required at least one `WRITES_TO` writer in the workspace before emitting `shared_table` coupling edges in `ce domains` and `ce slice`, naturally excluding read-only system catalogs without hardcoded schema denylists.
+- **Local Tool Packaging (`scripts/update-local.ps1`)**: Cleared cached `cli/.Build/publish_<Configuration>*` directories before `dotnet pack` so stale dependency DLLs with newer timestamps cannot survive MSBuild incremental copy.
+
 ## [1.108.2] - 2026-11-28
 
 ### Changed

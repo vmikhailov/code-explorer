@@ -52,10 +52,12 @@ internal static class WorkspaceCoarsener
         "MATCH (w)-[:SUBSCRIBES_TO|TRIGGERS]-(t:Topic) WHERE (w:Project OR w:Workload OR w:Module) RETURN coalesce(w.path, w.name, '') AS path, coalesce(t.name, '') AS topic";
 
     internal const string QueryTableAccess =
-        "MATCH (n)-[:READS_FROM|WRITES_TO|USES_DB]->(t:Table) RETURN coalesce(n.file_path, n.path, '') AS path, coalesce(t.name, '') AS tbl, coalesce(t.schema, '') AS sch, coalesce(t.id, '') AS tid";
+        "MATCH (n)-[r:READS_FROM|WRITES_TO|USES_DB]->(t:Table) RETURN coalesce(n.file_path, n.path, '') AS path, coalesce(t.name, '') AS tbl, coalesce(t.schema, '') AS sch, coalesce(t.id, '') AS tid, type(r) AS rel";
 
     private const string ColSchema = "sch";
     private const string ColTableId = "tid";
+    private const string ColRel = "rel";
+    private const string RelWritesTo = "WRITES_TO";
     private const string ReasonPackageDep = "package_dep";
 
     private static readonly HashSet<string> NonCallableUnitLanguages = new(StringComparer.OrdinalIgnoreCase)
@@ -467,7 +469,7 @@ internal static class WorkspaceCoarsener
         CancellationToken ct)
     {
         var tblRes = await db.ExecuteCypherAsync(QueryTableAccess, cancellationToken: ct);
-        var unitsByQualifiedTable = new Dictionary<string, (string DisplayLabel, HashSet<string> Units)>(StringComparer.OrdinalIgnoreCase);
+        var unitsByQualifiedTable = new Dictionary<string, (string DisplayLabel, HashSet<string> Writers, HashSet<string> Readers)>(StringComparer.OrdinalIgnoreCase);
 
         foreach (var row in tblRes.Rows)
         {
@@ -486,22 +488,43 @@ internal static class WorkspaceCoarsener
 
             if (!unitsByQualifiedTable.TryGetValue(groupKey, out var entry))
             {
-                entry = (displayLabel, new HashSet<string>(StringComparer.OrdinalIgnoreCase));
+                entry = (displayLabel, new HashSet<string>(StringComparer.OrdinalIgnoreCase), new HashSet<string>(StringComparer.OrdinalIgnoreCase));
                 unitsByQualifiedTable[groupKey] = entry;
             }
-            entry.Units.Add(u);
+
+            var rel = row[ColRel].AsString();
+            if (string.Equals(rel, RelWritesTo, StringComparison.OrdinalIgnoreCase))
+            {
+                entry.Writers.Add(u);
+            }
+            else
+            {
+                entry.Readers.Add(u);
+            }
         }
 
-        foreach (var (_, (displayLabel, uSet)) in unitsByQualifiedTable)
+        foreach (var (_, (displayLabel, writers, readers)) in unitsByQualifiedTable)
         {
-            if (uSet.Count is < 2 or > 5) continue;
-            var w = 1.0 / Math.Log2(2.0 + uSet.Count);
-            var list = uSet.ToList();
-            for (var i = 0; i < list.Count; i++)
+            // Shared-table coupling requires at least one writer in the workspace (dataflow),
+            // which naturally excludes read-only system catalogs without hardcoded schema denylists.
+            if (writers.Count == 0) continue;
+
+            var allUnits = new HashSet<string>(writers, StringComparer.OrdinalIgnoreCase);
+            allUnits.UnionWith(readers);
+            if (allUnits.Count is < 2 or > 5) continue;
+
+            var w = 1.0 / Math.Log2(2.0 + allUnits.Count);
+            var seenPairs = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var writer in writers)
             {
-                for (var j = i + 1; j < list.Count; j++)
+                foreach (var other in allUnits)
                 {
-                    accumulate(list[i], list[j], w, $"shared_table:{displayLabel}");
+                    if (string.Equals(writer, other, StringComparison.OrdinalIgnoreCase)) continue;
+                    var pairKey = string.Compare(writer, other, StringComparison.OrdinalIgnoreCase) < 0
+                        ? $"{writer}|{other}"
+                        : $"{other}|{writer}";
+                    if (!seenPairs.Add(pairKey)) continue;
+                    accumulate(writer, other, w, $"shared_table:{displayLabel}");
                 }
             }
         }

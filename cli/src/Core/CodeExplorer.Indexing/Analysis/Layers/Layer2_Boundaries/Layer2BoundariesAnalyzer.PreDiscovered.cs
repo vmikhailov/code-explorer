@@ -6,6 +6,34 @@ public partial class Layer2ProjectParser
     private const string TrueFlagValue = "true";
     private const string LangTerraform = "terraform";
 
+    private static List<(string Dir, SubtreeLanguageCounts? Counts)> CollectLeafNestedGitRepoNodes(
+        IReadOnlyList<ScopedDirectoryTreeNode> roots)
+    {
+        var results = new List<(string Dir, SubtreeLanguageCounts? Counts)>();
+        var stack = new Stack<ScopedDirectoryTreeNode>();
+        for (var i = roots.Count - 1; i >= 0; i--)
+        {
+            stack.Push(roots[i]);
+        }
+
+        while (stack.Count > 0)
+        {
+            var current = stack.Pop();
+            if (!current.IsRoot && current.IsGitRepoRoot && current.DescendantGitRepoCount == 0)
+            {
+                results.Add((current.DirectoryPath, current.LanguageCounts));
+                continue;
+            }
+
+            for (var i = current.Children.Count - 1; i >= 0; i--)
+            {
+                stack.Push(current.Children[i]);
+            }
+        }
+
+        return results;
+    }
+
     private static async Task WalkPreDiscoveredTreeAsync(
         IReadOnlyList<ScopedDirectoryTreeNode> roots,
         DirectoryScanState state)

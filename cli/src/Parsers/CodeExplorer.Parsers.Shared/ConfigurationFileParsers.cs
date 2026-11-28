@@ -210,18 +210,24 @@ public sealed class YamlConfigurationParser : ISharedFileParser
             var trimmedStart = line.TrimStart();
             if (trimmedStart.StartsWith('#')) continue;
 
-            if (trimmedStart.StartsWith("- "))
+            var indent = line.Length - trimmedStart.Length;
+            if (trimmedStart.StartsWith("- ", StringComparison.Ordinal))
             {
-                var itemText = trimmedStart[2..].Trim().Trim('"', '\'');
-                var envMatch = KeyValueSyntax.EnvLine().Match(itemText);
+                var afterDash = trimmedStart[2..];
+                var trimmedItem = afterDash.TrimStart();
+                var envMatch = KeyValueSyntax.EnvLine().Match(trimmedItem.Trim().Trim('"', '\''));
                 if (envMatch.Success)
                 {
                     values.Add(new ConfigValue(envMatch.Groups[1].Value.Trim(), envMatch.Groups[2].Value.Trim().Trim('"', '\'')));
                     continue;
                 }
+
+                // Sequence item containing a mapping (e.g. "- instanceEndPoint: https://..."):
+                // advance indent past the sequence marker so the key is tokenized without "- ".
+                indent += 2 + (afterDash.Length - trimmedItem.Length);
+                trimmedStart = trimmedItem;
             }
 
-            var indent = line.Length - trimmedStart.Length;
             while (stack.Count > 0 && stack[^1].Indent >= indent)
             {
                 stack.RemoveAt(stack.Count - 1);

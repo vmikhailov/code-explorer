@@ -1,4 +1,4 @@
-<#
+﻿<#
 .SYNOPSIS
     Builds, packs, and updates the local global 'codeexplorer.cli' ('ce') tool.
 
@@ -55,6 +55,15 @@ if ($BumpPatch) {
 Write-Host "`nPacking codeexplorer.cli ($Configuration)..." -ForegroundColor Cyan
 if (-not (Test-Path $packagesDir)) {
     New-Item -ItemType Directory -Path $packagesDir -Force | Out-Null
+}
+
+# Clear cached publish output directories so stale dependency DLLs with newer timestamps cannot survive incremental copy
+$buildDir = Join-Path $rootDir "cli\.Build"
+if (Test-Path $buildDir) {
+    Get-ChildItem -Path $buildDir -Directory -Filter "publish_$Configuration*" | ForEach-Object {
+        Write-Host "Cleaning stale publish dir: $($_.FullName)" -ForegroundColor DarkGray
+        Remove-Item -Path $_.FullName -Recurse -Force
+    }
 }
 
 $packArgs = @("pack", $cliProj, "-c", $Configuration, "-o", $packagesDir, "--nologo")

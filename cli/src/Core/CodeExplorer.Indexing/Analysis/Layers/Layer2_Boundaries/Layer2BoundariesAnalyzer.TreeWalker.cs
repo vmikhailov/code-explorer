@@ -473,7 +473,7 @@ public partial class Layer2ProjectParser
         {
             if (matchedResults.Count == 0)
             {
-                var fallbackParser = ResolveConfiguredProjectParser(dir, configuredSetting, dirIndex);
+                var fallbackParser = ResolveConfiguredProjectParser(dir, configuredSetting, dirIndex, precomputedCounts);
                 if (fallbackParser != null)
                 {
                     var props = fallbackParser.ExtractManifestProperties(dir, filesInDir);
@@ -490,21 +490,6 @@ public partial class Layer2ProjectParser
                 }
             }
         }
-        else if (isNestedGitRepo && matchedResults.Count == 0 && (precomputedCounts?.HasAnyCount == true || dirIndex.EnumerateCachedFilesInSubtree(dir).Any()))
-        {
-            var repoName = Path.GetFileName(dir.TrimEnd('/', '\\'));
-            if (!string.IsNullOrWhiteSpace(repoName))
-            {
-                var repoSetting = new WorkspaceProjectSetting { Name = repoName, Path = dir };
-                var gitParser = ResolveConfiguredProjectParser(dir, repoSetting, dirIndex);
-                if (gitParser != null)
-                {
-                    var props = gitParser.ExtractManifestProperties(dir, filesInDir);
-                    var desc = new ParsedProjectDescriptor(repoName, dir, gitParser.ProjectType, props);
-                    matchedResults.Add((gitParser, new ProjectParseResult(desc)));
-                }
-            }
-        }
 
         if (matchedResults.Count == 0)
         {
@@ -517,7 +502,11 @@ public partial class Layer2ProjectParser
         return RankMultiEcosystemMatches(dir, filtered, precomputedCounts);
     }
 
-    private static IProjectParser? ResolveConfiguredProjectParser(string dir, WorkspaceProjectSetting setting, WorkspaceDirectoryIndex dirIndex)
+    private static IProjectParser? ResolveConfiguredProjectParser(
+        string dir,
+        WorkspaceProjectSetting setting,
+        WorkspaceDirectoryIndex dirIndex,
+        SubtreeLanguageCounts? precomputedCounts = null)
     {
         if (!string.IsNullOrWhiteSpace(setting.Language))
         {
@@ -529,54 +518,33 @@ public partial class Layer2ProjectParser
             }
         }
 
-        var phpCount = 0;
-        var pyCount = 0;
-        var perlCount = 0;
-        var tsCount = 0;
-        var jsCount = 0;
-        var csCount = 0;
-        var goCount = 0;
+        var counts = precomputedCounts ?? CountLanguageFilesInSubtree(dir);
+        string? dominantType = null;
+        var maxCount = 0;
 
-        foreach (var file in dirIndex.EnumerateCachedFilesInSubtree(dir))
+        if (counts.TypeScript > maxCount) { dominantType = "typescript"; maxCount = counts.TypeScript; }
+        if (counts.JavaScript > maxCount) { dominantType = "javascript"; maxCount = counts.JavaScript; }
+        if (counts.Python > maxCount) { dominantType = "python"; maxCount = counts.Python; }
+        if (counts.Java > maxCount) { dominantType = "java"; maxCount = counts.Java; }
+        if (counts.Kotlin > maxCount) { dominantType = "kotlin"; maxCount = counts.Kotlin; }
+        if (counts.CSharp > maxCount) { dominantType = "csharp"; maxCount = counts.CSharp; }
+        if (counts.Go > maxCount) { dominantType = "go"; maxCount = counts.Go; }
+        if (counts.Rust > maxCount) { dominantType = "rust"; maxCount = counts.Rust; }
+        if (counts.Php > maxCount) { dominantType = "php"; maxCount = counts.Php; }
+        if (counts.Perl > maxCount) { dominantType = "perl"; maxCount = counts.Perl; }
+        if (counts.Ruby > maxCount) { dominantType = "ruby"; maxCount = counts.Ruby; }
+        if (counts.Cpp > maxCount) { dominantType = "cpp"; maxCount = counts.Cpp; }
+        if (counts.Swift > maxCount) { dominantType = "swift"; maxCount = counts.Swift; }
+        if (counts.Terraform > maxCount) { dominantType = "terraform"; maxCount = counts.Terraform; }
+        if (counts.ColdFusion > maxCount) { dominantType = "coldfusion"; }
+
+        if (dominantType == null)
         {
-            switch (Path.GetExtension(file).ToLowerInvariant())
-            {
-                case ".php" or ".phtml" or ".inc":
-                    phpCount++;
-                    break;
-                case ".py":
-                    pyCount++;
-                    break;
-                case ".pl" or ".pm":
-                    perlCount++;
-                    break;
-                case ".ts" or ".tsx":
-                    tsCount++;
-                    break;
-                case ".js" or ".jsx":
-                    jsCount++;
-                    break;
-                case ".cs":
-                    csCount++;
-                    break;
-                case ".go":
-                    goCount++;
-                    break;
-            }
+            return null;
         }
 
-        var dominantType = "php";
-        var maxCount = phpCount;
-        if (pyCount > maxCount) { dominantType = "python"; maxCount = pyCount; }
-        if (perlCount > maxCount) { dominantType = "perl"; maxCount = perlCount; }
-        if (tsCount > maxCount) { dominantType = "typescript"; maxCount = tsCount; }
-        if (jsCount > maxCount) { dominantType = "javascript"; maxCount = jsCount; }
-        if (csCount > maxCount) { dominantType = "csharp"; maxCount = csCount; }
-        if (goCount > maxCount) { dominantType = "go"; }
-
         return WorkspaceIndexer._projectParsers.FirstOrDefault(p =>
-                   !p.IsFallback && p.ProjectType.Equals(dominantType, StringComparison.OrdinalIgnoreCase))
-               ?? WorkspaceIndexer._projectParsers.FirstOrDefault(p => !p.IsFallback);
+            !p.IsFallback && p.ProjectType.Equals(dominantType, StringComparison.OrdinalIgnoreCase));
     }
 
     private static List<(IProjectParser Parser, ParsedProjectDescriptor Descriptor, List<(IProjectParser Parser, ParsedProjectDescriptor Descriptor)> MergedSecondaries)>

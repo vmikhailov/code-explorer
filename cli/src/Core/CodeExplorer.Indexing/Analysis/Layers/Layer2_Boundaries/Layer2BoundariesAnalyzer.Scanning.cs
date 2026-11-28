@@ -41,6 +41,51 @@ public partial class Layer2ProjectParser
             await WalkDirectoryForestAsync(dirsToCheck, scanState);
         }
 
+        // Pass 1.5: Manifestless leaf nested git repositories that contain recognized source files
+        // but had no manifest-backed projects discovered anywhere inside them during Pass 1.
+        if (!ctx.IsSubtreeScan)
+        {
+            var rootNorm = ctx.AbsoluteWorkspacePath.NormalizeFullPath(trimTrailingSlash: true);
+            var candidateGitRoots = unifiedPlan != null
+                ? CollectLeafNestedGitRepoNodes(unifiedPlan.RootNodes)
+                : dirsToCheck
+                    .Where(d => !string.Equals(d.NormalizeFullPath(trimTrailingSlash: true), rootNorm, StringComparison.OrdinalIgnoreCase) &&
+                                ctx.DirectoryIndex.IsGitRepositoryRoot(d) &&
+                                !ctx.DirectoryIndex.HasChildGitRepositories(d))
+                    .Select(d => (Dir: d, Counts: (SubtreeLanguageCounts?)null))
+                    .ToList();
+
+            foreach (var (gitDir, precomputedCounts) in candidateGitRoots)
+            {
+                ctx.CancellationToken.ThrowIfCancellationRequested();
+
+                var relGitDir = Path.GetRelativePath(ctx.AbsoluteWorkspacePath, gitDir).Replace('\\', '/');
+                if (relGitDir == ".") continue;
+                var relPrefix = relGitDir.TrimEnd('/') + "/";
+
+                var alreadyHasProject = projects.Any(p =>
+                    string.Equals(p.Path, relGitDir, StringComparison.OrdinalIgnoreCase) ||
+                    (!string.IsNullOrEmpty(p.Path) && p.Path.StartsWith(relPrefix, StringComparison.OrdinalIgnoreCase)));
+                if (alreadyHasProject) continue;
+
+                var repoName = Path.GetFileName(gitDir.TrimEnd('/', '\\'));
+                if (string.IsNullOrWhiteSpace(repoName)) continue;
+
+                var repoSetting = new WorkspaceProjectSetting { Name = repoName, Path = gitDir };
+                var gitParser = ResolveConfiguredProjectParser(gitDir, repoSetting, ctx.DirectoryIndex, precomputedCounts);
+                if (gitParser == null) continue;
+
+                var filesInGitDir = ctx.DirectoryIndex.GetDirectoryFiles(gitDir);
+                var props = gitParser.ExtractManifestProperties(gitDir, filesInGitDir);
+                var desc = new ParsedProjectDescriptor(repoName, gitDir, gitParser.ProjectType, props);
+                await InstantiateMatchedProjectsInDirectoryAsync(
+                    gitDir,
+                    filesInGitDir,
+                    [(gitParser, new ProjectParseResult(desc))],
+                    scanState);
+            }
+        }
+
         // Pass 2: Fallback project detection for directories with loose scripts or unmanaged projects not enclosed in any standard project
         var fallbackParsers = WorkspaceIndexer._projectParsers.Where(p => p.IsFallback).ToList();
         var fallbackCandidateDirs = unifiedPlan != null ? unifiedPlan.FallbackCandidateDirectories : dirsToCheck;

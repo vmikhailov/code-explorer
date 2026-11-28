@@ -2,7 +2,7 @@
   "$schema": "https://antigravity.google/schemas/v1/plugin.json",
   "name": "code-explorer",
   "displayName": "CodeExplorer",
-  "version": "1.108.2",
+  "version": "1.108.3",
   "description": "Semantic code graph and polyglot architecture intelligence: trace call chains, project dependencies, blast radius, endpoints, and SQL/ORM data lineage, and enforce architectural and security Semantic Invariant Gates via Cypher.",
   "logo": "assets/logo.svg",
   "suggestedPrompts": [
