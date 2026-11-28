@@ -210,6 +210,14 @@ public class GetViewRequestDto
 
     [JsonPropertyName("includeLibraries")]
     public bool IncludeLibraries { get; set; } = false;
+
+    [JsonPropertyName("clustered")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public bool? Clustered { get; set; }
+
+    [JsonPropertyName("expandedClusters")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public List<string>? ExpandedClusters { get; set; }
 }
 
 public class GetDependenciesRequestDto

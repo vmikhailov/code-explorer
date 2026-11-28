@@ -301,8 +301,21 @@ public class McpIntegrationTests
     {
         await CallToolAndAssertSuccessAsync("get_architecture_map", "{}", 2);
         await CallToolAndAssertSuccessAsync("get_architecture_map", "{\"view\": \"c1\"}", 9);
+        var clustersYaml = await CallToolAndAssertSuccessAsync("get_architecture_map", "{\"view\": \"clusters\"}", 91);
+        clustersYaml.Should().Contain("coarsened_unit_count:");
+        var clustersMermaid = await CallToolAndAssertSuccessAsync("get_architecture_map", "{\"format\": \"mermaid\", \"view\": \"clusters\"}", 92);
+        clustersMermaid.Should().Contain("flowchart TD");
         var mermaid = await CallToolAndAssertSuccessAsync("get_architecture_map", "{\"format\": \"mermaid\", \"view\": \"c1\"}", 27);
         mermaid.Should().NotBeNullOrWhiteSpace();
+    }
+
+    [Test]
+    public async Task Test_GetWorkspaceClusters()
+    {
+        var allClusters = await CallToolAndAssertSuccessAsync("get_workspace_clusters", "{}", 93);
+        allClusters.Should().Contain("raw_project_count:");
+        var sliced = await CallToolAndAssertSuccessAsync("get_workspace_clusters", "{\"seeds\": [\"CodeExplorer\"], \"maxUnits\": 5}", 94);
+        sliced.Should().Contain("CodeExplorer");
     }
 
     [Test]
@@ -445,7 +458,8 @@ public class McpIntegrationTests
             "inspect_data_lineage",
             "get_affected_tests",
             "check_semantic_gates",
-            "get_task_context"
+            "get_task_context",
+            "get_workspace_clusters"
         };
 
         var removedTools = new[]
@@ -473,7 +487,7 @@ public class McpIntegrationTests
             "save_project_query"
         };
 
-        toolNames.Count.Should().Be(16, "consolidated MCP surface must match the 16 registered tools");
+        toolNames.Count.Should().Be(17, "consolidated MCP surface must match the 17 registered tools");
         toolNames.Should().BeEquivalentTo(expectedTools);
         foreach (var removed in removedTools)
         {
@@ -485,12 +499,12 @@ public class McpIntegrationTests
 
         using var doc = JsonDocument.Parse(responseStr);
         var jsonTools = doc.RootElement.GetProperty("result").GetProperty("tools").EnumerateArray().ToList();
-        jsonTools.Count.Should().Be(16);
+        jsonTools.Count.Should().Be(17);
 
         var archMapJson = jsonTools.First(t => t.GetProperty("name").GetString() == "get_architecture_map");
         var viewProp = archMapJson.GetProperty("inputSchema").GetProperty("properties").GetProperty("view");
         viewProp.TryGetProperty("enum", out var viewEnum).Should().BeTrue("constrained parameters should emit JSON Schema enum for TDQS paramsWithEnums");
-        viewEnum.GetArrayLength().Should().Be(8);
+        viewEnum.GetArrayLength().Should().Be(9);
 
         foreach (var tool in jsonTools)
         {

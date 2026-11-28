@@ -1,6 +1,6 @@
 {
   "gateId": "SIG-M-R-004",
-  "allowedViolations": 184,
+  "allowedViolations": 183,
   "entries": [
     {
       "fingerprint": "8b865dd10ad06d3e8d98282e565d86633d78a1292e04ef9bc5c94b2d930fc931",
@@ -1213,16 +1213,6 @@
       "reason": "Baseline snapshot captured at 2026-11-27 19:14:15"
     },
     {
-      "fingerprint": "29c7864f95e23ebd5451dda70f35f9e5d38d26af7640397493a114ab6d58bc2b",
-      "file": "cli/src/Core/CodeExplorer.Indexing/Analysis/Layers/Layer2_Boundaries/Layer2BoundariesAnalyzer.TreeWalker.cs",
-      "line": 493,
-      "column": 109,
-      "symbol": "MatchProjectParsersInDirectory",
-      "target": "EnumerateCachedFilesInSubtree",
-      "acknowledgedAt": "2026-11-27T19:14:15.2494516+00:00",
-      "reason": "Baseline snapshot captured at 2026-11-27 19:14:15"
-    },
-    {
       "fingerprint": "7e1b117477b50238e041fcbc3b68b214e9fd89447e0ba9bc6585ee2621613c52",
       "file": "cli/src/Core/CodeExplorer.Indexing/Analysis/Layers/Layer2_Boundaries/Layer2BoundariesAnalyzer.TreeWalker.cs",
       "line": 441,
@@ -1249,16 +1239,6 @@
       "column": 17,
       "symbol": "MatchProjectParsersInDirectory",
       "target": "TryParse",
-      "acknowledgedAt": "2026-11-27T19:14:15.2494516+00:00",
-      "reason": "Baseline snapshot captured at 2026-11-27 19:14:15"
-    },
-    {
-      "fingerprint": "c037a3369dfe7b08e207ca4bd370aa0075cb39c29bbfb913148ec0ea4d9e68ec",
-      "file": "cli/src/Core/CodeExplorer.Indexing/Analysis/Layers/Layer2_Boundaries/Layer2BoundariesAnalyzer.TreeWalker.cs",
-      "line": 540,
-      "column": 30,
-      "symbol": "ResolveConfiguredProjectParser",
-      "target": "EnumerateCachedFilesInSubtree",
       "acknowledgedAt": "2026-11-27T19:14:15.2494516+00:00",
       "reason": "Baseline snapshot captured at 2026-11-27 19:14:15"
     },
@@ -1763,6 +1743,16 @@
       "reason": "Baseline snapshot captured at 2026-11-27 19:14:15"
     },
     {
+      "fingerprint": "4068a9cf3ca6e2edc0bd263c7228ee67706f0d287bdc42f0cbeb5dc4c522748a",
+      "file": "cli/src/Core/CodeExplorer.Analysis/Analysis/Services/ArchitectureViewEngine.Clusters.cs",
+      "line": 105,
+      "column": 31,
+      "symbol": "GetOrBuildClusterSnapshotAsync",
+      "target": "GetDomainArchitectureAsync",
+      "acknowledgedAt": "2026-11-28T01:13:11.3998317+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-28 01:13:11"
+    },
+    {
       "fingerprint": "da78843af98edf17777165b865687e3323f99ee274559e700c25c073f118fc31",
       "file": "cli/src/Core/CodeExplorer.Analysis/Analysis/Services/ArchitectureViewEngine.DomainMap.cs",
       "line": 549,
@@ -1779,16 +1769,6 @@
       "column": 34,
       "symbol": "CategorizeProjectsIntoDomains",
       "target": "ParseSecondaryRoles",
-      "acknowledgedAt": "2026-11-27T19:14:15.2494516+00:00",
-      "reason": "Baseline snapshot captured at 2026-11-27 19:14:15"
-    },
-    {
-      "fingerprint": "f0c3122564d56ed9adf1fcdd3caa45f85db8bf3461520b6aa39d8badc594decc",
-      "file": "cli/src/Core/CodeExplorer.Analysis/Analysis/Services/ArchitectureViewEngine.DomainMap.cs",
-      "line": 837,
-      "column": 31,
-      "symbol": "GetDomainArchitectureGraphAsync",
-      "target": "GetDomainArchitectureAsync",
       "acknowledgedAt": "2026-11-27T19:14:15.2494516+00:00",
       "reason": "Baseline snapshot captured at 2026-11-27 19:14:15"
     },
@@ -1831,6 +1811,16 @@
       "target": "DiscoverSystemContextCandidatesAsync",
       "acknowledgedAt": "2026-11-27T19:14:15.2494516+00:00",
       "reason": "Baseline snapshot captured at 2026-11-27 19:14:15"
+    },
+    {
+      "fingerprint": "2026d699c95a21df0f6866d9468a18d4015dcb71896c460f8b3e843f50fa549f",
+      "file": "cli/src/Core/CodeExplorer.Analysis/Analysis/Subgraph/WorkspaceSubgraphService.Clustering.cs",
+      "line": 57,
+      "column": 33,
+      "symbol": "PartitionClustersAsync",
+      "target": "MergeSplitSiblingClusters",
+      "acknowledgedAt": "2026-11-28T01:13:11.3998317+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-28 01:13:11"
     },
     {
       "fingerprint": "9885cfc09da90835ebc09a0e08d80afaef207ebd0aa9bb1dd74f6b3aa47663aa",

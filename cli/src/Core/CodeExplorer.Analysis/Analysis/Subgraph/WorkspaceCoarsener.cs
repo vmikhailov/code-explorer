@@ -20,11 +20,24 @@ internal static class WorkspaceCoarsener
     private const string ColTable = "tbl";
     private const string ColRoute = "route";
     private const string RepoUnitPrefix = "repo:";
+    private const string SliceUnitPrefix = "slice:";
     private const string ProjUnitPrefix = "proj:";
     private const string RoleLibrary = "Library";
     private const string UnknownLanguage = "unknown";
     private const string DefaultServiceCallLabel = "service_call";
     private const string SlashSep = "/";
+    private const int MinProjectsForSliceCoarsening = 16;
+
+    private static readonly HashSet<string> LayerSliceSuffixes = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "api", "web", "webapi", "domain", "application", "infrastructure", "persistence",
+        "data", "contracts", "contract", "client", "worker", "grpc", "models", "dto", "dtos", "host"
+    };
+
+    private static readonly HashSet<string> SharedStemStopWords = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "common", "commons", "shared", "buildingblocks", "framework", "foundation", "platform", "sdk"
+    };
 
     private const string QueryProjects =
         "MATCH (p:Project) RETURN p.id AS id, coalesce(p.name, '') AS name, coalesce(p.path, '') AS path, coalesce(p.language, '') AS lang, coalesce(p.role, '') AS role, coalesce(p.is_library, false) AS is_lib, coalesce(p.is_test, false) AS is_test";
@@ -248,14 +261,30 @@ internal static class WorkspaceCoarsener
 
         var projToUnitKey = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         var unitMembers = new Dictionary<string, List<RawProj>>(StringComparer.OrdinalIgnoreCase);
+        var sliceStemCounts = !groupByTopRepoFolder && rawProjects.Count >= MinProjectsForSliceCoarsening
+            ? CountMultiProjectSliceStems(rawProjects, parentByChild, projById)
+            : null;
 
         foreach (var p in rawProjects)
         {
             var rootProj = ResolveTopmostProjectAncestor(p, parentByChild, projById);
             var topSeg = ExtractFirstSegment(rootProj.NormPath);
-            var unitKey = groupByTopRepoFolder && !string.IsNullOrEmpty(topSeg) && !MonorepoBucketFolders.Contains(topSeg)
-                ? RepoUnitPrefix + topSeg.ToLowerInvariant()
-                : ProjUnitPrefix + rootProj.Id;
+            string unitKey;
+            if (groupByTopRepoFolder && !string.IsNullOrEmpty(topSeg) && !MonorepoBucketFolders.Contains(topSeg))
+            {
+                unitKey = RepoUnitPrefix + topSeg.ToLowerInvariant();
+            }
+            else if (sliceStemCounts != null &&
+                     !rootProj.IsTest &&
+                     TryExtractMultiSegmentSliceStem(rootProj.Name, out var sliceStem, out var stemOriginal) &&
+                     sliceStemCounts.GetValueOrDefault(sliceStem) >= 2)
+            {
+                unitKey = SliceUnitPrefix + stemOriginal;
+            }
+            else
+            {
+                unitKey = ProjUnitPrefix + rootProj.Id;
+            }
 
             projToUnitKey[p.Id] = unitKey;
             if (!unitMembers.TryGetValue(unitKey, out var list))
@@ -694,6 +723,12 @@ internal static class WorkspaceCoarsener
             name = repoFolder;
             rootPath = repoFolder;
         }
+        else if (unitKey.StartsWith(SliceUnitPrefix, StringComparison.Ordinal))
+        {
+            name = unitKey[SliceUnitPrefix.Length..];
+            var shortest = members.OrderBy(m => m.NormPath.Length).First();
+            rootPath = ExtractParentDirectory(shortest.NormPath);
+        }
         else
         {
             var shortest = members.OrderBy(m => m.NormPath.Length).First();
@@ -713,6 +748,57 @@ internal static class WorkspaceCoarsener
             IsLibraryOnly = nonTest.Count > 0 && nonTest.All(m => m.IsLibrary || string.Equals(m.Role, RoleLibrary, StringComparison.OrdinalIgnoreCase)),
             IsTestOnly = nonTest.Count == 0
         };
+    }
+
+    private static Dictionary<string, int> CountMultiProjectSliceStems(
+        List<RawProj> rawProjects,
+        Dictionary<string, string> parentByChild,
+        Dictionary<string, RawProj> projById)
+    {
+        var seenRoots = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var counts = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+        foreach (var p in rawProjects)
+        {
+            var root = ResolveTopmostProjectAncestor(p, parentByChild, projById);
+            if (root.IsTest || !seenRoots.Add(root.Id)) continue;
+            if (TryExtractMultiSegmentSliceStem(root.Name, out var stemLower, out _))
+            {
+                counts[stemLower] = counts.GetValueOrDefault(stemLower) + 1;
+            }
+        }
+        return counts;
+    }
+
+    private static bool TryExtractMultiSegmentSliceStem(string projectName, out string stemLower, out string stemOriginal)
+    {
+        stemLower = string.Empty;
+        stemOriginal = string.Empty;
+        if (string.IsNullOrWhiteSpace(projectName)) return false;
+
+        var sep = projectName.Contains('.') ? '.' : (projectName.Contains('-') ? '-' : '\0');
+        if (sep == '\0') return false;
+
+        var parts = projectName.Split(sep, StringSplitOptions.RemoveEmptyEntries);
+        if (parts.Length < 3) return false;
+
+        var suffix = parts[^1];
+        if (!LayerSliceSuffixes.Contains(suffix)) return false;
+
+        for (var i = 0; i < parts.Length - 1; i++)
+        {
+            if (SharedStemStopWords.Contains(parts[i])) return false;
+        }
+
+        stemOriginal = string.Join(sep, parts[..^1]);
+        stemLower = stemOriginal.ToLowerInvariant();
+        return true;
+    }
+
+    private static string ExtractParentDirectory(string normPath)
+    {
+        if (string.IsNullOrEmpty(normPath)) return string.Empty;
+        var lastSlash = normPath.LastIndexOf('/');
+        return lastSlash > 0 ? normPath[..lastSlash] : normPath;
     }
 
     internal static string ExtractFirstSegment(string normPath)

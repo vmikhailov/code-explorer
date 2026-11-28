@@ -562,4 +562,118 @@ public class CrossRepoDependsOnAndSubgraphTests
             if (Directory.Exists(tempDir)) Directory.Delete(tempDir, true);
         }
     }
+
+    [Test]
+    public async Task PartitionClusters_SeparatesSharedLibraries_GroupsFanOutIntegrationsWithSubClusters_AndProjectsLazyExpandableGraph()
+    {
+        WorkspaceIndexer.AutoRegisterParsers();
+        var tempDir = CreateTempDir();
+        try
+        {
+            async Task CreateRepoAsync(string folder, string pkgName, string[] deps, bool isLib = false)
+            {
+                var dir = Path.Combine(tempDir, folder);
+                Directory.CreateDirectory(Path.Combine(dir, "src"));
+                var depsJson = string.Join(", ", deps.Select(d => $"\"{d}\": \"^1.0.0\""));
+                var mainFields = isLib ? "\"main\": \"dist/index.js\", \"types\": \"dist/index.d.ts\"," : "";
+                await File.WriteAllTextAsync(Path.Combine(dir, "package.json"), $$"""
+                    {
+                      "name": "{{pkgName}}",
+                      "version": "1.0.0",
+                      {{mainFields}}
+                      "dependencies": { {{depsJson}} }
+                    }
+                    """);
+                await File.WriteAllTextAsync(Path.Combine(dir, "tsconfig.json"), """{"compilerOptions":{"strict":true}}""");
+                await File.WriteAllTextAsync(Path.Combine(dir, "src", "index.ts"), $"export const svc = '{folder}';\n");
+            }
+
+            // Shared library hub depended on by 30 integration leaves + 2 candidate core services
+            await CreateRepoAsync("ats-shared-kernel", "@ats/shared-kernel", [], isLib: true);
+            await CreateRepoAsync("ats-candidate-api", "@ats/candidate-api", ["@ats/candidate-domain", "@ats/shared-kernel"]);
+            await CreateRepoAsync("ats-candidate-domain", "@ats/candidate-domain", ["@ats/shared-kernel"], isLib: true);
+
+            for (var i = 1; i <= 28; i++)
+            {
+                var suffix = i <= 14 ? $"erp-{i:D2}" : $"crm-{i:D2}";
+                await CreateRepoAsync($"integration-service-{suffix}", $"@ats/integration-service-{suffix}", ["@ats/shared-kernel"]);
+            }
+
+            // Manual override via .codeexplorer/clusters.json
+            await CreateRepoAsync("billing-special-worker", "@ats/billing-special-worker", []);
+            ClusterManagementService.AddOrUpdateCluster(tempDir, new ClusterDefinitionDto
+            {
+                Name = "billing-custom",
+                DisplayName = "Billing Custom Cluster",
+                Members = ["billing-special-worker"]
+            });
+
+            var dbPath = Path.Combine(tempDir, ".codeexplorer", "graph.db");
+            Directory.CreateDirectory(Path.GetDirectoryName(dbPath)!);
+            await using var client = new SqliteGraphClient(dbPath);
+            await new WorkspaceIndexer(client).IndexAsync(tempDir, tempDir, clear: true);
+
+            var subgraph = new WorkspaceSubgraphService();
+            var report = await subgraph.PartitionClustersAsync(client, resolution: 1.0, hubThreshold: 0.15, workspaceRoot: tempDir);
+
+            // 1. Shared Libraries separated into dedicated cluster
+            report.SharedLibraries.Should().NotBeNull();
+            report.SharedLibraries!.Kind.Should().Be(ClusterKind.SharedLibraries);
+            report.SharedLibraries.Members.Select(m => m.Name).Should().Contain("ats-shared-kernel");
+
+            // 2. All 28 leaf integration services grouped into 1 FanOutPool cluster with automatic SubClusters (> 24 units)
+            var integrationPool = report.Clusters.Single(c => c.ClusterId == "integration-service");
+            integrationPool.Kind.Should().Be(ClusterKind.FanOutPool);
+            integrationPool.UnitCount.Should().Be(28);
+            integrationPool.SubClusters.Should().NotBeNull();
+            integrationPool.SubClusters!.Count.Should().BeGreaterThanOrEqualTo(2);
+
+            // 3. Manual cluster from .codeexplorer/clusters.json honored
+            var manualCluster = report.Clusters.Single(c => c.ClusterId == "billing-custom");
+            manualCluster.Kind.Should().Be(ClusterKind.ManualCluster);
+            manualCluster.DisplayName.Should().Be("Billing Custom Cluster");
+            manualCluster.Members.Select(m => m.Name).Should().ContainSingle().Which.Should().Be("billing-special-worker");
+
+            // 4. ArchitectureViewEngine auto-clusters DomainMap (> 22 entities) & supports lazy hierarchical expansion
+            var viewEngine = new ArchitectureViewEngine(client);
+            var collapsedGraph = await viewEngine.GetViewAsync(new ArchitectureViewRequest
+            {
+                ViewType = ArchitectureViewType.DomainMap,
+                IncludeLibraries = true,
+                WorkspaceRoot = tempDir
+            });
+
+            collapsedGraph.Metadata.Should().ContainKey("isClustered").WhoseValue.Should().Be("true");
+            collapsedGraph.Nodes.Select(n => n.Id).Should().Contain("cluster:integration-service");
+            collapsedGraph.Nodes.Select(n => n.Id).Should().Contain("cluster:shared-libraries");
+            collapsedGraph.Nodes.Count.Should().BeLessThan(12, "28 integration leaves must be collapsed into 1 cluster node by default");
+
+            // Expand top-level 'integration-service' -> reveals sub-clusters instead of dumping all 28 leaves at once
+            var expandedTop = await viewEngine.GetViewAsync(new ArchitectureViewRequest
+            {
+                ViewType = ArchitectureViewType.DomainMap,
+                IncludeLibraries = true,
+                ExpandedClusters = ["integration-service"],
+                WorkspaceRoot = tempDir
+            });
+            var firstSubId = integrationPool.SubClusters[0].SubClusterId;
+            expandedTop.Nodes.Select(n => n.Id).Should().NotContain("cluster:integration-service");
+            expandedTop.Nodes.Select(n => n.Id).Should().Contain($"subcluster:{firstSubId}");
+
+            // Expand that sub-cluster -> reveals its individual integration services
+            var expandedLeaf = await viewEngine.GetViewAsync(new ArchitectureViewRequest
+            {
+                ViewType = ArchitectureViewType.DomainMap,
+                IncludeLibraries = true,
+                ExpandedClusters = ["integration-service", firstSubId],
+                WorkspaceRoot = tempDir
+            });
+            expandedLeaf.Nodes.Select(n => n.Id).Should().NotContain($"subcluster:{firstSubId}");
+            expandedLeaf.Nodes.Any(n => n.Name.StartsWith("integration-service-", StringComparison.OrdinalIgnoreCase)).Should().BeTrue();
+        }
+        finally
+        {
+            if (Directory.Exists(tempDir)) Directory.Delete(tempDir, true);
+        }
+    }
 }

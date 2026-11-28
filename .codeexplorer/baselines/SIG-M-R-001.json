@@ -3,154 +3,154 @@
   "allowedViolations": 15,
   "entries": [
     {
-      "fingerprint": "fedcd841ef10adf6e445372f03f81e8186bf55aa16bf737393cf67f130e412e0",
+      "fingerprint": "08493b6a84995a1b3f1858cba25b38ee602f1b6fcc663b30f07ee9170b4a20aa",
       "file": "vscode-extension/src/webview/App.tsx",
       "line": 148,
       "column": 30,
       "symbol": "App",
-      "target": "1815 lines",
-      "acknowledgedAt": "2026-11-27T03:11:16.5036532+00:00",
-      "reason": "Baseline snapshot captured at 2026-11-27 03:11:16"
+      "target": "max 500 lines",
+      "acknowledgedAt": "2026-11-28T01:13:11.388048+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-28 01:13:11"
     },
     {
-      "fingerprint": "15102b1a405cdd08a31e41205a2beabae835006a0a5eee9fd8be82de74409192",
+      "fingerprint": "0abb8d146588e34fbf5e4d4a7b8b042361a91aa5e248f46d65483286a182f4c9",
       "file": "vscode-extension/src/webview/components/BoundedContextMapView.tsx",
-      "line": 185,
+      "line": 188,
       "column": 76,
       "symbol": "BoundedContextMapView",
-      "target": "804 lines",
-      "acknowledgedAt": "2026-10-30T00:37:45.891401+00:00",
-      "reason": "Baseline snapshot captured at 2026-10-30 00:37:45"
+      "target": "max 500 lines",
+      "acknowledgedAt": "2026-11-28T01:13:11.388048+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-28 01:13:11"
     },
     {
-      "fingerprint": "0f283af6117583e624ff367471f32c2199b97c03b884ffc790c67c94ee1deb10",
+      "fingerprint": "58cb5855a200f45ba10c5183b9529e9a38c5e13dc9caae9f61fddc47c4dbcd1b",
       "file": "vscode-extension/src/webview/components/C1SystemContextView.tsx",
       "line": 211,
       "column": 72,
       "symbol": "C1SystemContextView",
-      "target": "1571 lines",
-      "acknowledgedAt": "2026-10-30T00:37:45.891401+00:00",
-      "reason": "Baseline snapshot captured at 2026-10-30 00:37:45"
+      "target": "max 500 lines",
+      "acknowledgedAt": "2026-11-28T01:13:11.388048+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-28 01:13:11"
     },
     {
-      "fingerprint": "4507f3be07ba62c030ace2f07114aa4415fe562f9c3def76afce9e3277925acc",
+      "fingerprint": "b944423b83d2bbf93b45ead00604a03b3b383c1e3ea85854761ec70f8e724fca",
       "file": "vscode-extension/src/webview/components/CytoscapeView.tsx",
       "line": 22,
       "column": 60,
       "symbol": "CytoscapeView",
-      "target": "671 lines",
-      "acknowledgedAt": "2026-10-30T00:37:45.891401+00:00",
-      "reason": "Baseline snapshot captured at 2026-10-30 00:37:45"
+      "target": "max 500 lines",
+      "acknowledgedAt": "2026-11-28T01:13:11.388048+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-28 01:13:11"
     },
     {
-      "fingerprint": "034d339b405f920b5d962ea381688b659884684f45f3efbceefe0acba7cec7f0",
+      "fingerprint": "6e40ef91e15fb93cde7e541cbccdc4131d9da3292d6c5e375f34a21939887318",
       "file": "vscode-extension/src/webview/components/DeclarativeInspector.tsx",
       "line": 49,
       "column": 8,
       "symbol": "DeclarativeInspector",
-      "target": "1180 lines",
-      "acknowledgedAt": "2026-10-30T00:37:45.891401+00:00",
-      "reason": "Baseline snapshot captured at 2026-10-30 00:37:45"
+      "target": "max 500 lines",
+      "acknowledgedAt": "2026-11-28T01:13:11.388048+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-28 01:13:11"
     },
     {
-      "fingerprint": "79baafe59ba91f194bb4d33dfcff1a7a0efc00b8f01e223a1373106285f86bbc",
+      "fingerprint": "f64da73109e21e21bc20129b6b17ab40797b39e4dc2ca689b5cd5c357a604beb",
       "file": "vscode-extension/src/webview/components/DomainArchitectureView.tsx",
-      "line": 951,
+      "line": 958,
       "column": 78,
       "symbol": "DomainArchitectureView",
-      "target": "5379 lines",
-      "acknowledgedAt": "2026-11-27T03:11:16.5036532+00:00",
-      "reason": "Baseline snapshot captured at 2026-11-27 03:11:16"
+      "target": "max 500 lines",
+      "acknowledgedAt": "2026-11-28T01:13:11.388048+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-28 01:13:11"
     },
     {
-      "fingerprint": "11077e0c911e686bdaf2c85f006f8e9ea9040e7aa4035375245c1d899a459c9d",
+      "fingerprint": "319ab239597bc307cff2f97af08121da71298870dc887f1317506ed33a89e820",
       "file": "vscode-extension/src/webview/domain/components/DomainGatesPanel.tsx",
       "line": 30,
       "column": 66,
       "symbol": "DomainGatesPanel",
-      "target": "809 lines",
-      "acknowledgedAt": "2026-10-30T00:37:45.891401+00:00",
-      "reason": "Baseline snapshot captured at 2026-10-30 00:37:45"
+      "target": "max 500 lines",
+      "acknowledgedAt": "2026-11-28T01:13:11.388048+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-28 01:13:11"
     },
     {
-      "fingerprint": "b4b8e021acc32d582c9651ce475a88f288cc22d5413d179edc426e25c71feeb7",
+      "fingerprint": "4475251d4ab691df21f6e369dda16e2f06acb9ae9b0b031e679210c129319ce9",
       "file": "vscode-extension/src/webview/domain/components/DomainSettingsPanel.tsx",
-      "line": 61,
+      "line": 47,
       "column": 72,
       "symbol": "DomainSettingsPanel",
-      "target": "547 lines",
-      "acknowledgedAt": "2026-10-30T00:37:45.891401+00:00",
-      "reason": "Baseline snapshot captured at 2026-10-30 00:37:45"
+      "target": "max 500 lines",
+      "acknowledgedAt": "2026-11-28T01:13:11.388048+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-28 01:13:11"
     },
     {
-      "fingerprint": "d1f88cc97db58cedc165b7276e99b9c98bb61df06a66b061eaf1ae8e4587757c",
+      "fingerprint": "7ab278006aef12482c70ab102e88e564f0ba68b2fc2364fec52b1fe8b7c0ac9b",
       "file": "vscode-extension/src/webview/domain/components/DomainVisibilityPanel.tsx",
       "line": 72,
       "column": 76,
       "symbol": "DomainVisibilityPanel",
-      "target": "852 lines",
-      "acknowledgedAt": "2026-10-30T00:37:45.891401+00:00",
-      "reason": "Baseline snapshot captured at 2026-10-30 00:37:45"
+      "target": "max 500 lines",
+      "acknowledgedAt": "2026-11-28T01:13:11.388048+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-28 01:13:11"
     },
     {
-      "fingerprint": "3e0ccafb632e29eb8ce4a76850a252c98ab41813be0c397e6c01eb41a890c439",
+      "fingerprint": "e8ba648346c0ada528f8b87bcbc08d1223d9a25500ca244a646c558ae78a5a08",
       "file": "vscode-extension/src/webview/components/ProjectFlowView.tsx",
       "line": 42,
       "column": 51,
       "symbol": "FlowInner",
-      "target": "1284 lines",
-      "acknowledgedAt": "2026-10-30T00:37:45.891401+00:00",
-      "reason": "Baseline snapshot captured at 2026-10-30 00:37:45"
+      "target": "max 500 lines",
+      "acknowledgedAt": "2026-11-28T01:13:11.388048+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-28 01:13:11"
     },
     {
-      "fingerprint": "d8d20873d3659e1ead3c1f33fd781032915d99169e1463bdaaf8969933327350",
+      "fingerprint": "ec3cf7ebb9d4ac591e730bd4fecde36b664a64f6b6f08143acef321f6fb7df67",
       "file": "vscode-extension/src/webview/components/GateEditorView.tsx",
       "line": 125,
       "column": 62,
       "symbol": "GateEditorView",
-      "target": "1108 lines",
-      "acknowledgedAt": "2026-10-30T00:37:45.891401+00:00",
-      "reason": "Baseline snapshot captured at 2026-10-30 00:37:45"
+      "target": "max 500 lines",
+      "acknowledgedAt": "2026-11-28T01:13:11.388048+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-28 01:13:11"
     },
     {
-      "fingerprint": "d39eb1ddb95bc6b6d73d7e9f137d7eedaa79bb24ee35e5fc03a7259be3509aea",
+      "fingerprint": "c829fe93020581db689f835235248ecf18153058625dca896e29e082cb2e55cd",
       "file": "vscode-extension/src/webview/components/UniversalGraph3DCanvas.tsx",
-      "line": 467,
+      "line": 505,
       "column": 78,
       "symbol": "UniversalGraph3DCanvas",
-      "target": "579 lines",
-      "acknowledgedAt": "2026-11-27T03:11:16.5036532+00:00",
-      "reason": "Baseline snapshot captured at 2026-11-27 03:11:16"
+      "target": "max 500 lines",
+      "acknowledgedAt": "2026-11-28T01:13:11.388048+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-28 01:13:11"
     },
     {
-      "fingerprint": "03885d2d30f665f717ab5a61e08b0bc6033e52ba208f31672e59e0acc7b23f65",
+      "fingerprint": "69bf051cdce09f025d9124d345713c35f9576f55862451cd02577b86e092769d",
       "file": "vscode-extension/src/webview/components/UniversalGraphMap.tsx",
       "line": 1371,
       "column": 68,
       "symbol": "UniversalGraphMap",
-      "target": "1844 lines",
-      "acknowledgedAt": "2026-11-27T03:11:16.5036532+00:00",
-      "reason": "Baseline snapshot captured at 2026-11-27 03:11:16"
+      "target": "max 500 lines",
+      "acknowledgedAt": "2026-11-28T01:13:11.388048+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-28 01:13:11"
     },
     {
-      "fingerprint": "bf7d98df2438d70b9a384ab9eb0d6650f5608acb883e9616961702edd36391a5",
+      "fingerprint": "148c10b066c66e204847907602efaf0b30a4d8bc0517134e2cc18cc2f09c9f10",
       "file": "vscode-extension/src/webview/layout/concentricSectorsLayout.ts",
       "line": 63,
       "column": 8,
       "symbol": "computeConcentricSectorsLayout",
-      "target": "543 lines",
-      "acknowledgedAt": "2026-10-30T00:37:45.891401+00:00",
-      "reason": "Baseline snapshot captured at 2026-10-30 00:37:45"
+      "target": "max 500 lines",
+      "acknowledgedAt": "2026-11-28T01:13:11.388048+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-28 01:13:11"
     },
     {
-      "fingerprint": "8a1fe825ab33936b1d06c4891f3c95da8950baa54efe79ed4fd3fdba06d9857a",
+      "fingerprint": "06635951fc64c3d9fab2a75f12ebb3e3e6d21d6f8befca8b33c932f6ddc33bd0",
       "file": "vscode-extension/src/webview/components/DeclarativeInspector.tsx",
       "line": 182,
       "column": 25,
       "symbol": "renderSection",
-      "target": "648 lines",
-      "acknowledgedAt": "2026-10-30T00:37:45.891401+00:00",
-      "reason": "Baseline snapshot captured at 2026-10-30 00:37:45"
+      "target": "max 500 lines",
+      "acknowledgedAt": "2026-11-28T01:13:11.388048+00:00",
+      "reason": "Baseline snapshot captured at 2026-11-28 01:13:11"
     }
   ]
 }

@@ -310,6 +310,7 @@ public partial class McpGraphHandler(
     private const string MissingQueryError = "Missing 'query' argument.";
     private const string MissingSymbolNameError = "Missing 'symbolName' argument.";
     private const string ViewOverview = "overview";
+    private const string ViewClusters = "clusters";
     private const string ViewLineage = "lineage";
     private const string ViewCqrs = "cqrs";
     private const string FormatYaml = "yaml";
@@ -409,11 +410,11 @@ public partial class McpGraphHandler(
 
     [UsedImplicitly]
     [McpServerTool(Title = "Get Workspace Architecture Map and Diagrams", ReadOnly = true, Destructive = false, Idempotent = true, OpenWorld = false)]
-    [Description("Inspect workspace architecture as structured YAML or renderable Mermaid/C4 diagram syntax across viewpoints: 'overview' (flat <1,000-token inventory of projects, languages, databases, endpoints, external services, and saved queries), 'c1' (system context), 'c2' (inter-service communication), 'c3' or 'project-map' (internal modules and circular dependency cycles of one project), 'tiers' (Clean Architecture layers), 'lineage' (database table read/write graph), or 'cqrs' (command/event pipelines). Use first when orienting on a repository, checking module cycles, or exporting architecture diagrams; for filtered runtime vs build package edges use get_project_dependencies, and for detailed routes/topics or multi-hop distributed flows of one service use get_service_contracts. Reads the indexed .codeexplorer/graph.db in read-only mode (scoping to projectName when provided and adding shared libraries when includeLibraries=true) and returns YAML or diagram markup (or a standby notice if unindexed).")]
+    [Description("Inspect workspace architecture as structured YAML or renderable Mermaid/C4 diagram syntax across viewpoints: 'overview' (flat <1,000-token inventory of projects, languages, databases, endpoints, external services, and saved queries), 'clusters' (deterministic Leiden service clusters, fan-out pools, shared libraries, and inter-cluster boundary edges), 'c1' (system context), 'c2' (inter-service communication), 'c3' or 'project-map' (internal modules and circular dependency cycles of one project), 'tiers' (Clean Architecture layers), 'lineage' (database table read/write graph), or 'cqrs' (command/event pipelines). Use first when orienting on a repository, checking module cycles, or exporting architecture diagrams; for dedicated cluster drill-down or Personalized PageRank repository slicing use get_workspace_clusters, for filtered runtime vs build package edges use get_project_dependencies, and for detailed routes/topics or multi-hop distributed flows of one service use get_service_contracts. Reads the indexed .codeexplorer/graph.db in read-only mode (scoping to projectName when provided and adding shared libraries when includeLibraries=true) and returns YAML or diagram markup (or a standby notice if unindexed).")]
     public async Task<CallToolResult> GetArchitectureMapAsync(
-        [Description("Optional case-insensitive project or service filter to scope the inventory, topology view, or exported diagram (for 'c3'/'project-map', defaults to the largest project when omitted).")] string? projectName = null,
-        [AllowedValues("overview", "c1", "c2", "c3", "project-map", "tiers", "lineage", "cqrs")]
-        [Description("Architecture viewpoint to project: 'overview' (flat workspace inventory), 'c1' (system context), 'c2' (service communication), 'c3' or 'project-map' (internal modules and cycles), 'tiers' (layers), 'lineage' (DB reads/writes), or 'cqrs' (commands/events). Default: 'overview'.")] string view = "overview",
+        [Description("Optional case-insensitive project, service, or cluster filter to scope the inventory, cluster drill-down, topology view, or exported diagram (for 'c3'/'project-map', defaults to the largest project when omitted).")] string? projectName = null,
+        [AllowedValues("overview", "clusters", "c1", "c2", "c3", "project-map", "tiers", "lineage", "cqrs")]
+        [Description("Architecture viewpoint to project: 'overview' (flat workspace inventory), 'clusters' (automatic architectural clusters and boundary edges), 'c1' (system context), 'c2' (service communication), 'c3' or 'project-map' (internal modules and cycles), 'tiers' (layers), 'lineage' (DB reads/writes), or 'cqrs' (commands/events). Default: 'overview'.")] string view = "overview",
         [AllowedValues("yaml", "mermaid", "c4")]
         [Description("Output representation: 'yaml' (structured YAML for agent analysis), 'mermaid' (Mermaid flowchart/C4 syntax), or 'c4' (PlantUML/C4 syntax). Default: 'yaml'.")] string format = "yaml",
         [Description("Whether to include shared class libraries alongside deployable services in topology views and exported diagrams. Default: false.")] bool includeLibraries = false,
@@ -425,6 +426,13 @@ public partial class McpGraphHandler(
 
         return await ExecuteForWorkspaceAsync(workspacePath, ws =>
         {
+            if (normView == ViewClusters)
+            {
+                return normFormat is FormatMermaid or FormatC4
+                    ? repository.ExportClusterDiagramAsync(normFormat, projectName, includeLibraries, ws, cancellationToken)
+                    : repository.GetWorkspaceClustersAsync(clusterName: projectName, workspacePath: ws, cancellationToken: cancellationToken);
+            }
+
             if (normFormat is FormatMermaid or FormatC4)
             {
                 var diagramView = normView is ViewLineage or ViewCqrs ? normView : DiagramArchitecture;

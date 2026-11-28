@@ -4,7 +4,7 @@ export interface MastFooterProps {
   versionLabel?: string;
 }
 
-const DEFAULT_VERSION_LABEL = 'v1.108.3';
+const DEFAULT_VERSION_LABEL = 'v1.109.0';
 
 export const MastFooter: React.FC<MastFooterProps> = ({
   versionLabel = DEFAULT_VERSION_LABEL,

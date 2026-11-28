@@ -16,7 +16,8 @@ public enum ArchitectureViewType
     ProjectDependencies, // Modules: Workspace project/package dependency graph with SCC cycle detection
     CallFlow,            // Code: Directed call flow trace from entry points / endpoints / functions to data & egress
     DatabaseMap,         // Data: Services/projects mapped to databases, schemas, and topics with shared-DB detection
-    DataFlow             // Data: Writers -> Table / Topic -> Readers lineage projection
+    DataFlow,            // Data: Writers -> Table / Topic -> Readers lineage projection
+    Clusters             // Macro: Deterministic Leiden clusters, fan-out pools, shared libraries, and on-demand expansion
 }
 
 public class ArchitectureViewRequest
@@ -25,6 +26,9 @@ public class ArchitectureViewRequest
     public string? Scope { get; set; }
     public bool IncludeLibraries { get; set; } = false;
     public bool SharedDatabasesOnly { get; set; } = false;
+    public bool? Clustered { get; set; }
+    public IReadOnlyList<string>? ExpandedClusters { get; set; }
+    public string? WorkspaceRoot { get; set; }
 }
 
 /// <summary>
@@ -137,10 +141,12 @@ public partial class ArchitectureViewEngine(IGraphClient db, ILogger? logger = n
         if (string.IsNullOrWhiteSpace(dbPath))
         {
             SystemContextCache.Clear();
+            ClusterSnapshotCache.Clear();
             return;
         }
 
         SystemContextCache.RemoveByPrefix(dbPath + ":");
+        ClusterSnapshotCache.RemoveByPrefix(dbPath + ":");
     }
 
     private string ResolveDbCachePrefix()
@@ -164,7 +170,8 @@ public partial class ArchitectureViewEngine(IGraphClient db, ILogger? logger = n
             ArchitectureViewType.SystemContext => await GetSystemContextViewAsync(request.IncludeLibraries, request.Scope, request.SharedDatabasesOnly, ct),
             ArchitectureViewType.ServiceFlow => await GetServiceFlowViewAsync(request.Scope, request.IncludeLibraries, ct),
             ArchitectureViewType.Component => await GetComponentViewAsync(request.Scope, ct),
-            ArchitectureViewType.DomainMap => await GetDomainArchitectureGraphAsync(request.IncludeLibraries, request.SharedDatabasesOnly, ct),
+            ArchitectureViewType.DomainMap => await GetDomainOrClusteredGraphAsync(request, ct),
+            ArchitectureViewType.Clusters => await GetClusteredArchitectureGraphAsync(request.IncludeLibraries, request.SharedDatabasesOnly, request.ExpandedClusters, request.WorkspaceRoot, ct),
             ArchitectureViewType.Tiers => await GetTieredArchitectureGraphAsync(request.IncludeLibraries, ct),
             ArchitectureViewType.BoundedContexts => await GetBoundedContextGraphAsync(request.Scope, ct),
             ArchitectureViewType.ProjectMap => await GetProjectMapViewAsync(request.Scope, ct),

@@ -129,6 +129,12 @@ export interface DomainArchitectureViewProps {
   onSwitchToContexts?: () => void;
   onSetDomainOverride?: (serviceName: string, domain: string, context?: string, reset?: boolean) => void;
   availableDomains?: string[];
+  isClustered?: boolean;
+  expandedClusters?: string[];
+  onToggleClusterMode?: () => void;
+  onExpandCluster?: (clusterId: string) => void;
+  onCollapseCluster?: (clusterId: string) => void;
+  onCollapseAllClusters?: () => void;
   onRefresh?: () => void;
   gateEditorRequest?: { gateId?: string; timestamp: number } | null;
   /** Allowed layout options. */
@@ -212,7 +218,7 @@ export interface SelectedNodeDetail {
   tierLabel?: string;
   tierReason?: string;
   isGroup?: boolean;
-  groupType?: 'category' | 'custom';
+  groupType?: 'category' | 'custom' | 'cluster';
   groupKind?: EntityKind;
   customGroupId?: string;
   memberIds?: string[];
@@ -267,6 +273,7 @@ export type DomainNodeDetail = SelectedNodeDetail;
  * Re-exported from shared entityBadges module.
  */
 import { getNodeBadgeSvgDataUri, getEntityBadgeMeta } from '../domain/entityBadges';
+import { parseServerClusterPreviewMembers } from '../domain/clusterNodeHelpers';
 export { getNodeBadgeSvgDataUri };
 
 export const GROUP_NODE_SIZE = 68;
@@ -959,6 +966,12 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
   onSwitchToContexts,
   onSetDomainOverride,
   availableDomains = [],
+  isClustered = false,
+  expandedClusters = [],
+  onToggleClusterMode,
+  onExpandCluster,
+  onCollapseCluster,
+  onCollapseAllClusters,
   onRefresh,
   hudLabel,
   hudTitle,
@@ -978,6 +991,12 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
 
   const onFocusInFlowRef = useRef(onFocusInFlow);
   onFocusInFlowRef.current = onFocusInFlow;
+
+  const onExpandClusterRef = useRef(onExpandCluster);
+  onExpandClusterRef.current = onExpandCluster;
+
+  const onCollapseClusterRef = useRef(onCollapseCluster);
+  onCollapseClusterRef.current = onCollapseCluster;
 
   const onSelectNodeRef = useRef(onSelectNode);
   onSelectNodeRef.current = onSelectNode;
@@ -2090,7 +2109,11 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
       // Ignore NuGet / npm package dependencies
       if (node.kind === 'Package') continue;
 
-      const nodeKind = node.kind as EntityKind;
+      const isServerCluster = node.properties?.is_cluster === 'true';
+      const nodeKind: EntityKind =
+        isServerCluster && node.kind !== 'Library' && node.kind !== 'App'
+          ? 'Group'
+          : (node.kind as EntityKind);
       const badgeMeta = getEntityBadgeMeta(nodeKind);
       let tag = `:${badgeMeta.label}`;
       let bgColor = badgeMeta.bgColor;
@@ -2201,6 +2224,20 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
               },
             ];
 
+      const parsedClusterMemberCount = node.properties?.member_count
+        ? parseInt(node.properties.member_count, 10)
+        : undefined;
+      if (node.properties?.bgColor) bgColor = node.properties.bgColor;
+      if (node.properties?.borderColor) borderColor = node.properties.borderColor;
+      if (node.properties?.displayTag) tag = node.properties.displayTag;
+      if (isServerCluster) {
+        size = GROUP_NODE_SIZE;
+      }
+
+      const clusterMemberNodes = isServerCluster
+        ? parseServerClusterPreviewMembers(node.properties?.members_preview_json)
+        : undefined;
+
       const explicitTier =
         node.properties?.tier !== undefined && !isNaN(Number(node.properties.tier))
           ? Math.min(6, Math.max(0, Number(node.properties.tier)))
@@ -2228,10 +2265,14 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
         tier: explicitTier,
         tierLabel: node.properties?.tier_label || undefined,
         tierReason: node.properties?.tier_reason || undefined,
+        isGroup: isServerCluster ? true : undefined,
+        groupType: isServerCluster ? 'cluster' : undefined,
+        memberNodes: clusterMemberNodes,
+        memberIds: clusterMemberNodes?.map((m) => m.id),
         inboundCallsCount: 0,
         outboundCallsCount: 0,
-        dbCount: 0,
-        messagingCount: 0,
+        dbCount: node.properties?.private_db_count ? parseInt(node.properties.private_db_count, 10) || 0 : 0,
+        messagingCount: node.properties?.private_topic_count ? parseInt(node.properties.private_topic_count, 10) || 0 : 0,
       };
       detailMap.set(node.id, detail);
 
@@ -2246,14 +2287,19 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
 
       cyNodes.push({
         group: 'nodes',
+        classes: isServerCluster ? 'group-node' : undefined,
         data: {
           id: node.id,
           name: node.name || displayName,
           displayName,
           displayLabel: clampedName,
-          badgeSvg: getNodeBadgeSvgDataUri(nodeKind),
+          badgeSvg: isServerCluster
+            ? getNodeBadgeSvgDataUri(nodeKind, { isGroup: true, count: parsedClusterMemberCount || clusterMemberNodes?.length || 1 })
+            : getNodeBadgeSvgDataUri(nodeKind),
           rawLabel: displayName,
           kind: nodeKind,
+          isGroup: isServerCluster ? 'true' : undefined,
+          isCluster: isServerCluster ? 'true' : undefined,
           bgColor,
           borderColor,
           size,
@@ -2456,8 +2502,10 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
     for (const [id, detail] of detailMap.entries()) {
       detail.inboundCallsCount = inCalls.get(id) || 0;
       detail.outboundCallsCount = outCalls.get(id) || 0;
-      detail.dbCount = dbUsage.get(id)?.size || 0;
-      detail.messagingCount = msgUsage.get(id)?.size || 0;
+      const directDbCount = dbUsage.get(id)?.size || 0;
+      const directMsgCount = msgUsage.get(id)?.size || 0;
+      detail.dbCount = Math.max(detail.dbCount || 0, directDbCount);
+      detail.messagingCount = Math.max(detail.messagingCount || 0, directMsgCount);
     }
 
     // 3. Raw Macro Edges & Outgoing Adjacency
@@ -2654,12 +2702,16 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
         continue;
       }
       const kind = (node.data as any).kind as EntityKind;
+      const isServerClusterNode = (node.data as any).isCluster === 'true';
       const ech = effectiveOrbitTier(
         orbitConfigRef.current,
         kind,
         (node.data as any).echelonTier ?? rawGraph.echelonMap.get(id) ?? 2
       );
-      let isHidden = hiddenNodeIds.has(id) || hiddenTypes.has(kind) || hiddenOrbitTiers.has(ech);
+      let isHidden =
+        hiddenNodeIds.has(id) ||
+        (!isServerClusterNode && hiddenTypes.has(kind)) ||
+        hiddenOrbitTiers.has(ech);
       if (!isHidden && hideSingleConnectionDbs && kind === 'Database') {
         const inboundCount = rawGraph.dbSourceServicesMap.get(id)?.size || 0;
         if (inboundCount <= 1) {
@@ -3193,13 +3245,13 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
         })),
       });
 
-      // Update group node metrics
-      if (sDetail?.isGroup) {
+      // Update group node metrics (only for client-synthesized groups; server clusters already carry traffic counts)
+      if (sDetail?.isGroup && sDetail.groupType !== 'cluster') {
         sDetail.outboundCallsCount += (serviceCallsCount + interactions.filter(i => i.category === 'external').reduce((s, i) => s + i.count, 0));
         sDetail.dbCount += dbCount;
         sDetail.messagingCount += messagingCount;
       }
-      if (tDetail?.isGroup) {
+      if (tDetail?.isGroup && tDetail.groupType !== 'cluster') {
         tDetail.inboundCallsCount += (serviceCallsCount + interactions.filter(i => i.category === 'external').reduce((s, i) => s + i.count, 0));
         tDetail.dbCount += dbCount;
         tDetail.messagingCount += messagingCount;
@@ -3489,12 +3541,18 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
       }
     });
 
-    // Double-click -> Drill down into Flow
+    // Double-click -> Expand server cluster or drill down into Flow
     cy.on('dbltap', 'node', (evt) => {
       setContextMenu(null);
       const node = evt.target;
       const nodeId = node.id();
       const detail = effectiveDetailMapRef.current?.get(nodeId) || rawGraphRef.current?.detailMap?.get(nodeId);
+      if (detail?.groupType === 'cluster' || detail?.properties?.is_cluster === 'true') {
+        const cid = detail.properties?.cluster_id || detail.name || nodeId;
+        onExpandClusterRef.current?.(cid);
+        setSelectedNode(null);
+        return;
+      }
       if (detail && (detail.kind === 'Service' || detail.kind === 'Ingress') && onFocusInFlowRef.current) {
         onFocusInFlowRef.current(detail.name);
       }
@@ -5232,7 +5290,10 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
             break;
           case 'UNGROUP_NODE': {
             const node = act.node;
-            if (node.id.startsWith('group:custom:')) {
+            if (node.groupType === 'cluster' || node.id.startsWith('cluster:') || node.id.startsWith('subcluster:') || node.properties?.is_cluster === 'true') {
+              const cid = node.properties?.cluster_id || node.name || node.id;
+              onExpandClusterRef.current?.(cid);
+            } else if (node.id.startsWith('group:custom:')) {
               const cId = node.customGroupId || node.id.replace('group:custom:', '');
               h.deleteCustomGroup(cId);
             } else if (node.id.startsWith('group:kind:') || node.groupKind) {
@@ -5443,6 +5504,26 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
                     {'⛶\u00A0Fit'}
                   </button>
                 </>
+              )}
+              {onToggleClusterMode && (
+                <button
+                  type="button"
+                  className={`domain-hud-btn${isClustered ? ' active' : ''}`}
+                  onClick={onToggleClusterMode}
+                  title={isClustered ? 'Switch to unclustered flat view' : 'Group services and shared libraries into automatic clusters'}
+                >
+                  {isClustered ? '🧩\u00A0Clusters\u00A0On' : '🧩\u00A0Clusters\u00A0Off'}
+                </button>
+              )}
+              {isClustered && expandedClusters.length > 0 && onCollapseAllClusters && (
+                <button
+                  type="button"
+                  className="domain-hud-btn"
+                  onClick={onCollapseAllClusters}
+                  title={`Collapse ${expandedClusters.length} expanded cluster(s)`}
+                >
+                  {`⊟\u00A0Collapse\u00A0(${expandedClusters.length})`}
+                </button>
               )}
               {onRefresh && (
                 <button
@@ -6159,7 +6240,15 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
 
           {/* Context Menu for Nodes */}
           {contextMenu && (() => {
-            const isGroupNode = contextMenu.nodeId.startsWith('group:');
+            const ctxDetail = effectiveDetailMapRef.current?.get(contextMenu.nodeId) || rawGraphRef.current?.detailMap?.get(contextMenu.nodeId);
+            const isServerCluster = Boolean(
+              ctxDetail?.groupType === 'cluster' ||
+              ctxDetail?.properties?.is_cluster === 'true' ||
+              contextMenu.nodeId.startsWith('cluster:') ||
+              contextMenu.nodeId.startsWith('subcluster:')
+            );
+            const parentClusterId = ctxDetail?.properties?.parent_cluster_id;
+            const isGroupNode = contextMenu.nodeId.startsWith('group:') || isServerCluster;
             const targetNodeIds = multiSelectedNodeIds.has(contextMenu.nodeId) && multiSelectedNodeIds.size > 1
               ? Array.from(multiSelectedNodeIds)
               : [contextMenu.nodeId];
@@ -6271,7 +6360,10 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
                     className="context-menu-item"
                     onClick={() => {
                       const gId = contextMenu.nodeId;
-                      if (gId.startsWith('group:custom:')) {
+                      if (isServerCluster) {
+                        const cid = ctxDetail?.properties?.cluster_id || ctxDetail?.name || gId;
+                        onExpandClusterRef.current?.(cid);
+                      } else if (gId.startsWith('group:custom:')) {
                         deleteCustomGroup(gId.replace('group:custom:', ''));
                       } else if (gId.startsWith('group:kind:')) {
                         toggleTypeGrouping(gId.replace('group:kind:', '') as EntityKind);
@@ -6280,7 +6372,20 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
                       setSelectedNode(null);
                     }}
                   >
-                    <span>Ungroup / Expand</span>
+                    <span>{isServerCluster ? 'Expand Cluster' : 'Ungroup / Expand'}</span>
+                  </button>
+                )}
+                {parentClusterId && onCollapseCluster && (
+                  <button
+                    type="button"
+                    className="context-menu-item"
+                    onClick={() => {
+                      onCollapseCluster(parentClusterId);
+                      setContextMenu(null);
+                      setSelectedNode(null);
+                    }}
+                  >
+                    <span>Collapse Cluster ({parentClusterId})</span>
                   </button>
                 )}
                 <div className="context-menu-divider" />

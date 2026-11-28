@@ -3,10 +3,10 @@ using System.Diagnostics;
 namespace CodeExplorer.Core.Analysis.Subgraph;
 
 /// <summary>
-/// Fast in-memory hierarchy coarsening, hub-separated Leiden domain partitioning (<c>ce domains</c>),
+/// Fast in-memory hierarchy coarsening, hub-separated Leiden cluster partitioning (<c>ce clusters</c>),
 /// and Personalized PageRank subgraph slicing (<c>ce slice</c>) for multi-project and multi-repo workspaces.
 /// </summary>
-public sealed class WorkspaceSubgraphService
+public sealed partial class WorkspaceSubgraphService
 {
     private const string ColPath = "path";
     private const string ColTable = "tbl";

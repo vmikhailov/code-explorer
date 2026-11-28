@@ -5,6 +5,7 @@ namespace CodeExplorer.Commands;
 public class MapCommandHandler : BaseCommandHandler
 {
     private const string ViewOverview = "overview";
+    private const string ViewClusters = "clusters";
     private const string ViewLineage = "lineage";
     private const string ViewCqrs = "cqrs";
     private const string FormatYaml = "yaml";
@@ -25,7 +26,13 @@ public class MapCommandHandler : BaseCommandHandler
         var projectName = opts.EffectiveProject;
 
         string output;
-        if (normFormat is FormatMermaid or FormatC4)
+        if (normView == ViewClusters)
+        {
+            output = normFormat is FormatMermaid or FormatC4
+                ? await repository.ExportClusterDiagramAsync(normFormat, projectName, opts.IncludeLibraries, ws.RootDirectory)
+                : await repository.GetWorkspaceClustersAsync(clusterName: projectName, workspacePath: ws.RootDirectory);
+        }
+        else if (normFormat is FormatMermaid or FormatC4)
         {
             var diagramView = normView is ViewLineage or ViewCqrs ? normView : DiagramArchitecture;
             output = await repository.ExportArchitectureDiagramAsync(normFormat, diagramView, projectName, opts.IncludeLibraries, ws.RootDirectory);

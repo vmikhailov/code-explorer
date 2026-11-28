@@ -429,44 +429,57 @@ export function optimizeSlotAssignment(
   const slotOfNode = new Map<string, number>();
   assignment.forEach((u, s) => slotOfNode.set(u, s));
 
-  const totalCost = (): number => {
-    let c = 0;
-    for (let s = 0; s < N; s++) {
-      c += extCost(assignment[s], s);
-    }
-    for (const e of intEdges) {
-      const pU = posOfSlot[slotOfNode.get(e.u)!];
-      const pV = posOfSlot[slotOfNode.get(e.v)!];
-      c += e.weight * Math.hypot(pU.x - pV.x, pU.y - pV.y);
-    }
-    return c;
+  const intAdj = new Map<string, Array<{ peer: string; weight: number }>>();
+  for (const u of nodeIds) {
+    intAdj.set(u, []);
+  }
+  for (const e of intEdges) {
+    intAdj.get(e.u)!.push({ peer: e.v, weight: e.weight });
+    intAdj.get(e.v)!.push({ peer: e.u, weight: e.weight });
+  }
+
+  const slotDist = (sA: number, sB: number): number => {
+    const pA = posOfSlot[sA];
+    const pB = posOfSlot[sB];
+    return Math.hypot(pA.x - pB.x, pA.y - pB.y);
   };
 
-  // Iterative 2-opt pairwise slot swap until local minimum of total link length is reached
+  // O(deg(u) + deg(v)) incremental cost delta for swapping slots i and j
+  const swapCostDelta = (i: number, j: number): number => {
+    const u = assignment[i];
+    const v = assignment[j];
+    let delta = extCost(u, j) + extCost(v, i) - extCost(u, i) - extCost(v, j);
+
+    for (const { peer, weight } of intAdj.get(u) || []) {
+      if (peer === v) continue;
+      const sPeer = slotOfNode.get(peer)!;
+      delta += weight * (slotDist(j, sPeer) - slotDist(i, sPeer));
+    }
+    for (const { peer, weight } of intAdj.get(v) || []) {
+      if (peer === u) continue;
+      const sPeer = slotOfNode.get(peer)!;
+      delta += weight * (slotDist(i, sPeer) - slotDist(j, sPeer));
+    }
+    return delta;
+  };
+
+  // Iterative 2-opt pairwise slot swap using O(deg) delta updates
+  const maxIter = N > 120 ? 12 : 40;
   let improved = true;
-  let curCost = totalCost();
   let iter = 0;
-  while (improved && iter < 40) {
+  while (improved && iter < maxIter) {
     improved = false;
     iter++;
     for (let i = 0; i < N; i++) {
       for (let j = i + 1; j < N; j++) {
-        const u = assignment[i];
-        const v = assignment[j];
-        assignment[i] = v;
-        assignment[j] = u;
-        slotOfNode.set(v, i);
-        slotOfNode.set(u, j);
-
-        const newCost = totalCost();
-        if (newCost < curCost - 1e-4) {
-          curCost = newCost;
+        if (swapCostDelta(i, j) < -1e-4) {
+          const u = assignment[i];
+          const v = assignment[j];
+          assignment[i] = v;
+          assignment[j] = u;
+          slotOfNode.set(v, i);
+          slotOfNode.set(u, j);
           improved = true;
-        } else {
-          assignment[i] = u;
-          assignment[j] = v;
-          slotOfNode.set(u, i);
-          slotOfNode.set(v, j);
         }
       }
     }

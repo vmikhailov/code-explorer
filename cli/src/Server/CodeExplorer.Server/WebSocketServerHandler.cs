@@ -237,6 +237,7 @@ public partial class WebSocketServerHandler
                         "serviceflow" or "flow" or "c2" => ArchitectureViewType.ServiceFlow,
                         "component" or "c3" => ArchitectureViewType.Component,
                         "projectmap" or "project-map" or "project" or "modules" => ArchitectureViewType.ProjectMap,
+                        "clusters" or "cluster" or "clustered" => ArchitectureViewType.Clusters,
                         "domain" or "domainmap" or "domain-map" or "semantic" => ArchitectureViewType.DomainMap,
                         "contexts" or "boundedcontexts" or "contextmap" or "context-map" or "boundedcontext" or "bounded-context" => ArchitectureViewType.BoundedContexts,
                         "tiers" or "tiered" or "layers" or "layered" => ArchitectureViewType.Tiers,
@@ -246,7 +247,10 @@ public partial class WebSocketServerHandler
                     {
                         ViewType = viewType,
                         Scope = viewReq?.Scope,
-                        IncludeLibraries = viewReq?.IncludeLibraries ?? (viewType == ArchitectureViewType.Tiers)
+                        IncludeLibraries = viewReq?.IncludeLibraries ?? (viewType is ArchitectureViewType.Tiers or ArchitectureViewType.Clusters or ArchitectureViewType.DomainMap),
+                        Clustered = viewReq?.Clustered,
+                        ExpandedClusters = viewReq?.ExpandedClusters,
+                        WorkspaceRoot = _workspaceRoot
                     }, cancellationToken);
                     await SendResponseAsync(session, WsMessageTypes.GetViewResponse, reqId, new QueryResponseDto
                     {
@@ -280,6 +284,7 @@ public partial class WebSocketServerHandler
                     if (overrideReq.RemoveOverride)
                     {
                         var removed = DomainManagementService.RemoveServiceOverride(_workspaceRoot, overrideReq.ServiceName);
+                        ClusterManagementService.RemoveMemberOverride(_workspaceRoot, overrideReq.ServiceName);
                         _repository.InvalidateCache();
                         await SendResponseAsync(session, WsMessageTypes.DomainMutationResponse, reqId, new DomainMutationResponseDto
                         {
@@ -295,6 +300,7 @@ public partial class WebSocketServerHandler
                             break;
                         }
                         await DomainManagementService.AssignServiceDomainAsync(_workspaceRoot, overrideReq.ServiceName, overrideReq.Domain, overrideReq.Context, _graphClient, cancellationToken);
+                        ClusterManagementService.AssignMemberCluster(_workspaceRoot, overrideReq.ServiceName, overrideReq.Domain, overrideReq.Context);
                         _repository.InvalidateCache();
                         await SendResponseAsync(session, WsMessageTypes.DomainMutationResponse, reqId, new DomainMutationResponseDto
                         {

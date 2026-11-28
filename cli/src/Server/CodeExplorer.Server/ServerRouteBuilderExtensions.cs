@@ -1,3 +1,4 @@
+using CodeExplorer.Core.Analysis.Subgraph;
 using CodeExplorer.Core.Diagrams;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
@@ -68,7 +69,7 @@ public static partial class ServerRouteBuilderExtensions
             }
         });
 
-        endpoints.MapGet("/api/view", async (IArchitectureQueryService archQueryService, string? view, string? scope, bool? includeLibraries, bool? sharedDatabasesOnly) =>
+        endpoints.MapGet("/api/view", async (IArchitectureQueryService archQueryService, string? view, string? scope, bool? includeLibraries, bool? sharedDatabasesOnly, bool? clustered, string? expanded) =>
         {
             try
             {
@@ -81,17 +82,24 @@ public static partial class ServerRouteBuilderExtensions
                     "callflow" or "call-flow" => ArchitectureViewType.CallFlow,
                     "databasemap" or "database-map" => ArchitectureViewType.DatabaseMap,
                     "dataflow" or "data-flow" => ArchitectureViewType.DataFlow,
+                    "clusters" or "cluster" or "clustered" => ArchitectureViewType.Clusters,
                     "domain" or "domainmap" or "domain-map" => ArchitectureViewType.DomainMap,
                     "contexts" or "boundedcontexts" or "contextmap" or "context-map" or "boundedcontext" or "bounded-context" => ArchitectureViewType.BoundedContexts,
                     "tiers" or "tiered" or "layer-dependencies" or "layerdependencies" => ArchitectureViewType.Tiers,
                     _ => ArchitectureViewType.SystemContext
                 };
+                var expandedList = string.IsNullOrWhiteSpace(expanded)
+                    ? null
+                    : expanded.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
                 var graph = await archQueryService.GetViewAsync(new ArchitectureViewRequest
                 {
                     ViewType = viewType,
                     Scope = scope,
-                    IncludeLibraries = includeLibraries ?? (viewType is ArchitectureViewType.Tiers),
-                    SharedDatabasesOnly = sharedDatabasesOnly ?? false
+                    IncludeLibraries = includeLibraries ?? (viewType is ArchitectureViewType.Tiers or ArchitectureViewType.Clusters),
+                    SharedDatabasesOnly = sharedDatabasesOnly ?? false,
+                    Clustered = clustered,
+                    ExpandedClusters = expandedList,
+                    WorkspaceRoot = wsRoot
                 });
                 return Results.Ok(graph);
             }
@@ -178,6 +186,8 @@ public static partial class ServerRouteBuilderExtensions
                 return Results.Problem(detail: ex.Message, statusCode: StatusCodes.Status500InternalServerError);
             }
         });
+
+        MapClustersApiRoutes(endpoints, wsRoot, logger);
 
         endpoints.MapGet("/api/contracts/{service}", async (IArchitectureQueryService archQueryService, string service, string? direction, CancellationToken ct) =>
         {
@@ -492,6 +502,38 @@ public static partial class ServerRouteBuilderExtensions
 
         endpoints.MapAgentContextRoutes(wsRoot);
         return endpoints;
+    }
+
+    private static void MapClustersApiRoutes(
+        IEndpointRouteBuilder endpoints,
+        string wsRoot,
+        ILogger logger)
+    {
+        const string routePath = "/api/clusters";
+        const string logStart = "[REST] GET /api/clusters (cluster: {Cluster})";
+        const string logFail = "[REST] Failed /api/clusters";
+        const string allClustersLabel = "all";
+
+        endpoints.MapGet(routePath, async (IGraphClient graphClient, string? cluster, double? resolution, double? hubThreshold, CancellationToken ct) =>
+        {
+            try
+            {
+                logger.LogInformation(logStart, cluster ?? allClustersLabel);
+                var svc = new WorkspaceSubgraphService();
+                var report = await svc.PartitionClustersAsync(graphClient, resolution ?? 1.0, hubThreshold ?? 0.15, wsRoot, ct);
+                if (!string.IsNullOrWhiteSpace(cluster))
+                {
+                    var detail = CodeExplorerRepository.BuildClusterDrillDownPayload(report, cluster.Trim());
+                    return detail != null ? Results.Ok(detail) : Results.NotFound(new { error = $"Cluster '{cluster}' not found." });
+                }
+                return Results.Ok(report);
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, logFail);
+                return Results.Problem(detail: ex.Message, statusCode: StatusCodes.Status500InternalServerError);
+            }
+        });
     }
 
     private static void MapDatabaseUpgradeRoute(

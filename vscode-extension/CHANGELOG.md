@@ -5,6 +5,19 @@ All notable changes to the CodeExplorer project (CLI, MCP Server, and VS Code Ex
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.109.0] - 2026-11-28
+
+### Added
+- **Unified Architectural Clustering Engine, `ce clusters` CLI & `get_workspace_clusters` MCP Parity (`WorkspaceSubgraphService`, `WorkspaceCoarsener`, `ClusterManagementService`, `ClustersCommandHandler`, `McpGraphHandler`)**:
+  - Unified workspace partitioning under `clusters` (`ce clusters`, `ce clusters -c <cluster>`, `ce map --view clusters`; `ce domains` retained as a hidden compatibility alias) with full MCP parity via `get_workspace_clusters` (cluster overview, single-cluster/sub-cluster drill-down via `clusterName`, and Personalized PageRank slicing via `seeds`) and `get_architecture_map` (`view="clusters"`, including Mermaid/C4 cluster diagrams).
+  - Separated `Shared Libraries` (`shared-libraries`) into their own dedicated cluster, added structural twin / fan-out pool clustering (`FanOutPool`, e.g. grouping large sets of leaf integration services with automatic sub-clusters when `> 24` units), merged split same-stem sibling clusters, added Clean-Architecture layer-suffix slice coarsening for large single-repo solutions, and persisted custom cluster overrides in `.codeexplorer/clusters.json` (with transparent fallback to `.codeexplorer/domains.json`).
+- **Server-Side Auto-Clustered Architecture Map & Lazy Cluster Expansion (`ArchitectureViewEngine.Clusters`, `ServerRouteBuilderExtensions`, `WebSocketServerHandler`, `DomainArchitectureView`, `App`)**:
+  - Automatically projects collapsed cluster graphs with bundled inter-cluster edges and hidden private infrastructure (exposing only shared databases/topics at cluster boundaries) on large workspaces (`>= 22` services/libraries), backed by an in-memory snapshot cache (`GET /api/clusters`, `GET /api/view` with `clustered` and `expanded`).
+  - Added interactive cluster and sub-cluster expand/collapse in the VS Code Extension via double-click, context menu, Inspector sidebar, and HUD controls (`Clusters On/Off`, `Collapse (N)`).
+
+### Fixed
+- **$O(\deg)$ Incremental 2-Opt Concentric Layout & 3D Canvas Controls (`concentricLayout.ts`, `UniversalGraph3DCanvas.tsx`)**: Replaced full $O(N + |E|)$ graph cost recomputation inside the 2-opt pairwise swap loop with $O(\deg(u) + \deg(v))$ delta evaluation to eliminate main-thread freezes on dense orbits, and refined 3D orbital camera FOV, zoom/pitch bounds, vertical axis inversion, and semantic edge category colors.
+
 ## [1.108.3] - 2026-11-28
 
 ### Fixed

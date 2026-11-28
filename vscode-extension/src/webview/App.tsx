@@ -178,6 +178,12 @@ export const App: React.FC = () => {
   const [c1Graph, setC1Graph] = useState<GraphData | null>(null);
   const [layersGraph, setLayersGraph] = useState<GraphData | null>(null);
   const [domainGraph, setDomainGraph] = useState<GraphData | null>(null);
+  const [clusterModeOverride, setClusterModeOverride] = useState<boolean | null>(null);
+  const [expandedClusters, setExpandedClusters] = useState<string[]>([]);
+  const clusterModeOverrideRef = useRef<boolean | null>(null);
+  clusterModeOverrideRef.current = clusterModeOverride;
+  const expandedClustersRef = useRef<string[]>([]);
+  expandedClustersRef.current = expandedClusters;
   const [contextsGraph, setContextsGraph] = useState<GraphData | null>(null);
   const [focusTargetContext, setFocusTargetContext] = useState<{ contextName?: string; contextId?: string; domainId?: string } | null>(null);
   const [gateEditorRequest, setGateEditorRequest] = useState<{ gateId?: string; timestamp: number } | null>(null);
@@ -343,14 +349,79 @@ export const App: React.FC = () => {
     sendWsMessage(req);
   }, [sendWsMessage]);
 
-  const requestDomain = useCallback(() => {
-    const req: WebSocketMessage = {
-      type: 'GET_VIEW_REQUEST',
-      requestId: `req_view_domain_${Date.now()}`,
-      payload: { view: 'domain', includeLibraries: true },
-    };
-    sendWsMessage(req);
-  }, [sendWsMessage]);
+  const requestDomain = useCallback(
+    (opts?: { clustered?: boolean | null; expandedClusters?: string[] }) => {
+      const effClustered = opts && 'clustered' in opts ? opts.clustered : clusterModeOverrideRef.current;
+      const effExpanded = opts?.expandedClusters ?? expandedClustersRef.current;
+      const payload: Record<string, unknown> = {
+        view: 'domain',
+        includeLibraries: true,
+      };
+      if (effClustered !== null && effClustered !== undefined) {
+        payload.clustered = effClustered;
+      }
+      if (effExpanded && effExpanded.length > 0) {
+        payload.expandedClusters = effExpanded;
+      }
+      const req: WebSocketMessage = {
+        type: 'GET_VIEW_REQUEST',
+        requestId: `req_view_domain_${Date.now()}`,
+        payload,
+      };
+      sendWsMessage(req);
+    },
+    [sendWsMessage]
+  );
+
+  const handleToggleClusterMode = useCallback(() => {
+    const currentlyClustered = domainGraph?.metadata?.isClustered === 'true';
+    const nextClustered = !currentlyClustered;
+    setClusterModeOverride(nextClustered);
+    clusterModeOverrideRef.current = nextClustered;
+    if (!nextClustered) {
+      setExpandedClusters([]);
+      expandedClustersRef.current = [];
+    }
+    requestDomain({ clustered: nextClustered, expandedClusters: nextClustered ? expandedClustersRef.current : [] });
+  }, [domainGraph, requestDomain]);
+
+  const handleExpandCluster = useCallback(
+    (clusterId: string) => {
+      const cleanId = clusterId.replace(/^cluster:/i, '').replace(/^subcluster:/i, '').trim();
+      if (!cleanId) return;
+      setExpandedClusters((prev) => {
+        if (prev.some((x) => x.toLowerCase() === cleanId.toLowerCase())) return prev;
+        const next = [...prev, cleanId];
+        expandedClustersRef.current = next;
+        requestDomain({ clustered: true, expandedClusters: next });
+        return next;
+      });
+    },
+    [requestDomain]
+  );
+
+  const handleCollapseCluster = useCallback(
+    (clusterId: string) => {
+      const cleanId = clusterId.replace(/^cluster:/i, '').replace(/^subcluster:/i, '').trim().toLowerCase();
+      if (!cleanId) return;
+      setExpandedClusters((prev) => {
+        const next = prev.filter((x) => {
+          const lx = x.toLowerCase();
+          return lx !== cleanId && !lx.startsWith(`${cleanId}-`);
+        });
+        expandedClustersRef.current = next;
+        requestDomain({ clustered: true, expandedClusters: next });
+        return next;
+      });
+    },
+    [requestDomain]
+  );
+
+  const handleCollapseAllClusters = useCallback(() => {
+    setExpandedClusters([]);
+    expandedClustersRef.current = [];
+    requestDomain({ clustered: true, expandedClusters: [] });
+  }, [requestDomain]);
 
   const handleSaveAiSettings = useCallback((settings: AiSettings) => {
     setAiSettings(settings);
@@ -527,9 +598,10 @@ export const App: React.FC = () => {
   );
 
   const singleCodeProject = useMemo(() => {
+    if (domainGraph?.metadata?.isClustered === 'true') return null;
     const names = new Set(
       (domainGraph?.nodes ?? [])
-        .filter((n) => isProjectKind(n.kind) && n.kind !== 'TestSuite' && n.properties?.role !== 'Test' && n.properties?.is_test !== 'true')
+        .filter((n) => isProjectKind(n.kind) && n.properties?.is_cluster !== 'true' && n.kind !== 'TestSuite' && n.properties?.role !== 'Test' && n.properties?.is_test !== 'true')
         .map((n) => n.name)
     );
     return names.size === 1 ? [...names][0] : null;
@@ -1585,6 +1657,12 @@ export const App: React.FC = () => {
                 onSwitchToContexts={() => handleViewModeChange('contexts')}
                 onSetDomainOverride={handleSetDomainOverride}
                 availableDomains={availableDomains}
+                isClustered={domainGraph?.metadata?.isClustered === 'true'}
+                expandedClusters={expandedClusters}
+                onToggleClusterMode={handleToggleClusterMode}
+                onExpandCluster={handleExpandCluster}
+                onCollapseCluster={handleCollapseCluster}
+                onCollapseAllClusters={handleCollapseAllClusters}
                 onRefresh={() => {
                   requestDomain();
                 }}

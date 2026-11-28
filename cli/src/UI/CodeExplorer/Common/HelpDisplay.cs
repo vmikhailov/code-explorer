@@ -24,7 +24,9 @@ public static class HelpDisplay
     private const string AvailableCommandsBody = """
   scan [path]             Initialize (if needed) and index workspace into the code graph (alias: index)
   taxonomy [--kind|--status] Inspect graph ontology schema, node kind spec, or workspace health
-  map [project]           Inspect architecture map (overview, c1..c3, tiers) or export Mermaid/C4 diagrams
+  map [project]           Inspect architecture map (overview, clusters, c1..c3, tiers) or export diagrams
+  clusters [-c <cluster>] Partition workspace into architectural clusters, fan-out pools & shared libraries
+  slice <seeds...>        Extract task-focused repository/project subgraph via Personalized PageRank (PPR)
   dependencies [project]  Inspect project and package dependencies with runtime vs build filtering (alias: deps)
   contracts <service>     Inspect service contracts, entry_points, and cross-service flows
   outline [path]          Extract structural AST outline of a file or directory

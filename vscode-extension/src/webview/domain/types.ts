@@ -89,7 +89,7 @@ export interface SelectedNodeDetail {
   tierLabel?: string;
   tierReason?: string;
   isGroup?: boolean;
-  groupType?: 'category' | 'custom';
+  groupType?: 'category' | 'custom' | 'cluster';
   groupKind?: EntityKind;
   customGroupId?: string;
   memberIds?: string[];

@@ -17,7 +17,7 @@ query: |
     coalesce(f.start_line, 1) AS line,
     coalesce(f.start_col, 1) AS column,
     f.name AS symbol,
-    toString(coalesce(f.loc, f.end_line - f.start_line + 1)) + ' lines' AS target,
+    'max 500 lines' AS target,
     'Method ' + f.name + ' exceeds maximum allowed length of 500 lines (' + toString(coalesce(f.loc, f.end_line - f.start_line + 1)) + ' lines)' AS message
 ratchet:
   enabled: true

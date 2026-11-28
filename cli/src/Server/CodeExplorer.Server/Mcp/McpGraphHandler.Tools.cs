@@ -471,4 +471,25 @@ public partial class McpGraphHandler
 
         return await ExecuteForWorkspaceAsync(workspacePath, ws => repository.GetTaskContextAsync(query, maxAnchors, includeGates, ws, cancellationToken), cancellationToken);
     }
+
+    [UsedImplicitly]
+    [McpServerTool(Title = "Partition Workspace into Architectural Clusters or Task Subgraph", ReadOnly = true, Destructive = false, Idempotent = true, OpenWorld = false)]
+    [Description("Partition large multi-repo or monorepo workspaces into deterministic architectural clusters (service clusters, structural fan-out pools such as integration connectors, and separated shared libraries), expand a single cluster or sub-cluster on demand (via clusterName), or extract a Personalized PageRank subgraph around 1-3 seed services, routes, or tables (via seeds). Use on large repositories (20+ projects or multi-repo workspaces) to inspect macro cluster boundaries without pulling hundreds of flat projects, pass clusterName to drill down into a cluster's internal units and boundary edges, or pass seeds to rank a tight task-focused repository slice; for a flat workspace inventory or Mermaid diagrams use get_architecture_map. Evaluates coarsened project dependencies, service calls, shared database tables, and messaging topics in .codeexplorer/graph.db with zero LLM dependency (applying manual overrides from .codeexplorer/clusters.json when present) and returns compact YAML.")]
+    public async Task<CallToolResult> GetWorkspaceClustersAsync(
+        [Description("Optional cluster or sub-cluster ID/name to expand in detail (e.g. 'plat-liam', 'integration-service', or 'shared-libraries'). Omit to list all workspace clusters and boundary edges.")] string? clusterName = null,
+        [Description("Optional list of 1-5 seed names (repository, project, service, '/endpoint/route', or database table) to extract a ranked Personalized PageRank subgraph slice instead of full workspace clustering.")] string[]? seeds = null,
+        [Range(0.1, 5.0)]
+        [Description("Leiden resolution parameter gamma controlling cluster granularity (0.1 to 5.0; higher yields smaller, tighter clusters; default: 1.0).")] double resolution = 1.0,
+        [Range(0.0, 1.0)]
+        [Description("Inbound dependent-unit ratio threshold (0.0 to 1.0) used to separate Shared Libraries / Platform Hubs before Leiden clustering (default: 0.15).")] double hubThreshold = 0.15,
+        [Range(1, 100)]
+        [Description("Maximum number of ranked root units/repositories to return when seeds is specified for Personalized PageRank slicing (1 to 100, default: 10).")] int maxUnits = 10,
+        [Description("Optional absolute path to the target workspace root directory. Omit to use the bound workspace, active client root, or sticky session workspace.")] string? workspacePath = null,
+        CancellationToken cancellationToken = default)
+    {
+        return await ExecuteForWorkspaceAsync(
+            workspacePath,
+            ws => repository.GetWorkspaceClustersAsync(clusterName, seeds, resolution, hubThreshold, maxUnits, ws, cancellationToken),
+            cancellationToken);
+    }
 }

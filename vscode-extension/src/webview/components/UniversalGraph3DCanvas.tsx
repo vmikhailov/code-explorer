@@ -83,7 +83,12 @@ const GYRO_INCLINATIONS: Array<{ incX: number; incY: number }> = [
   { incX: -0.52, incY: 0.26 },
 ];
 
-const FOV = 1150;
+const FOV = 1400;
+const MIN_ZOOM = 0.05;
+const MAX_ZOOM = 8.0;
+const MIN_PITCH = -1.52;
+const MAX_PITCH = 1.52;
+const STORAGE_KEY_INVERT_Y = 'ce_3d_invert_y';
 const DEFAULT_ORBITAL_MODE: Orbital3DMode = 'echelon';
 const INITIAL_CAMERA_READOUT = 'Pitch: 47° | Yaw: -26° | Zoom: 1.00x';
 const CANVAS_CONTEXT_2D = '2d';
@@ -94,17 +99,33 @@ const EVENT_MOUSEUP = 'mouseup';
 const EVENT_DBLCLICK = 'dblclick';
 const EVENT_WHEEL = 'wheel';
 const EVENT_CONTEXTMENU = 'contextmenu';
-const BG_GRAD_INNER = '#131926';
-const BG_GRAD_OUTER = '#090b10';
+const BG_GRAD_INNER = '#172033';
+const BG_GRAD_OUTER = '#0b0f19';
 const DEFAULT_ACCENT_COLOR = '#38bdf8';
 const SPHERE_HIGHLIGHT_COLOR = '#ffffff';
-const SPHERE_SHADOW_COLOR = '#090d16';
 const WHEEL_LISTENER_OPTIONS: AddEventListenerOptions = { passive: false };
+
+function resolveEdgeStrokeColor(category: string | undefined, fallbackColor: string): string {
+  switch (category) {
+    case 'service_call':
+    case 'library':
+      return '#34d399';
+    case 'database':
+      return '#c084fc';
+    case 'messaging':
+      return '#fbbf24';
+    case 'external':
+      return '#38bdf8';
+    default:
+      return fallbackColor || DEFAULT_ACCENT_COLOR;
+  }
+}
 
 interface Orbital3DSceneState {
   mode: Orbital3DMode;
   depthScale: number;
   autoRotate: boolean;
+  invertVertical: boolean;
   camYaw: number;
   camPitch: number;
   targetYaw: number;
@@ -217,7 +238,7 @@ function renderOrbital3DFrame(
     n.scale = p.scale;
   }
 
-  if (st.camPitch > 0.05 && st.mode === 'echelon' && st.internalOrbits.length > 1) {
+  if (Math.abs(st.camPitch) > 0.05 && st.mode === 'echelon' && st.internalOrbits.length > 1) {
     const zValues = st.internalOrbits.map((o) => o.baseZ);
     const maxZ = (Math.max(0, ...zValues) + 60) * st.depthScale;
     const minZ = (Math.min(0, ...zValues) - 60) * st.depthScale;
@@ -226,9 +247,9 @@ function renderOrbital3DFrame(
     ctx.beginPath();
     ctx.moveTo(topP.sx, topP.sy);
     ctx.lineTo(botP.sx, botP.sy);
-    ctx.strokeStyle = 'rgba(56, 189, 248, 0.20)';
-    ctx.lineWidth = 1.4;
-    ctx.setLineDash([3, 5]);
+    ctx.strokeStyle = 'rgba(56, 189, 248, 0.55)';
+    ctx.lineWidth = 2.2;
+    ctx.setLineDash([4, 5]);
     ctx.stroke();
     ctx.setLineDash([]);
   }
@@ -262,9 +283,9 @@ function renderOrbital3DFrame(
         if (i === 0) ctx.moveTo(p.sx, p.sy);
         else ctx.lineTo(p.sx, p.sy);
       }
-      ctx.strokeStyle = 'rgba(56, 189, 248, 0.24)';
-      ctx.lineWidth = 1.2;
-      ctx.setLineDash([4, 6]);
+      ctx.strokeStyle = 'rgba(56, 189, 248, 0.52)';
+      ctx.lineWidth = 2.0;
+      ctx.setLineDash([5, 6]);
       ctx.stroke();
       ctx.setLineDash([]);
     }
@@ -314,28 +335,34 @@ function renderOrbital3DFrame(
 
     const isHighlighted = activeEdgeIds.has(e.id);
     const avgZ = (u.sz + v.sz) * 0.5;
-    const depthAlpha = Math.max(0.18, Math.min(1, (avgZ + 600) / 1000));
+    const depthAlpha = Math.max(0.68, Math.min(1, (avgZ + 950) / 1150));
 
     const midX = (u.sx + v.sx) * 0.5;
-    const midY = (u.sy + v.sy) * 0.5 - (isHighlighted ? 12 : 6) * u.scale;
+    const midY = (u.sy + v.sy) * 0.5 - (isHighlighted ? 12 : 6) * Math.max(0.65, u.scale);
 
     ctx.beginPath();
     ctx.moveTo(u.sx, u.sy);
     ctx.quadraticCurveTo(midX, midY, v.sx, v.sy);
 
-    const targetColor = v.bgColor || DEFAULT_ACCENT_COLOR;
+    const edgeColor = resolveEdgeStrokeColor(e.category, v.bgColor || DEFAULT_ACCENT_COLOR);
+    const effectiveScale = Math.min(1.45, Math.max(0.78, u.scale));
     if (showAllMode) {
       ctx.save();
-      ctx.globalAlpha = 0.42 * depthAlpha;
-      ctx.strokeStyle = targetColor;
-      ctx.lineWidth = 1.45 * Math.min(1.25, u.scale);
+      ctx.globalAlpha = Math.max(0.72, 0.88 * depthAlpha);
+      ctx.strokeStyle = edgeColor;
+      ctx.lineWidth = Math.max(2.0, 2.5 * effectiveScale);
+      ctx.stroke();
+      ctx.restore();
+    } else if (isHighlighted) {
+      ctx.save();
+      ctx.globalAlpha = 1.0;
+      ctx.strokeStyle = edgeColor;
+      ctx.lineWidth = Math.max(2.8, 3.6 * effectiveScale);
       ctx.stroke();
       ctx.restore();
     } else {
-      ctx.strokeStyle = isHighlighted
-        ? targetColor
-        : `rgba(148, 163, 184, ${0.11 * depthAlpha})`;
-      ctx.lineWidth = isHighlighted ? 2.2 * Math.min(1.3, u.scale) : 1.0;
+      ctx.strokeStyle = `rgba(148, 163, 184, ${0.24 * depthAlpha})`;
+      ctx.lineWidth = Math.max(1.2, 1.5 * effectiveScale);
       ctx.stroke();
     }
 
@@ -344,25 +371,28 @@ function renderOrbital3DFrame(
       const dx = v.sx - midX;
       const dy = v.sy - midY;
       const len = Math.hypot(dx, dy) || 1;
-      if (len > targetR + 8) {
+      if (len > targetR + 6) {
         const ux = dx / len;
         const uy = dy / len;
         const tipX = v.sx - ux * (targetR + 2);
         const tipY = v.sy - uy * (targetR + 2);
-        const arrowSize = Math.max(4, Math.min(8, (isHighlighted ? 6.5 : 5) * v.scale));
+        const arrowSize = Math.max(
+          6.5,
+          Math.min(11.5, (isHighlighted ? 9.5 : 7.5) * Math.max(0.78, v.scale))
+        );
 
         ctx.save();
-        ctx.globalAlpha = showAllMode ? 0.55 * depthAlpha : 0.95;
-        ctx.fillStyle = targetColor;
+        ctx.globalAlpha = showAllMode ? Math.max(0.82, 0.94 * depthAlpha) : 1.0;
+        ctx.fillStyle = edgeColor;
         ctx.beginPath();
         ctx.moveTo(tipX, tipY);
         ctx.lineTo(
-          tipX - ux * arrowSize - uy * (arrowSize * 0.55),
-          tipY - uy * arrowSize + ux * (arrowSize * 0.55)
+          tipX - ux * arrowSize - uy * (arrowSize * 0.58),
+          tipY - uy * arrowSize + ux * (arrowSize * 0.58)
         );
         ctx.lineTo(
-          tipX - ux * arrowSize + uy * (arrowSize * 0.55),
-          tipY - uy * arrowSize - ux * (arrowSize * 0.55)
+          tipX - ux * arrowSize + uy * (arrowSize * 0.58),
+          tipY - uy * arrowSize - ux * (arrowSize * 0.58)
         );
         ctx.closePath();
         ctx.fill();
@@ -378,56 +408,64 @@ function renderOrbital3DFrame(
     const isMulti = st.multiSelectedNodeIds.has(n.id);
     const isHovered = n.id === st.hoveredNodeId;
     const isConnected = connectedNodeIds.has(n.id);
-    const depthAlpha = Math.max(0.32, Math.min(1, (n.sz + 600) / 950));
+    const depthAlpha = Math.max(0.78, Math.min(1, (n.sz + 950) / 1150));
     const alpha = showAllMode
-      ? Math.max(0.58, depthAlpha)
+      ? Math.max(0.9, depthAlpha)
       : isConnected
       ? 1.0
-      : 0.22 * depthAlpha;
+      : 0.36 * depthAlpha;
 
-    const baseRadius = Math.max(8, n.size * 0.36);
-    const r = baseRadius * n.scale * (isHovered ? 1.16 : 1.0);
+    const baseRadius = Math.max(9, n.size * 0.38);
+    const r = Math.max(6.5, baseRadius * n.scale) * (isHovered ? 1.18 : 1.0);
 
     ctx.save();
     ctx.globalAlpha = alpha;
 
-    if (isSelected || isHovered || isMulti || n.ringOrder === 0) {
-      ctx.beginPath();
-      ctx.arc(n.sx, n.sy, r + (n.ringOrder === 0 ? 10 : 6) * n.scale, 0, Math.PI * 2);
-      ctx.fillStyle = isMulti ? 'rgba(56, 189, 248, 0.38)' : `${n.bgColor}44`;
-      ctx.fill();
-    }
-
     const nodeFillColor = n.bgColor || DEFAULT_ACCENT_COLOR;
+    ctx.beginPath();
+    ctx.arc(
+      n.sx,
+      n.sy,
+      r + (isSelected || isHovered || isMulti || n.ringOrder === 0 ? 8 : 3.5) * Math.max(0.7, n.scale),
+      0,
+      Math.PI * 2
+    );
+    ctx.fillStyle = isMulti
+      ? 'rgba(56, 189, 248, 0.45)'
+      : isSelected || isHovered || n.ringOrder === 0
+      ? `${nodeFillColor}66`
+      : `${nodeFillColor}28`;
+    ctx.fill();
+
     const grad = ctx.createRadialGradient(
-      n.sx - r * 0.3,
-      n.sy - r * 0.3,
-      r * 0.08,
+      n.sx - r * 0.32,
+      n.sy - r * 0.32,
+      r * 0.1,
       n.sx,
       n.sy,
       r
     );
     grad.addColorStop(0, SPHERE_HIGHLIGHT_COLOR);
-    grad.addColorStop(0.28, nodeFillColor);
-    grad.addColorStop(1, SPHERE_SHADOW_COLOR);
+    grad.addColorStop(0.45, nodeFillColor);
+    grad.addColorStop(1, n.borderColor || nodeFillColor);
 
     ctx.beginPath();
     ctx.arc(n.sx, n.sy, r, 0, Math.PI * 2);
     ctx.fillStyle = grad;
     ctx.fill();
 
-    ctx.lineWidth = isSelected || isMulti ? 2.4 : 1.0;
+    ctx.lineWidth = isSelected || isMulti ? 3.0 : isHovered ? 2.4 : 1.6;
     ctx.strokeStyle = isSelected
       ? SPHERE_HIGHLIGHT_COLOR
-      : isMulti
+      : isMulti || isHovered
       ? DEFAULT_ACCENT_COLOR
-      : n.borderColor || nodeFillColor;
+      : 'rgba(255, 255, 255, 0.62)';
     ctx.stroke();
 
-    if (isConnected || n.scale > 0.72) {
+    if (isConnected || n.scale > 0.38) {
       const labelFontSize = Math.max(
-        8,
-        Math.min(15, Math.round((st.fontSize + 0.5) * Math.pow(n.scale, 0.65)))
+        9,
+        Math.min(16, Math.round((st.fontSize + 1) * Math.pow(Math.max(0.65, n.scale), 0.55)))
       );
       ctx.font = `600 ${labelFontSize}px system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif`;
       const text = n.displayLabel || n.name;
@@ -440,10 +478,10 @@ function renderOrbital3DFrame(
       const boxY = n.sy + r + 5;
 
       ctx.fillStyle =
-        isSelected || isHovered ? 'rgba(15, 23, 42, 0.95)' : 'rgba(9, 13, 22, 0.82)';
+        isSelected || isHovered ? 'rgba(15, 23, 42, 0.96)' : 'rgba(11, 16, 28, 0.9)';
       ctx.strokeStyle =
-        isSelected || isHovered ? nodeFillColor : 'rgba(255, 255, 255, 0.14)';
-      ctx.lineWidth = 1;
+        isSelected || isHovered ? nodeFillColor : 'rgba(255, 255, 255, 0.24)';
+      ctx.lineWidth = 1.2;
 
       ctx.beginPath();
       if (typeof ctx.roundRect === 'function') {
@@ -454,7 +492,7 @@ function renderOrbital3DFrame(
       ctx.fill();
       ctx.stroke();
 
-      ctx.fillStyle = isSelected || isHovered ? SPHERE_HIGHLIGHT_COLOR : '#e2e8f0';
+      ctx.fillStyle = '#f8fafc';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
       ctx.fillText(text, n.sx, boxY + boxH / 2 + 0.5);
@@ -480,12 +518,20 @@ export const UniversalGraph3DCanvas: React.FC<UniversalGraph3DCanvasProps> = ({
   const [mode, setMode] = useState<Orbital3DMode>(DEFAULT_ORBITAL_MODE);
   const [depthPercent, setDepthPercent] = useState<number>(100);
   const [autoRotate, setAutoRotate] = useState<boolean>(false);
+  const [invertVertical, setInvertVertical] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem(STORAGE_KEY_INVERT_Y) === 'true';
+    } catch {
+      return false;
+    }
+  });
   const [cameraReadout, setCameraReadout] = useState<string>(INITIAL_CAMERA_READOUT);
 
   const stateRef = useRef<Orbital3DSceneState>({
     mode: DEFAULT_ORBITAL_MODE,
     depthScale: 1.0,
     autoRotate: false,
+    invertVertical: false,
     camYaw: -0.45,
     camPitch: 0.82,
     targetYaw: -0.45,
@@ -514,6 +560,7 @@ export const UniversalGraph3DCanvas: React.FC<UniversalGraph3DCanvasProps> = ({
   stateRef.current.searchMatchNodeIds = searchMatchNodeIds;
   stateRef.current.fontSize = fontSize;
   stateRef.current.edges = edges;
+  stateRef.current.invertVertical = invertVertical;
 
   const computeTargets = useCallback(() => {
     const st = stateRef.current;
@@ -631,7 +678,7 @@ export const UniversalGraph3DCanvas: React.FC<UniversalGraph3DCanvasProps> = ({
     if (canvas && prevMap.size === 0 && internalNodes.length > 0) {
       const rect = canvas.getBoundingClientRect();
       const minDim = Math.max(360, Math.min(rect.width || 900, rect.height || 650));
-      const desiredZoom = Math.max(0.28, Math.min(1.25, (minDim * 0.42) / maxR));
+      const desiredZoom = Math.max(MIN_ZOOM, Math.min(2.5, (minDim * 0.44) / maxR));
       st.camZoom = desiredZoom;
       st.targetZoom = desiredZoom;
     }
@@ -643,7 +690,7 @@ export const UniversalGraph3DCanvas: React.FC<UniversalGraph3DCanvasProps> = ({
     st.mode = nextMode;
     if (nextMode === 'flat2d') {
       st.targetPitch = 0;
-    } else if (st.targetPitch < 0.25) {
+    } else if (Math.abs(st.targetPitch) < 0.25) {
       st.targetPitch = 0.82;
     }
     computeTargets();
@@ -663,6 +710,16 @@ export const UniversalGraph3DCanvas: React.FC<UniversalGraph3DCanvasProps> = ({
     });
   };
 
+  const handleToggleInvertVertical = (checked: boolean) => {
+    setInvertVertical(checked);
+    stateRef.current.invertVertical = checked;
+    try {
+      localStorage.setItem(STORAGE_KEY_INVERT_Y, String(checked));
+    } catch {
+      // ignore storage failure
+    }
+  };
+
   const handleResetCamera = () => {
     const st = stateRef.current;
     st.targetYaw = -0.45;
@@ -670,7 +727,7 @@ export const UniversalGraph3DCanvas: React.FC<UniversalGraph3DCanvasProps> = ({
     const maxR = Math.max(300, ...st.internalNodes.map((n) => n.radius));
     const rect = canvasRef.current?.getBoundingClientRect();
     const minDim = Math.max(360, Math.min(rect?.width || 900, rect?.height || 650));
-    st.targetZoom = Math.max(0.28, Math.min(1.25, (minDim * 0.42) / maxR));
+    st.targetZoom = Math.max(MIN_ZOOM, Math.min(2.5, (minDim * 0.44) / maxR));
     st.targetPanX = 0;
     st.targetPanY = 0;
     st.targetFocusOrigin = { x: 0, y: 0, z: 0 };
@@ -757,8 +814,12 @@ export const UniversalGraph3DCanvas: React.FC<UniversalGraph3DCanvasProps> = ({
             st.autoRotate = false;
             setAutoRotate(false);
           }
-          st.targetYaw += dx * 0.0075;
-          st.targetPitch = Math.max(0, Math.min(1.45, st.targetPitch - dy * 0.0075));
+          st.targetYaw -= dx * 0.0075;
+          const pitchSign = st.invertVertical ? 1 : -1;
+          st.targetPitch = Math.max(
+            MIN_PITCH,
+            Math.min(MAX_PITCH, st.targetPitch + pitchSign * dy * 0.0075)
+          );
         }
         return;
       }
@@ -802,8 +863,8 @@ export const UniversalGraph3DCanvas: React.FC<UniversalGraph3DCanvasProps> = ({
     const onWheel = (e: WheelEvent) => {
       e.preventDefault();
       const st = stateRef.current;
-      const factor = e.deltaY < 0 ? 1.12 : 0.89;
-      st.targetZoom = Math.max(0.15, Math.min(3.5, st.targetZoom * factor));
+      const factor = e.deltaY < 0 ? 1.15 : 0.87;
+      st.targetZoom = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, st.targetZoom * factor));
     };
 
     const onContextMenu = (e: MouseEvent) => {
@@ -911,7 +972,7 @@ export const UniversalGraph3DCanvas: React.FC<UniversalGraph3DCanvasProps> = ({
             gap: 6,
             paddingLeft: 6,
             borderLeft: '1px solid rgba(148, 163, 184, 0.2)',
-            color: '#94a3b8',
+            color: '#cbd5e1',
             fontSize: 11,
           }}
         >
@@ -919,12 +980,33 @@ export const UniversalGraph3DCanvas: React.FC<UniversalGraph3DCanvasProps> = ({
           <input
             type="range"
             min={0}
-            max={180}
+            max={360}
             value={depthPercent}
             onChange={(e) => handleDepthChange(Number(e.target.value))}
-            style={{ width: 78, accentColor: '#38bdf8', cursor: 'pointer' }}
+            style={{ width: 84, accentColor: '#38bdf8', cursor: 'pointer' }}
             title={`Z-Depth Scale: ${depthPercent}%`}
           />
+          <label
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 4,
+              marginLeft: 4,
+              cursor: 'pointer',
+              userSelect: 'none',
+              color: invertVertical ? '#38bdf8' : '#cbd5e1',
+              fontWeight: 600,
+            }}
+            title="Invert vertical mouse drag (tilt / pitch)"
+          >
+            <input
+              type="checkbox"
+              checked={invertVertical}
+              onChange={(e) => handleToggleInvertVertical(e.target.checked)}
+              style={{ accentColor: '#38bdf8', cursor: 'pointer', margin: 0 }}
+            />
+            <span>Invert Y</span>
+          </label>
         </div>
 
         <div
