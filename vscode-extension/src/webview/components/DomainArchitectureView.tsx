@@ -273,7 +273,7 @@ export type DomainNodeDetail = SelectedNodeDetail;
  * Re-exported from shared entityBadges module.
  */
 import { getNodeBadgeSvgDataUri, getEntityBadgeMeta } from '../domain/entityBadges';
-import { parseServerClusterPreviewMembers } from '../domain/clusterNodeHelpers';
+import { parseServerClusterPreviewMembers, parseServerBundledEdgeItems, BundledEdgeSampleItem } from '../domain/clusterNodeHelpers';
 export { getNodeBadgeSvgDataUri };
 
 export const GROUP_NODE_SIZE = 68;
@@ -997,6 +997,15 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
 
   const onCollapseClusterRef = useRef(onCollapseCluster);
   onCollapseClusterRef.current = onCollapseCluster;
+
+  const expandedClustersKey = expandedClusters.join(',');
+  const prevExpandedClustersKeyRef = useRef<string>(expandedClustersKey);
+  useEffect(() => {
+    if (prevExpandedClustersKeyRef.current !== expandedClustersKey) {
+      prevExpandedClustersKeyRef.current = expandedClustersKey;
+      forceRelayoutRef.current = true;
+    }
+  }, [expandedClustersKey]);
 
   const onSelectNodeRef = useRef(onSelectNode);
   onSelectNodeRef.current = onSelectNode;
@@ -2300,6 +2309,7 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
           kind: nodeKind,
           isGroup: isServerCluster ? 'true' : undefined,
           isCluster: isServerCluster ? 'true' : undefined,
+          parentClusterId: node.properties?.parent_cluster_id || undefined,
           bgColor,
           borderColor,
           size,
@@ -2363,6 +2373,7 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
         dbUsage.get(edge.source)!.add(edge.target);
       } else if (isTopic) {
         cat = 'messaging';
+        const hasTopicNode = tgtDetail.kind === 'Topic' || srcDetail.kind === 'Topic';
         const isPub = edge.kind === 'PUBLISHES_TO' || edge.kind === 'PUBLISHED_BY' || edge.kind === 'PUBLISHES';
         const isSub =
           !isPub &&
@@ -2370,25 +2381,27 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
             edge.kind === 'SUBSCRIBED_BY' ||
             edge.kind === 'SUBSCRIBES' ||
             (tgtDetail.kind !== 'Topic' && srcDetail.kind === 'Topic'));
-        label = isSub ? 'SUBSCRIBES' : 'PUBLISHES';
+        label = !hasTopicNode ? (edge.properties?.label || 'PUBLISHES') : (isSub ? 'SUBSCRIBES' : 'PUBLISHES');
 
-        const tNode = tgtDetail.kind === 'Topic' ? edge.target : edge.source;
-        const sNode = tgtDetail.kind === 'Topic' ? edge.source : edge.target;
+        if (hasTopicNode) {
+          const tNode = tgtDetail.kind === 'Topic' ? edge.target : edge.source;
+          const sNode = tgtDetail.kind === 'Topic' ? edge.source : edge.target;
 
-        if (isSub) {
-          if (!topicSubscribers.has(tNode)) topicSubscribers.set(tNode, new Set());
-          topicSubscribers.get(tNode)!.add(sNode);
-        } else {
-          if (!topicPublishers.has(tNode)) topicPublishers.set(tNode, new Set());
-          topicPublishers.get(tNode)!.add(sNode);
-        }
+          if (isSub) {
+            if (!topicSubscribers.has(tNode)) topicSubscribers.set(tNode, new Set());
+            topicSubscribers.get(tNode)!.add(sNode);
+          } else {
+            if (!topicPublishers.has(tNode)) topicPublishers.set(tNode, new Set());
+            topicPublishers.get(tNode)!.add(sNode);
+          }
 
-        if (tgtDetail.kind === 'Topic') {
-          if (!msgUsage.has(edge.source)) msgUsage.set(edge.source, new Set());
-          msgUsage.get(edge.source)!.add(edge.target);
-        } else if (srcDetail.kind === 'Topic') {
-          if (!msgUsage.has(edge.target)) msgUsage.set(edge.target, new Set());
-          msgUsage.get(edge.target)!.add(edge.source);
+          if (tgtDetail.kind === 'Topic') {
+            if (!msgUsage.has(edge.source)) msgUsage.set(edge.source, new Set());
+            msgUsage.get(edge.source)!.add(edge.target);
+          } else if (srcDetail.kind === 'Topic') {
+            if (!msgUsage.has(edge.target)) msgUsage.set(edge.target, new Set());
+            msgUsage.get(edge.target)!.add(edge.source);
+          }
         }
       } else if (isExt) {
         cat = 'external';
@@ -2478,12 +2491,18 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
         edge.properties?.is_semantic === 'true'
       );
 
+      const parsedBundledItems = parseServerBundledEdgeItems(edge.properties?.bundled_items_json);
+
       const key = `${edge.source}->${edge.target}:${cat}`;
       const existing = macroEdges.get(key);
       if (existing) {
         existing.count += edgeWeight;
         (existing as any).isTransitive = (existing as any).isTransitive || isTrans;
         (existing as any).isInferred = (existing as any).isInferred || isInferred;
+        if (parsedBundledItems && parsedBundledItems.length > 0) {
+          const prevItems: BundledEdgeSampleItem[] = (existing as any).bundledItems || [];
+          (existing as any).bundledItems = [...prevItems, ...parsedBundledItems].slice(0, 24);
+        }
       } else {
         macroEdges.set(key, {
           source: edge.source,
@@ -2494,6 +2513,7 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
           count: edgeWeight,
           isTransitive: isTrans,
           isInferred: isInferred,
+          bundledItems: parsedBundledItems,
         } as any);
       }
     }
@@ -2519,6 +2539,7 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
       count: number;
       isTransitive: boolean;
       isInferred: boolean;
+      bundledItems?: BundledEdgeSampleItem[];
     }> = [];
     const outAdj = new Map<string, Array<{ target: string; category: 'service_call' | 'database' | 'messaging' | 'external' | 'library' | 'test'; label: string; count: number }>>();
 
@@ -2541,6 +2562,7 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
         count: e.count,
         isTransitive: Boolean((e as any).isTransitive),
         isInferred: Boolean((e as any).isInferred),
+        bundledItems: (e as any).bundledItems as BundledEdgeSampleItem[] | undefined,
       });
 
       let list = outAdj.get(e.source);
@@ -2703,6 +2725,7 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
       }
       const kind = (node.data as any).kind as EntityKind;
       const isServerClusterNode = (node.data as any).isCluster === 'true';
+      const isExpandedClusterMember = Boolean((node.data as any).parentClusterId);
       const ech = effectiveOrbitTier(
         orbitConfigRef.current,
         kind,
@@ -2710,7 +2733,7 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
       );
       let isHidden =
         hiddenNodeIds.has(id) ||
-        (!isServerClusterNode && hiddenTypes.has(kind)) ||
+        (!isServerClusterNode && !isExpandedClusterMember && hiddenTypes.has(kind)) ||
         hiddenOrbitTiers.has(ech);
       if (!isHidden && hideSingleConnectionDbs && kind === 'Database') {
         const inboundCount = rawGraph.dbSourceServicesMap.get(id)?.size || 0;
@@ -2982,20 +3005,57 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
             });
           }
         } else if (effU !== effV && visibleNodeIds.has(effU) && visibleNodeIds.has(effV)) {
-          recordInteraction({
-            source: effU,
-            target: effV,
-            originalSourceId: e.source,
-            originalSourceName: rawGraph.detailMap.get(e.source)?.displayName || e.source,
-            originalTargetId: e.target,
-            originalTargetName: rawGraph.detailMap.get(e.target)?.displayName || e.target,
-            category: e.category,
-            kind: e.label || 'CALLS',
-            label: e.label,
-            count: e.count,
-            isTransitive: Boolean(e.isTransitive),
-            isInferred: Boolean(e.isInferred),
-          });
+          if (e.bundledItems && e.bundledItems.length > 0) {
+            let sampleTotal = 0;
+            for (const bi of e.bundledItems) {
+              sampleTotal += bi.count;
+              recordInteraction({
+                source: effU,
+                target: effV,
+                originalSourceId: bi.sourceId || e.source,
+                originalSourceName: bi.sourceName || rawGraph.detailMap.get(e.source)?.displayName || e.source,
+                originalTargetId: bi.targetId || e.target,
+                originalTargetName: bi.targetName || rawGraph.detailMap.get(e.target)?.displayName || e.target,
+                category: e.category,
+                kind: bi.label || e.label || 'CALLS',
+                label: bi.label || e.label,
+                count: bi.count,
+                isTransitive: Boolean(e.isTransitive),
+                isInferred: Boolean(e.isInferred),
+              });
+            }
+            if (e.count > sampleTotal) {
+              recordInteraction({
+                source: effU,
+                target: effV,
+                originalSourceId: e.source,
+                originalSourceName: rawGraph.detailMap.get(e.source)?.displayName || e.source,
+                originalTargetId: e.target,
+                originalTargetName: rawGraph.detailMap.get(e.target)?.displayName || e.target,
+                category: e.category,
+                kind: e.label || 'CALLS',
+                label: `+${e.count - sampleTotal} more`,
+                count: e.count - sampleTotal,
+                isTransitive: Boolean(e.isTransitive),
+                isInferred: Boolean(e.isInferred),
+              });
+            }
+          } else {
+            recordInteraction({
+              source: effU,
+              target: effV,
+              originalSourceId: e.source,
+              originalSourceName: rawGraph.detailMap.get(e.source)?.displayName || e.source,
+              originalTargetId: e.target,
+              originalTargetName: rawGraph.detailMap.get(e.target)?.displayName || e.target,
+              category: e.category,
+              kind: e.label || 'CALLS',
+              label: e.label,
+              count: e.count,
+              isTransitive: Boolean(e.isTransitive),
+              isInferred: Boolean(e.isInferred),
+            });
+          }
           directVisibleEdgeKeys.add(`${effU}->${effV}`);
         }
       }
@@ -3947,7 +4007,7 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
           }
         }
 
-        const shouldFit = isInitial || layoutChanged;
+        const shouldFit = isInitial || layoutChanged || isForced;
         layoutConfig = {
           name: 'preset',
           positions: (node: any) => layoutResult.positions.get(node.id()) || { x: 0, y: 0 },
@@ -5744,6 +5804,13 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
               }}
               onDoubleClickNode={(nid) => {
                 setContextMenu(null);
+                const detail = effectiveDetailMapRef.current.get(nid) ?? rawGraph.detailMap.get(nid);
+                if (detail?.groupType === 'cluster' || detail?.properties?.is_cluster === 'true' || nid.startsWith('cluster:') || nid.startsWith('subcluster:')) {
+                  const cid = detail?.properties?.cluster_id || detail?.name || nid;
+                  onExpandClusterRef.current?.(cid);
+                  setSelectedNode(null);
+                  return;
+                }
                 if (nid.startsWith('group:custom:')) {
                   toggleCustomGroupCollapse(nid.replace('group:custom:', ''));
                   return;
@@ -5752,7 +5819,6 @@ export const DomainArchitectureView: React.FC<DomainArchitectureViewProps> = ({
                   toggleTypeGrouping(nid.replace('group:kind:', '') as EntityKind);
                   return;
                 }
-                const detail = rawGraph.detailMap.get(nid);
                 if (detail?.primaryFilePath) {
                   onOpenFile?.(detail.primaryFilePath, detail.primaryLineStart);
                 }

@@ -590,6 +590,8 @@ public class CrossRepoDependsOnAndSubgraphTests
 
             // Shared library hub depended on by 30 integration leaves + 2 candidate core services
             await CreateRepoAsync("ats-shared-kernel", "@ats/shared-kernel", [], isLib: true);
+            // Unreferenced library with 0 inbound dependents -> must remain in StandaloneUnits, NOT in SharedLibraries
+            await CreateRepoAsync("plan-fo-documentation", "@ats/plan-fo-documentation", [], isLib: true);
             await CreateRepoAsync("ats-candidate-api", "@ats/candidate-api", ["@ats/candidate-domain", "@ats/shared-kernel"]);
             await CreateRepoAsync("ats-candidate-domain", "@ats/candidate-domain", ["@ats/shared-kernel"], isLib: true);
 
@@ -616,10 +618,12 @@ public class CrossRepoDependsOnAndSubgraphTests
             var subgraph = new WorkspaceSubgraphService();
             var report = await subgraph.PartitionClustersAsync(client, resolution: 1.0, hubThreshold: 0.15, workspaceRoot: tempDir);
 
-            // 1. Shared Libraries separated into dedicated cluster
+            // 1. Shared Libraries separated into dedicated cluster (and 0-inbound libraries kept in StandaloneUnits)
             report.SharedLibraries.Should().NotBeNull();
             report.SharedLibraries!.Kind.Should().Be(ClusterKind.SharedLibraries);
             report.SharedLibraries.Members.Select(m => m.Name).Should().Contain("ats-shared-kernel");
+            report.SharedLibraries.Members.Select(m => m.Name).Should().NotContain("plan-fo-documentation");
+            report.StandaloneUnits.Select(u => u.Name).Should().Contain("plan-fo-documentation");
 
             // 2. All 28 leaf integration services grouped into 1 FanOutPool cluster with automatic SubClusters (> 24 units)
             var integrationPool = report.Clusters.Single(c => c.ClusterId == "integration-service");
@@ -647,8 +651,11 @@ public class CrossRepoDependsOnAndSubgraphTests
             collapsedGraph.Nodes.Select(n => n.Id).Should().Contain("cluster:integration-service");
             collapsedGraph.Nodes.Select(n => n.Id).Should().Contain("cluster:shared-libraries");
             collapsedGraph.Nodes.Count.Should().BeLessThan(12, "28 integration leaves must be collapsed into 1 cluster node by default");
+            collapsedGraph.Edges.Should().Contain(e =>
+                e.Source == "cluster:integration-service" && e.Target == "cluster:shared-libraries",
+                "collapsed cluster view must project cross-cluster boundary edges");
 
-            // Expand top-level 'integration-service' -> reveals sub-clusters instead of dumping all 28 leaves at once
+            // Expand top-level 'integration-service' -> reveals sub-clusters AND preserves outbound edges to collapsed clusters
             var expandedTop = await viewEngine.GetViewAsync(new ArchitectureViewRequest
             {
                 ViewType = ArchitectureViewType.DomainMap,
@@ -659,8 +666,11 @@ public class CrossRepoDependsOnAndSubgraphTests
             var firstSubId = integrationPool.SubClusters[0].SubClusterId;
             expandedTop.Nodes.Select(n => n.Id).Should().NotContain("cluster:integration-service");
             expandedTop.Nodes.Select(n => n.Id).Should().Contain($"subcluster:{firstSubId}");
+            expandedTop.Edges.Should().Contain(e =>
+                e.Source == $"subcluster:{firstSubId}" && e.Target == "cluster:shared-libraries",
+                "expanded sub-clusters must draw cross-cluster edges to other collapsed clusters");
 
-            // Expand that sub-cluster -> reveals its individual integration services
+            // Expand that sub-cluster -> reveals its individual integration services AND draws edges from members to other clusters
             var expandedLeaf = await viewEngine.GetViewAsync(new ArchitectureViewRequest
             {
                 ViewType = ArchitectureViewType.DomainMap,
@@ -669,7 +679,30 @@ public class CrossRepoDependsOnAndSubgraphTests
                 WorkspaceRoot = tempDir
             });
             expandedLeaf.Nodes.Select(n => n.Id).Should().NotContain($"subcluster:{firstSubId}");
-            expandedLeaf.Nodes.Any(n => n.Name.StartsWith("integration-service-", StringComparison.OrdinalIgnoreCase)).Should().BeTrue();
+            var expandedIntegrationNodes = expandedLeaf.Nodes
+                .Where(n => n.Name.StartsWith("integration-service-", StringComparison.OrdinalIgnoreCase))
+                .ToList();
+            expandedIntegrationNodes.Should().NotBeEmpty();
+            expandedLeaf.Edges.Should().Contain(e =>
+                expandedIntegrationNodes.Any(n => n.Id == e.Source) && e.Target == "cluster:shared-libraries",
+                "individual services inside an expanded cluster must draw outbound edges to other clusters");
+
+            // Expand 'ats-candidate' service cluster -> draws BOTH internal cohesion edge AND cross-cluster edges
+            var candidateCluster = report.Clusters.Single(c => c.Members.Any(m => m.Name == "ats-candidate-api"));
+            var expandedCandidate = await viewEngine.GetViewAsync(new ArchitectureViewRequest
+            {
+                ViewType = ArchitectureViewType.DomainMap,
+                IncludeLibraries = true,
+                ExpandedClusters = [candidateCluster.ClusterId],
+                WorkspaceRoot = tempDir
+            });
+            var apiNode = expandedCandidate.Nodes.Single(n => n.Name == "ats-candidate-api");
+            var domainNode = expandedCandidate.Nodes.Single(n => n.Name == "ats-candidate-domain");
+            apiNode.Properties.Should().ContainKey("parent_cluster_id").WhoseValue.Should().Be(candidateCluster.ClusterId);
+            domainNode.Properties.Should().ContainKey("parent_cluster_id").WhoseValue.Should().Be(candidateCluster.ClusterId);
+            expandedCandidate.Edges.Should().Contain(e => e.Source == apiNode.Id && e.Target == domainNode.Id);
+            expandedCandidate.Edges.Should().Contain(e => e.Source == apiNode.Id && e.Target == "cluster:shared-libraries");
+            expandedCandidate.Edges.Should().Contain(e => e.Source == domainNode.Id && e.Target == "cluster:shared-libraries");
         }
         finally
         {

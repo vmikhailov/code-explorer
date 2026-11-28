@@ -24,13 +24,29 @@ public sealed partial class WorkspaceSubgraphService
         string? workspaceRoot = null,
         CancellationToken cancellationToken = default)
     {
+        var (report, _) = await PartitionClustersWithGraphAsync(
+            db,
+            resolution,
+            hubThreshold,
+            workspaceRoot,
+            cancellationToken);
+        return report;
+    }
+
+    internal async Task<(WorkspaceClusterPartitionReport Report, CoarsenedWorkspaceGraph Graph)> PartitionClustersWithGraphAsync(
+        IGraphClient db,
+        double resolution = 1.0,
+        double hubThreshold = 0.15,
+        string? workspaceRoot = null,
+        CancellationToken cancellationToken = default)
+    {
         var sw = Stopwatch.StartNew();
         var graph = await WorkspaceCoarsener.BuildAsync(db, cancellationToken);
         var units = graph.Units.Where(u => !u.IsTestOnly).ToList();
 
         if (units.Count == 0)
         {
-            return new WorkspaceClusterPartitionReport
+            return (new WorkspaceClusterPartitionReport
             {
                 RawProjectCount = graph.RawProjectCount,
                 CoarsenedUnitCount = 0,
@@ -42,7 +58,7 @@ public sealed partial class WorkspaceSubgraphService
                 Clusters = [],
                 StandaloneUnits = [],
                 BoundaryEdges = []
-            };
+            }, graph);
         }
 
         var config = ClusterManagementService.LoadConfig(workspaceRoot);
@@ -94,7 +110,7 @@ public sealed partial class WorkspaceSubgraphService
         var boundaryEdges = BuildClusterBoundaryEdges(graph.Edges, unitToClusterId, unitById);
 
         sw.Stop();
-        return new WorkspaceClusterPartitionReport
+        var report = new WorkspaceClusterPartitionReport
         {
             RawProjectCount = graph.RawProjectCount,
             CoarsenedUnitCount = units.Count,
@@ -107,6 +123,7 @@ public sealed partial class WorkspaceSubgraphService
             StandaloneUnits = remainingStandalones.OrderBy(u => u.Name, StringComparer.OrdinalIgnoreCase).ToList(),
             BoundaryEdges = boundaryEdges
         };
+        return (report, graph);
     }
 
     private static Dictionary<string, string> ResolveManualClusterAssignments(
@@ -197,17 +214,6 @@ public sealed partial class WorkspaceSubgraphService
             }
         }
 
-        var connectedClusterPairs = new HashSet<(int A, int B)>();
-        foreach (var e in edges)
-        {
-            if (unitClusterIdx.TryGetValue(e.FromUnitId, out var cA) &&
-                unitClusterIdx.TryGetValue(e.ToUnitId, out var cB) &&
-                cA != cB)
-            {
-                connectedClusterPairs.Add(cA < cB ? (cA, cB) : (cB, cA));
-            }
-        }
-
         var parent = Enumerable.Range(0, rawClusters.Count).ToArray();
         int Find(int x)
         {
@@ -219,33 +225,40 @@ public sealed partial class WorkspaceSubgraphService
             return x;
         }
 
-        for (var i = 0; i < rawClusters.Count; i++)
+        foreach (var e in edges)
         {
-            for (var j = i + 1; j < rawClusters.Count; j++)
+            if (unitClusterIdx.TryGetValue(e.FromUnitId, out var cA) &&
+                unitClusterIdx.TryGetValue(e.ToUnitId, out var cB) &&
+                cA != cB &&
+                string.Equals(baseLabels[cA], baseLabels[cB], StringComparison.OrdinalIgnoreCase))
             {
-                if (string.Equals(baseLabels[i], baseLabels[j], StringComparison.OrdinalIgnoreCase) &&
-                    connectedClusterPairs.Contains((i, j)))
+                var rA = Find(cA);
+                var rB = Find(cB);
+                if (rA != rB)
                 {
-                    var rI = Find(i);
-                    var rJ = Find(j);
-                    if (rI != rJ) parent[rJ] = rI;
+                    if (rA < rB) parent[rB] = rA;
+                    else parent[rA] = rB;
                 }
             }
         }
 
-        var merged = new Dictionary<int, List<SubgraphUnit>>();
+        var slotByRoot = new int[rawClusters.Count];
+        Array.Fill(slotByRoot, -1);
+        var merged = new List<List<SubgraphUnit>>(rawClusters.Count);
         for (var i = 0; i < rawClusters.Count; i++)
         {
             var root = Find(i);
-            if (!merged.TryGetValue(root, out var list))
+            var slot = slotByRoot[root];
+            if (slot < 0)
             {
-                list = [];
-                merged[root] = list;
+                slot = merged.Count;
+                slotByRoot[root] = slot;
+                merged.Add([]);
             }
-            list.AddRange(rawClusters[i]);
+            merged[slot].AddRange(rawClusters[i]);
         }
 
-        return merged.Values.ToList();
+        return merged;
     }
 
     private static (
@@ -287,8 +300,14 @@ public sealed partial class WorkspaceSubgraphService
         }
 
         var unitHubNeighbors = new Dictionary<string, HashSet<string>>(StringComparer.OrdinalIgnoreCase);
+        var inboundCountByUnit = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
         foreach (var e in edges)
         {
+            if (!string.Equals(e.FromUnitId, e.ToUnitId, StringComparison.OrdinalIgnoreCase))
+            {
+                inboundCountByUnit[e.ToUnitId] = inboundCountByUnit.GetValueOrDefault(e.ToUnitId) + 1;
+            }
+
             if (platformHubIds.Contains(e.ToUnitId))
             {
                 if (!unitHubNeighbors.TryGetValue(e.FromUnitId, out var set))
@@ -319,7 +338,7 @@ public sealed partial class WorkspaceSubgraphService
 
         foreach (var sUnit in rawStandalones)
         {
-            if (sUnit.IsLibraryOnly)
+            if (sUnit.IsLibraryOnly && inboundCountByUnit.GetValueOrDefault(sUnit.Id) > 0)
             {
                 sharedLibs.Add(sUnit);
                 continue;

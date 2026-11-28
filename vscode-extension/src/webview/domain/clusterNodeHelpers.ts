@@ -29,3 +29,32 @@ export function parseServerClusterPreviewMembers(rawJson?: string): SelectedNode
     return undefined;
   }
 }
+
+export interface BundledEdgeSampleItem {
+  sourceId: string;
+  sourceName: string;
+  targetId: string;
+  targetName: string;
+  label: string;
+  category?: string;
+  count: number;
+}
+
+export function parseServerBundledEdgeItems(rawJson?: string): BundledEdgeSampleItem[] | undefined {
+  if (!rawJson) return undefined;
+  try {
+    const parsed = JSON.parse(rawJson);
+    if (!Array.isArray(parsed) || parsed.length === 0) return undefined;
+    return parsed.map((item: any) => ({
+      sourceId: String(item.sourceId || ''),
+      sourceName: String(item.sourceName || item.sourceId || ''),
+      targetId: String(item.targetId || ''),
+      targetName: String(item.targetName || item.targetId || ''),
+      label: String(item.label || 'CALLS'),
+      category: item.category ? String(item.category) : undefined,
+      count: typeof item.count === 'number' && item.count > 0 ? item.count : 1,
+    }));
+  } catch {
+    return undefined;
+  }
+}

@@ -100,6 +100,7 @@ export function computeDomainIslandsLayout(
       n.kind !== 'Topic' &&
       n.kind !== 'ExternalService' &&
       (n.echelonTier <= 3 ||
+        n.kind === 'Group' ||
         n.kind === 'Service' ||
         n.kind === 'Ingress' ||
         n.kind === 'App' ||

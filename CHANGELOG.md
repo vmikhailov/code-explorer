@@ -5,6 +5,17 @@ All notable changes to the CodeExplorer project (CLI, MCP Server, and VS Code Ex
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.109.1] - 2026-11-28
+
+### Fixed
+- **Cross-Cluster & Expanded-Cluster Edge Projection (`ClusterSnapshotBuilder`, `ClusterGraphProjector`, `ArchitectureViewEngine.Clusters`, `WorkspaceSubgraphService.Clustering`)**:
+  - Projected coarsened unit-graph edges (`service_call`, `internal_pkg`, `package_dep`, `shared_table`, `shared_topic`) alongside `RawDomain` infrastructure edges so all `ce clusters` boundary edges render on collapsed cluster maps and split cleanly into specific unit-to-cluster and intra-cluster edges when a cluster or sub-cluster is expanded.
+  - Projected expanded clusters at coarsened `SubgraphUnit` granularity (matching `cluster.UnitCount` 1-to-1 instead of exploding multi-module repositories into raw subproject fragments) and decomposed `ArchitectureViewEngine.Clusters` into `ClusterSnapshotBuilder` and `ClusterGraphProjector`.
+- **Webview Expanded Cluster Visibility, Bundled Edge Breakdown & Auto-Fit (`DomainArchitectureView.tsx`, `clusterNodeHelpers.ts`, `domainIslandsLayout.ts`)**:
+  - Exempted members of explicitly expanded clusters (`parentClusterId`) from default `Library` type hiding so expanding library/UI-shell clusters or mixed service/library clusters never drops nodes or cross-cluster edges.
+  - Parsed `bundled_items_json` into the Connection Inspector so clicking a bundled inter-cluster edge lists the underlying `sourceUnit -> targetUnit` interactions, enabled cluster double-click expansion in 3D Orbital mode, and auto-fitted concentric layouts on cluster expand/collapse.
+- **Referenced-Only `Shared Libraries` Cluster (`WorkspaceSubgraphService.Clustering`, `ClusterSnapshotBuilder`)**: Restricted `Shared Libraries` (`shared-libraries`) to library units with at least one inbound dependent (`inboundCount > 0`), routing zero-inbound libraries through `FanOutPool` / `Standalone` classification instead of polluting `shared-libraries`.
+
 ## [1.109.0] - 2026-11-28
 
 ### Added
